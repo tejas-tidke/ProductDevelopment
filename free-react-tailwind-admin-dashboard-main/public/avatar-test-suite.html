@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avatar Functionality Test Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4 max-w-4xl">
+        <h1 class="text-3xl font-bold mb-6 text-center text-gray-800">Avatar Functionality Test Suite</h1>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700">Test Instructions</h2>
+            <ol class="list-decimal list-inside space-y-2 text-gray-600">
+                <li>Enter a valid User UID from your database</li>
+                <li>Upload an image file (JPG, PNG, GIF) - max 2MB</li>
+                <li>Click "Save Avatar" to store in backend</li>
+                <li>Click "Load Avatar" to retrieve from backend</li>
+                <li>Use "Reset to Default" to clear custom avatar</li>
+            </ol>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Test Controls -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Test Controls</h2>
+                
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="uid">
+                        User UID
+                    </label>
+                    <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" 
+                           id="uid" type="text" placeholder="Enter a valid UID from your database">
+                    <p class="text-gray-600 text-xs mt-1">Example: vx2fFIz9x9NWiKAPtgonID6FsSI3</p>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2" for="avatar-upload">
+                        Upload Avatar
+                    </label>
+                    <input class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none" 
+                           id="avatar-upload" type="file" accept="image/*">
+                </div>
+                
+                <div class="flex flex-wrap gap-2">
+                    <button id="save-btn" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded flex-1 min-w-[120px]">
+                        Save Avatar
+                    </button>
+                    <button id="load-btn" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded flex-1 min-w-[120px]">
+                        Load Avatar
+                    </button>
+                    <button id="reset-btn" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded flex-1 min-w-[120px]">
+                        Reset to Default
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Avatar Preview -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Avatar Preview</h2>
+                <div class="flex flex-col items-center">
+                    <img id="avatar-preview" src="/images/user/user-01.jpg" alt="Avatar Preview" 
+                         class="w-48 h-48 rounded-full border-4 border-gray-300 object-cover mb-4">
+                    <p id="status-text" class="text-sm text-gray-600 text-center">No avatar loaded</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test Results -->
+        <div class="bg-white rounded-lg shadow-md p-6 mt-6">
+            <h2 class="text-xl font-semibold mb-4 text-gray-700">Test Results</h2>
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-medium text-gray-700">Activity Log</h3>
+                <button id="clear-log" class="text-sm text-blue-500 hover:text-blue-700">Clear Log</button>
+            </div>
+            <pre id="result" class="bg-gray-800 text-green-400 p-4 rounded overflow-auto max-h-64 text-sm"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:8080/api';
+        let avatarData = null;
+        const resultElement = document.getElementById('result');
+        const statusText = document.getElementById('status-text');
+        
+        // Utility functions
+        function log(message) {
+            const timestamp = new Date().toISOString();
+            resultElement.textContent += `[${timestamp}] ${message}\n`;
+            resultElement.scrollTop = resultElement.scrollHeight;
+            console.log(`[LOG] ${message}`);
+        }
+        
+        function logError(message) {
+            const timestamp = new Date().toISOString();
+            resultElement.textContent += `[${timestamp}] ERROR: ${message}\n`;
+            resultElement.scrollTop = resultElement.scrollHeight;
+            console.error(`[ERROR] ${message}`);
+        }
+        
+        function updateStatus(message, isError = false) {
+            statusText.textContent = message;
+            statusText.className = isError ? 
+                "text-sm text-red-500 text-center" : 
+                "text-sm text-gray-600 text-center";
+        }
+        
+        // DOM Event Handlers
+        document.getElementById('avatar-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Validate file size (max 2MB)
+                if (file.size > 2 * 1024 * 1024) {
+                    logError('File size exceeds 2MB limit');
+                    updateStatus('File too large (max 2MB)', true);
+                    return;
+                }
+                
+                // Validate file type
+                if (!file.type.match('image.*')) {
+                    logError('Invalid file type. Please select an image file');
+                    updateStatus('Invalid file type', true);
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    avatarData = event.target.result;
+                    document.getElementById('avatar-preview').src = avatarData;
+                    log(`Image loaded successfully. Data length: ${avatarData.length} characters`);
+                    updateStatus(`Image loaded (${Math.round(file.size/1024)}KB)`);
+                };
+                reader.onerror = function() {
+                    logError('Failed to read image file');
+                    updateStatus('Failed to read image', true);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        document.getElementById('save-btn').addEventListener('click', async function() {
+            const uid = document.getElementById('uid').value.trim();
+            if (!uid) {
+                logError('Please enter a User UID');
+                updateStatus('UID required', true);
+                return;
+            }
+            
+            if (!avatarData) {
+                logError('No avatar to save. Please upload an image first.');
+                updateStatus('No image uploaded', true);
+                return;
+            }
+            
+            try {
+                updateStatus('Saving avatar...');
+                log(`Saving avatar for UID: ${uid}`);
+                log(`Avatar data length: ${avatarData.length}`);
+                
+                // Prepare avatar data for sending
+                const avatarToSend = avatarData === '/images/user/user-01.jpg' ? '' : avatarData;
+                
+                const response = await fetch(`${API_BASE_URL}/auth/avatar/${uid}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        avatar: avatarToSend,
+                    }),
+                });
+                
+                log(`Response status: ${response.status}`);
+                
+                if (response.ok) {
+                    const userData = await response.json();
+                    log('Avatar saved successfully');
+                    // Handle both response structures:
+                    // 1. Direct User object (from avatar update)
+                    // 2. Wrapped object with "user" key (from getUserRole)
+                    let userObj = userData;
+                    if (userData && userData.user) {
+                        userObj = userData.user;
+                    }
+                    
+                    if (userObj && userObj.id !== undefined) {
+                        log(`User ID: ${userObj.id}, Email: ${userObj.email || 'N/A'}`);
+                    } else {
+                        log('User data structure: ' + JSON.stringify(userData, null, 2));
+                    }
+                    updateStatus('Avatar saved successfully!');
+                } else {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+            } catch (error) {
+                logError(`Failed to save avatar: ${error.message}`);
+                updateStatus('Save failed', true);
+            }
+        });
+        
+        document.getElementById('load-btn').addEventListener('click', async function() {
+            const uid = document.getElementById('uid').value.trim();
+            if (!uid) {
+                logError('Please enter a User UID');
+                updateStatus('UID required', true);
+                return;
+            }
+            
+            try {
+                updateStatus('Loading avatar...');
+                log(`Loading user data for UID: ${uid}`);
+                
+                const response = await fetch(`${API_BASE_URL}/auth/role/${uid}`);
+                
+                log(`Response status: ${response.status}`);
+                
+                if (response.ok) {
+                    const userData = await response.json();
+                    log(`User data loaded: ${JSON.stringify(userData, null, 2)}`);
+                    
+                    // Handle response structure (should have {role, user} structure from /role/{uid} endpoint)
+                    const userObj = userData && userData.user ? userData.user : userData;
+                    
+                    if (userObj && userObj.id !== undefined) {
+                        log(`User data loaded: ID ${userObj.id}, Email ${userObj.email || 'N/A'}`);
+                    }
+                    
+                    if (userObj && userObj.avatar) {
+                        document.getElementById('avatar-preview').src = userObj.avatar;
+                        log('Avatar loaded and displayed');
+                        updateStatus('Avatar loaded successfully');
+                    } else {
+                        document.getElementById('avatar-preview').src = '/images/user/user-01.jpg';
+                        log('No avatar found for user, using default');
+                        updateStatus('Using default avatar');
+                    }
+                } else if (response.status === 404) {
+                    log('User not found in database');
+                    updateStatus('User not found', true);
+                } else {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+            } catch (error) {
+                logError(`Failed to load user data: ${error.message}`);
+                updateStatus('Load failed', true);
+            }
+        });
+        
+        document.getElementById('reset-btn').addEventListener('click', function() {
+            document.getElementById('avatar-preview').src = '/images/user/user-01.jpg';
+            avatarData = '/images/user/user-01.jpg';
+            log('Avatar reset to default');
+            updateStatus('Reset to default');
+        });
+        
+        document.getElementById('clear-log').addEventListener('click', function() {
+            resultElement.textContent = '';
+            log('Log cleared');
+        });
+        
+        // Initialize with a test UID
+        document.getElementById('uid').value = 'vx2fFIz9x9NWiKAPtgonID6FsSI3';
+        log('Avatar Test Suite initialized. Enter a UID and upload an image to begin testing.');
+        updateStatus('Ready to test');
+    </script>
+</body>
+</html>
