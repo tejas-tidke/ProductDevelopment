@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -39,7 +40,7 @@ public class JiraService {
         try {
             // Use the recent projects endpoint
             String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/recent";
-            JsonNode response = makeJiraApiCall(url);
+            JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
             
             List<JiraProject> projects = new ArrayList<>();
             if (response.isArray()) {
@@ -57,7 +58,12 @@ public class JiraService {
                     // Extract project lead if available
                     JsonNode leadNode = projectNode.get("lead");
                     if (leadNode != null) {
-                        project.setLead(getTextValue(leadNode, "displayName"));
+                        String leadName = getTextValue(leadNode, "displayName");
+                        project.setLead(leadName);
+                        log.debug("Project {} has lead: {}", project.getKey(), leadName);
+                    } else {
+                        project.setLead(null);
+                        log.debug("Project {} has no lead information", project.getKey());
                     }
                     
                     projects.add(project);
@@ -80,7 +86,7 @@ public class JiraService {
         try {
             // Use the search projects endpoint
             String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/search";
-            JsonNode response = makeJiraApiCall(url);
+            JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
             
             List<JiraProject> projects = new ArrayList<>();
             JsonNode valuesNode = response.get("values");
@@ -97,7 +103,12 @@ public class JiraService {
                     // Extract project lead if available
                     JsonNode leadNode = projectNode.get("lead");
                     if (leadNode != null) {
-                        project.setLead(getTextValue(leadNode, "displayName"));
+                        String leadName = getTextValue(leadNode, "displayName");
+                        project.setLead(leadName);
+                        log.debug("Project {} has lead: {}", project.getKey(), leadName);
+                    } else {
+                        project.setLead(null);
+                        log.debug("Project {} has no lead information. Lead node: {}", project.getKey(), leadNode);
                     }
                     
                     projects.add(project);
@@ -112,12 +123,69 @@ public class JiraService {
     }
 
     /**
-     * Make a Jira API call with proper authentication
-     * @param url The API endpoint URL
+     * Get a specific Jira project by ID or key
+     * @param projectIdOrKey The project ID or key
+     * @return JiraProject containing the project details
+     * @throws Exception if the API call fails
+     */
+    public JiraProject getProjectByIdOrKey(String projectIdOrKey) throws Exception {
+        try {
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/" + projectIdOrKey;
+            JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
+            
+            JiraProject project = new JiraProject();
+            project.setId(getTextValue(response, "id"));
+            project.setKey(getTextValue(response, "key"));
+            project.setName(getTextValue(response, "name"));
+            project.setDescription(getTextValue(response, "description"));
+            project.setProjectTypeKey(getTextValue(response, "projectTypeKey"));
+            
+            // Extract project lead if available
+            JsonNode leadNode = response.get("lead");
+            if (leadNode != null) {
+                String leadName = getTextValue(leadNode, "displayName");
+                project.setLead(leadName);
+                log.debug("Project {} has lead: {}", project.getKey(), leadName);
+            } else {
+                project.setLead(null);
+                log.debug("Project {} has no lead information", project.getKey());
+            }
+            
+            log.info("Project fetched successfully: {}", project);
+            return project;
+        } catch (Exception e) {
+            log.error("Error fetching Jira project with ID/Key: {}", projectIdOrKey, e);
+            throw e;
+        }
+    }
+
+    /**
+     * Create a new Jira project
+     * @param projectData The project data to create
      * @return JsonNode containing the response
      * @throws Exception if the API call fails
      */
-    private JsonNode makeJiraApiCall(String url) throws Exception {
+    public JsonNode createProject(Map<String, Object> projectData) throws Exception {
+        try {
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/project";
+            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, projectData);
+            log.info("Project created successfully: {}", response);
+            return response;
+        } catch (Exception e) {
+            log.error("Error creating Jira project", e);
+            throw e;
+        }
+    }
+
+    /**
+     * Make a Jira API call with proper authentication
+     * @param url The API endpoint URL
+     * @param method The HTTP method to use
+     * @param body The request body (for POST/PUT requests)
+     * @return JsonNode containing the response
+     * @throws Exception if the API call fails
+     */
+    private JsonNode makeJiraApiCall(String url, HttpMethod method, Object body) throws Exception {
         // Create authorization header
         String credentials = jiraConfig.getEmail() + ":" + jiraConfig.getApiToken();
         String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
@@ -132,7 +200,13 @@ public class JiraService {
         headers.set("Content-Type", "application/json");
         
         // Create request entity
-        RequestEntity<?> requestEntity = new RequestEntity<>(headers, HttpMethod.GET, uri);
+        RequestEntity<?> requestEntity;
+        if (body != null) {
+            String jsonBody = objectMapper.writeValueAsString(body);
+            requestEntity = new RequestEntity<>(jsonBody, headers, method, uri);
+        } else {
+            requestEntity = new RequestEntity<>(headers, method, uri);
+        }
         
         // Make the API call
         ResponseEntity<String> response = restTemplate.exchange(requestEntity, String.class);

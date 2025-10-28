@@ -48,23 +48,23 @@ export const userService = {
     return await response.json();
   },
 
-  // Automatically sync user if not already in database
-  autoSyncUser: async (uid: string, email: string | null, name: string | null) => {
-    try {
-      // First check if user exists in backend
-      const userData = await userService.getUserData(uid);
-      
-      // If user doesn't exist, sync them
-      if (!userData) {
-        return await userService.syncCurrentUser(uid, email, name);
-      }
-      
-      return userData;
-    } catch {
-      // If there's an error checking user data, try to sync anyway
-      // We ignore the error as we're proceeding with sync anyway
-      return await userService.syncCurrentUser(uid, email, name);
+  // Automatically sync user with default role if not already in database
+  autoSyncUser: async (uid: string) => {
+    const response = await fetch(`${API_BASE_URL}/auth/auto-sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        uid,
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to auto-sync user: ${response.status}`);
     }
+    
+    return await response.json();
   },
 
   // Get database status

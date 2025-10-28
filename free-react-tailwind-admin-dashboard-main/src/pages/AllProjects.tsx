@@ -83,6 +83,11 @@ const AllProjects: React.FC = () => {
         lead?: string;
       }
       
+      // Log each project to see what data we're getting
+      data.forEach((project: BackendProject) => {
+        console.log(`Project ${project.key}:`, project);
+      });
+      
       // Transform all Jira projects to our Project type
       const jiraProjects: Project[] = data.map((project: BackendProject) => ({
         id: project.id,

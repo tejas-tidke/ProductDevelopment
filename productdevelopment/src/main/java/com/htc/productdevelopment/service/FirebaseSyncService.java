@@ -342,4 +342,46 @@ public class FirebaseSyncService {
             logger.error("Schema validation failed: {}", e.getMessage(), e);
         }
     }
+    
+    // Add this method to automatically sync Firebase user with default role
+    public User autoSyncFirebaseUser(String uid) throws Exception {
+        logger.info("Auto-syncing Firebase user with default role: {}", uid);
+        
+        try {
+            // Check if user already exists in database
+            Optional<User> existingUser = userRepository.findByUid(uid);
+            if (existingUser.isPresent()) {
+                logger.debug("User already exists in database: {}", uid);
+                return existingUser.get();
+            }
+            
+            // Fetch user from Firebase
+            UserRecord firebaseUser = FirebaseAuth.getInstance().getUser(uid);
+            logger.debug("Fetched Firebase user: {} - {}", firebaseUser.getUid(), firebaseUser.getEmail());
+            
+            // Create new user with default role (USER)
+            User newUser = new User();
+            newUser.setUid(firebaseUser.getUid());
+            newUser.setEmail(firebaseUser.getEmail());
+            newUser.setName(firebaseUser.getDisplayName() != null ? firebaseUser.getDisplayName() : "");
+            newUser.setRole(User.Role.USER); // Default role
+            newUser.setActive(true);
+            newUser.setCreatedAt(new java.util.Date());
+            newUser.setUpdatedAt(new java.util.Date());
+            
+            // Check if this is the first user (admin)
+            long userCount = userRepository.count();
+            if (userCount == 0) {
+                logger.info("First user detected, assigning ADMIN role");
+                newUser.setRole(User.Role.ADMIN);
+            }
+            
+            User savedUser = userRepository.save(newUser);
+            logger.info("Auto-synced Firebase user to database with role {}: {}", savedUser.getRole(), uid);
+            return savedUser;
+        } catch (Exception e) {
+            logger.error("Error auto-syncing Firebase user: {}", e.getMessage(), e);
+            throw new Exception("Failed to auto-sync Firebase user: " + e.getMessage(), e);
+        }
+    }
 }

@@ -453,4 +453,31 @@ public class AuthController {
             return ResponseEntity.status(500).body(response);
         }
     }
+    
+    // Auto-sync endpoint for login - automatically creates user with default role
+    @PostMapping("/auto-sync")
+    public ResponseEntity<?> autoSyncUser(@RequestBody Map<String, String> requestData) {
+        logger.info("Auto-sync user endpoint called");
+        
+        try {
+            String uid = requestData.get("uid");
+            logger.debug("Auto-sync request for UID: {}", uid);
+            
+            if (uid == null || uid.isEmpty()) {
+                logger.warn("Auto-sync failed: UID is required");
+                return ResponseEntity.badRequest().body("UID is required");
+            }
+            
+            User user = firebaseSyncService.autoSyncFirebaseUser(uid);
+            logger.info("User auto-synced successfully: {}", uid);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("user", user);
+            response.put("role", user.getRole());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error auto-syncing user: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Error auto-syncing user: " + e.getMessage());
+        }
+    }
 }
