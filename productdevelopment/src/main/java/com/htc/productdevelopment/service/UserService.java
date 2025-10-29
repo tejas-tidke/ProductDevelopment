@@ -5,6 +5,7 @@ import com.htc.productdevelopment.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import java.util.Optional;
 import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,8 +16,10 @@ import org.slf4j.LoggerFactory;
 @Service
 public class UserService {
     
+    // Logger for tracking service operations
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
     
+    // Repository for database operations
     private final UserRepository userRepository;
     
     /**
@@ -39,7 +42,6 @@ public class UserService {
      */
     public User createUser(String uid, String email, String name) {
         logger.info("Creating user with UID: {}", uid);
-        logger.debug("User data - Email: {}, Name: {}", email, name);
         
         // Check if user already exists by UID
         if (userRepository.existsByUid(uid)) {
@@ -157,7 +159,6 @@ public class UserService {
                 // For now, we'll just store as is but with better error handling
                 try {
                     user.setAvatar(avatar);
-                    logger.debug("Setting avatar for user {}: {}", uid, avatar.substring(0, Math.min(avatar.length(), 100)) + "...");
                 } catch (Exception e) {
                     logger.error("Error setting avatar for user {}: {}", uid, e.getMessage());
                     // If avatar is too large, we could implement compression here

@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.htc.productdevelopment.config.JiraConfig;
 import com.htc.productdevelopment.model.JiraProject;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.RequestEntity;
@@ -23,31 +21,57 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-@Slf4j
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Service class for interacting with Jira API
+ * This service handles all Jira-related operations like fetching projects and issues
+ */
 @Service
-@RequiredArgsConstructor
 public class JiraService {
 
+    // Logger for tracking service operations
+    private static final Logger logger = LoggerFactory.getLogger(JiraService.class);
+    
+    // Configuration and utilities
     private final JiraConfig jiraConfig;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * Get recent Jira projects (max 3)
+     * Constructor to initialize dependencies
+     * @param jiraConfig Configuration containing Jira credentials
+     * @param restTemplate HTTP client for making API requests
+     */
+    public JiraService(JiraConfig jiraConfig, RestTemplate restTemplate) {
+        this.jiraConfig = jiraConfig;
+        this.restTemplate = restTemplate;
+    }
+
+    /**
+     * Get recent Jira projects (limited to 3)
      * @return List of recent Jira projects
      */
     public List<JiraProject> getRecentProjects() {
         try {
-            // Use the recent projects endpoint
+            logger.info("Fetching recent Jira projects");
+            
+            // Build the API URL for recent projects
             String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/recent";
+            
+            // Make the API call
             JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
             
+            // Process the response and create project objects
             List<JiraProject> projects = new ArrayList<>();
             if (response.isArray()) {
                 int count = 0;
                 for (JsonNode projectNode : response) {
-                    if (count >= 3) break; // Limit to 3 recent projects
+                    // Limit to 3 recent projects
+                    if (count >= 3) break;
                     
+                    // Create a new project object and populate its fields
                     JiraProject project = new JiraProject();
                     project.setId(getTextValue(projectNode, "id"));
                     project.setKey(getTextValue(projectNode, "key"));
@@ -55,15 +79,13 @@ public class JiraService {
                     project.setDescription(getTextValue(projectNode, "description"));
                     project.setProjectTypeKey(getTextValue(projectNode, "projectTypeKey"));
                     
-                    // Extract project lead if available
+                    // Extract project lead information if available
                     JsonNode leadNode = projectNode.get("lead");
                     if (leadNode != null) {
                         String leadName = getTextValue(leadNode, "displayName");
                         project.setLead(leadName);
-                        log.debug("Project {} has lead: {}", project.getKey(), leadName);
                     } else {
                         project.setLead(null);
-                        log.debug("Project {} has no lead information", project.getKey());
                     }
                     
                     projects.add(project);
@@ -71,9 +93,10 @@ public class JiraService {
                 }
             }
             
+            logger.info("Successfully fetched {} recent projects", projects.size());
             return projects;
         } catch (Exception e) {
-            log.error("Error fetching recent Jira projects", e);
+            logger.error("Error fetching recent Jira projects", e);
             return Collections.emptyList();
         }
     }
@@ -84,15 +107,21 @@ public class JiraService {
      */
     public List<JiraProject> getAllProjects() {
         try {
-            // Use the search projects endpoint
+            logger.info("Fetching all Jira projects");
+            
+            // Build the API URL for searching projects
             String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/search";
+            
+            // Make the API call
             JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
             
+            // Process the response and create project objects
             List<JiraProject> projects = new ArrayList<>();
             JsonNode valuesNode = response.get("values");
             
             if (valuesNode != null && valuesNode.isArray()) {
                 for (JsonNode projectNode : valuesNode) {
+                    // Create a new project object and populate its fields
                     JiraProject project = new JiraProject();
                     project.setId(getTextValue(projectNode, "id"));
                     project.setKey(getTextValue(projectNode, "key"));
@@ -100,24 +129,23 @@ public class JiraService {
                     project.setDescription(getTextValue(projectNode, "description"));
                     project.setProjectTypeKey(getTextValue(projectNode, "projectTypeKey"));
                     
-                    // Extract project lead if available
+                    // Extract project lead information if available
                     JsonNode leadNode = projectNode.get("lead");
                     if (leadNode != null) {
                         String leadName = getTextValue(leadNode, "displayName");
                         project.setLead(leadName);
-                        log.debug("Project {} has lead: {}", project.getKey(), leadName);
                     } else {
                         project.setLead(null);
-                        log.debug("Project {} has no lead information. Lead node: {}", project.getKey(), leadNode);
                     }
                     
                     projects.add(project);
                 }
             }
             
+            logger.info("Successfully fetched {} projects", projects.size());
             return projects;
         } catch (Exception e) {
-            log.error("Error fetching all Jira projects", e);
+            logger.error("Error fetching all Jira projects", e);
             return Collections.emptyList();
         }
     }
@@ -130,9 +158,15 @@ public class JiraService {
      */
     public JiraProject getProjectByIdOrKey(String projectIdOrKey) throws Exception {
         try {
+            logger.info("Fetching Jira project with ID/Key: {}", projectIdOrKey);
+            
+            // Build the API URL for getting a specific project
             String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/" + projectIdOrKey;
+            
+            // Make the API call
             JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
             
+            // Create a new project object and populate its fields
             JiraProject project = new JiraProject();
             project.setId(getTextValue(response, "id"));
             project.setKey(getTextValue(response, "key"));
@@ -140,21 +174,58 @@ public class JiraService {
             project.setDescription(getTextValue(response, "description"));
             project.setProjectTypeKey(getTextValue(response, "projectTypeKey"));
             
-            // Extract project lead if available
+            // Extract project lead information if available
             JsonNode leadNode = response.get("lead");
             if (leadNode != null) {
                 String leadName = getTextValue(leadNode, "displayName");
                 project.setLead(leadName);
-                log.debug("Project {} has lead: {}", project.getKey(), leadName);
             } else {
                 project.setLead(null);
-                log.debug("Project {} has no lead information", project.getKey());
             }
             
-            log.info("Project fetched successfully: {}", project);
+            logger.info("Project fetched successfully: {}", project.getKey());
             return project;
         } catch (Exception e) {
-            log.error("Error fetching Jira project with ID/Key: {}", projectIdOrKey, e);
+            logger.error("Error fetching Jira project with ID/Key: {}", projectIdOrKey, e);
+            throw e;
+        }
+    }
+
+    /**
+     * Get issues for a specific Jira project
+     * @param projectKey The project key
+     * @return List of issues for the project
+     * @throws Exception if the API call fails
+     */
+    public JsonNode getIssuesForProject(String projectKey) throws Exception {
+        try {
+            logger.info("Fetching issues for project key: {}", projectKey);
+            
+            // Build the API URL for searching issues using the new JQL endpoint
+            String url = UriComponentsBuilder.fromHttpUrl(jiraConfig.getBaseUrl())
+                .path("/rest/api/3/search/jql")
+                .toUriString();
+            
+            // Create the request body with JQL query to filter issues by project
+            Map<String, Object> requestBody = Map.of(
+                "jql", "project = " + projectKey,
+                "maxResults", 50, // Limit results for better performance
+                "fields", List.of(
+                    "summary",
+                    "issuetype",
+                    "status",
+                    "priority",
+                    "assignee"
+                )
+            );
+            
+            // Make the API call
+            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, requestBody);
+            logger.info("Issues fetched successfully for project: {}", projectKey);
+            
+            return response;
+        } catch (Exception e) {
+            logger.error("Error fetching issues for project: {}", projectKey, e);
             throw e;
         }
     }
@@ -167,12 +238,18 @@ public class JiraService {
      */
     public JsonNode createProject(Map<String, Object> projectData) throws Exception {
         try {
+            logger.info("Creating new Jira project");
+            
+            // Build the API URL for creating a project
             String url = jiraConfig.getBaseUrl() + "/rest/api/3/project";
+            
+            // Make the API call
             JsonNode response = makeJiraApiCall(url, HttpMethod.POST, projectData);
-            log.info("Project created successfully: {}", response);
+            logger.info("Project created successfully");
+            
             return response;
         } catch (Exception e) {
-            log.error("Error creating Jira project", e);
+            logger.error("Error creating Jira project", e);
             throw e;
         }
     }
@@ -186,14 +263,14 @@ public class JiraService {
      * @throws Exception if the API call fails
      */
     private JsonNode makeJiraApiCall(String url, HttpMethod method, Object body) throws Exception {
-        // Create authorization header
+        // Create authorization header using email and API token
         String credentials = jiraConfig.getEmail() + ":" + jiraConfig.getApiToken();
         String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
         
-        // Build the URI using the new API
+        // Build the URI
         URI uri = UriComponentsBuilder.fromUriString(url).build().toUri();
         
-        // Create headers
+        // Create headers for the request
         HttpHeaders headers = new HttpHeaders();
         headers.set("Authorization", "Basic " + encodedCredentials);
         headers.set("Accept", "application/json");
@@ -202,16 +279,18 @@ public class JiraService {
         // Create request entity
         RequestEntity<?> requestEntity;
         if (body != null) {
+            // If there's a body, convert it to JSON and include it in the request
             String jsonBody = objectMapper.writeValueAsString(body);
             requestEntity = new RequestEntity<>(jsonBody, headers, method, uri);
         } else {
+            // If no body, create request with headers only
             requestEntity = new RequestEntity<>(headers, method, uri);
         }
         
         // Make the API call
         ResponseEntity<String> response = restTemplate.exchange(requestEntity, String.class);
         
-        // Parse the response
+        // Parse and return the response
         return objectMapper.readTree(response.getBody());
     }
     

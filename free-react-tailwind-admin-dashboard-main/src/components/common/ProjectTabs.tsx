@@ -1,11 +1,14 @@
 import React from "react";
 
+// Define the props for the ProjectTabs component
 interface ProjectTabsProps {
   activeTab: string;
   setActiveTab: (tab: "list" | "board" | "calendar") => void;
 }
 
+// ProjectTabs component for navigating between different project views
 const ProjectTabs: React.FC<ProjectTabsProps> = ({ activeTab, setActiveTab }) => {
+  // Define the tabs with their IDs and labels
   const tabs = [
     { id: "list", label: "List" },
     { id: "board", label: "Board" },
@@ -17,6 +20,7 @@ const ProjectTabs: React.FC<ProjectTabsProps> = ({ activeTab, setActiveTab }) =>
       <div className="border-b border-gray-200 dark:border-gray-700">
         <nav className="flex -mb-px">
           {tabs.map((tab) => (
+            // Render a button for each tab
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as "list" | "board" | "calendar")}

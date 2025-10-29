@@ -1,8 +1,10 @@
 // src/services/jiraService.ts
+// Service for handling Jira API calls
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 // Generic API call function for Jira endpoints
 async function jiraApiCall(endpoint: string, options: RequestInit = {}) {
+  // Configure request headers
   const config: RequestInit = {
     headers: {
       "Content-Type": "application/json",
@@ -12,13 +14,23 @@ async function jiraApiCall(endpoint: string, options: RequestInit = {}) {
     ...options,
   };
 
+  // Make the API call
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   
+  // Handle errors
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `API call failed: ${response.statusText}`);
+    let errorMessage = `API call failed: ${response.statusText}`;
+    try {
+      const errorData = await response.json().catch(() => ({}));
+      errorMessage = errorData.message || errorMessage;
+    } catch (error) {
+      // If we can't parse the error response, use the status text
+      console.error("Error parsing error response:", error);
+    }
+    throw new Error(errorMessage);
   }
   
+  // Return the response data
   return response.json();
 }
 
@@ -49,6 +61,9 @@ export const jiraService = {
   
   // Get a specific project by ID or key
   getProjectByIdOrKey: (projectIdOrKey: string) => jiraApiCall(`/api/jira/projects/${projectIdOrKey}`),
+  
+  // Get issues for a specific project
+  getIssuesForProject: (projectKey: string) => jiraApiCall(`/api/jira/projects/${projectKey}/issues`),
 };
 
 export default { jiraService };

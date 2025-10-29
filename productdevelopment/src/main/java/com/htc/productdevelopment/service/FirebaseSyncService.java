@@ -13,17 +13,29 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Service class for synchronizing Firebase users with local database
+ * This service handles creating, syncing, and managing Firebase users
+ */
 @Service
 public class FirebaseSyncService {
     
+    // Logger for tracking service operations
     private static final Logger logger = LoggerFactory.getLogger(FirebaseSyncService.class);
     
+    // Repositories and services for database and user operations
     private final UserRepository userRepository;
     private final UserService userService;
     
+    /**
+     * Constructor to initialize dependencies
+     * @param userRepository Repository for database operations
+     * @param userService Service for user operations
+     */
     public FirebaseSyncService(UserRepository userRepository, UserService userService) {
         this.userRepository = userRepository;
         this.userService = userService;
@@ -77,7 +89,7 @@ public class FirebaseSyncService {
      * @return User entity stored in local database
      */
     public User syncFirebaseUserToDB(String uid) throws InterruptedException, ExecutionException {
-        logger.info("Attempting to sync Firebase user with UID: {}", uid);
+        logger.info("Syncing Firebase user with UID: {}", uid);
         
         try {
             // Fetch user data from Firebase
@@ -142,7 +154,7 @@ public class FirebaseSyncService {
      * @return User entity stored in local database
      */
     public User syncFirebaseUserByToken(String idToken) throws Exception {
-        logger.info("Attempting to sync Firebase user by token");
+        logger.info("Syncing Firebase user by token");
         
         try {
             // Verify Firebase ID token
@@ -205,145 +217,10 @@ public class FirebaseSyncService {
     }
     
     /**
-     * Sync all users from Firebase to local database
-     * This method fetches all users from Firebase and syncs them to the local database
+     * Add this method to automatically sync Firebase user with default role
+     * @param uid Firebase user ID
+     * @return User entity stored in local database
      */
-    public List<User> syncAllFirebaseUsers() {
-        logger.info("Starting sync of all Firebase users to database");
-        List<User> syncedUsers = new ArrayList<>();
-        
-        try {
-            // List all Firebase users (paginated)
-            ListUsersPage page = FirebaseAuth.getInstance().listUsersAsync(null).get();
-            
-            // Process the first page
-            processUserPage(page, syncedUsers);
-            
-            // Process next pages if they exist
-            ListUsersPage nextPage = page.getNextPage();
-            while (nextPage != null) {
-                processUserPage(nextPage, syncedUsers);
-                nextPage = nextPage.getNextPage();
-            }
-            
-            logger.info("Finished syncing Firebase users");
-            
-            return syncedUsers;
-        } catch (InterruptedException | ExecutionException e) {
-            logger.error("Error syncing all Firebase users: {}", e.getMessage(), e);
-            throw new RuntimeException("Error syncing all Firebase users", e);
-        } catch (Exception e) {
-            logger.error("Unexpected error during Firebase user sync: {}", e.getMessage(), e);
-            throw new RuntimeException("Unexpected error during Firebase user sync", e);
-        }
-    }
-    
-    /**
-     * Process a page of Firebase users
-     */
-    private void processUserPage(ListUsersPage page, List<User> syncedUsers) {
-        for (UserRecord user : page.getValues()) {
-            logger.debug("Processing Firebase user: {} ({})", user.getEmail(), user.getUid());
-            
-            try {
-                // Check if user already exists in local database
-                if (!userRepository.existsByUid(user.getUid())) {
-                    // Create new user with data from Firebase
-                    User newUser = userService.createUser(
-                        user.getUid(),
-                        user.getEmail(),
-                        user.getDisplayName() != null ? user.getDisplayName() : ""
-                    );
-                    syncedUsers.add(newUser);
-                    logger.info("Synced Firebase user to database: {} ({})", user.getEmail(), user.getUid());
-                } else {
-                    logger.debug("User already exists in database, skipping: {} ({})", user.getEmail(), user.getUid());
-                }
-            } catch (Exception e) {
-                logger.error("Error syncing Firebase user {}: {} - {}", user.getUid(), e.getMessage(), e);
-            }
-        }
-    }
-    
-    /**
-     * Get all users from local database
-     * @return List of all users
-     */
-    public List<User> getAllUsers() {
-        logger.debug("Fetching all users from database");
-        return userRepository.findAll();
-    }
-    
-    /**
-     * Get all users with a specific role
-     * @param role the role to filter by
-     * @return List of users with the specified role
-     */
-    public List<User> getUsersByRole(User.Role role) {
-        logger.debug("Fetching users by role: {}", role);
-        return userService.getUsersByRole(role);
-    }
-    
-    /**
-     * Get all active users
-     * @return List of active users
-     */
-    public List<User> getActiveUsers() {
-        logger.debug("Fetching active users from database");
-        return userService.getUsersByActiveStatus(true);
-    }
-    
-    /**
-     * Get all inactive users
-     * @return List of inactive users
-     */
-    public List<User> getInactiveUsers() {
-        logger.debug("Fetching inactive users from database");
-        return userService.getUsersByActiveStatus(false);
-    }
-    
-    /**
-     * Check database connection and schema
-     * @return true if database is properly configured
-     */
-    public boolean checkDatabaseConnection() {
-        try {
-            logger.info("Checking database connection and schema");
-            // Try to fetch user count
-            long count = userRepository.count();
-            logger.debug("Database connection successful, user count: {}", count);
-            return true;
-        } catch (Exception e) {
-            logger.error("Database connection failed: {}", e.getMessage(), e);
-            return false;
-        }
-    }
-    
-    /**
-     * Validate database schema
-     */
-    public void validateSchema() {
-        logger.info("Validating database schema");
-        try {
-            // Try to create a test user to validate schema
-            User testUser = new User();
-            testUser.setUid("test-uid-" + System.currentTimeMillis());
-            testUser.setEmail("test@example.com");
-            testUser.setName("Test User");
-            testUser.setRole(User.Role.USER);
-            
-            User savedUser = userRepository.save(testUser);
-            logger.info("Schema validation successful, test user created with ID: {}", savedUser.getId());
-            
-            // Clean up test user
-            userRepository.delete(savedUser);
-            logger.info("Test user cleaned up");
-        } catch (Exception e) {
-            logger.error("Schema validation failed: {}", e.getMessage(), e);
-        }
-    }
-    
-    // Add this method to automatically sync Firebase user with default role
     public User autoSyncFirebaseUser(String uid) throws Exception {
         logger.info("Auto-syncing Firebase user with default role: {}", uid);
         
