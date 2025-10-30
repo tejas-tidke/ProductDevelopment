@@ -29,8 +29,8 @@ public class User {
     
     private String name;
     
-    @Column(columnDefinition = "LONGTEXT", length = 1000000) // Use LONGTEXT column type for very large base64 data
-    private String avatar; // New field for user avatar
+    @Column(columnDefinition = "TEXT", length = 1000000) // Use LONGTEXT column type for very large base64 data
+    private String avatar;
     
     @Enumerated(EnumType.STRING)
     private Role role;

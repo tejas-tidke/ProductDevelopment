@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-ProductdevelopmentApplication<productdevelopment>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.htc.productdevelopment.ProductdevelopmentApplication",
+            "projectName": "productdevelopment",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

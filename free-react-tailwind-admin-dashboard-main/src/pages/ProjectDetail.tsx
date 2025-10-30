@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router";
 import ProjectTabs from "../components/common/ProjectTabs";
 import { jiraService } from "../services/jiraService";
+import DynamicJiraTable from "../components/tables/DynamicJiraTable";
+import JiraTableToolbar from "../components/tables/JiraTableToolbar";
+import JiraTablePagination from "../components/tables/JiraTablePagination";
+import { JiraIssue, useJiraTable } from "../hooks/useJiraTable";
 
 // Define the Jira project data type
 interface JiraProject {
@@ -11,35 +15,6 @@ interface JiraProject {
   description: string;
   projectTypeKey: string;
   lead?: string;
-}
-
-// Define the Jira issue data type
-interface JiraIssue {
-  id: string;
-  key: string;
-  fields?: {
-    summary?: string;
-    description?: string;
-    summaryText?: string;
-    status?: {
-      name?: string;
-      statusCategory?: {
-        name?: string;
-      };
-    };
-    issuetype?: {
-      name?: string;
-      description?: string;
-    };
-    priority?: {
-      name?: string;
-    };
-    assignee?: {
-      displayName?: string;
-      name?: string;
-      emailAddress?: string;
-    };
-  };
 }
 
 const ProjectDetail: React.FC = () => {
@@ -53,6 +28,17 @@ const ProjectDetail: React.FC = () => {
   const [issuesLoading, setIssuesLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"list" | "board" | "calendar">("list");
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  // Use the jira table hook for column management
+  const { 
+    visibleColumns, 
+    sortConfig,
+    requestSort
+  } = useJiraTable(issues);
   
   // Fetch project details when the component mounts or projectId changes
   useEffect(() => {
@@ -98,6 +84,7 @@ const ProjectDetail: React.FC = () => {
           console.log("First few issues:", issuesArray.slice(0, 3));
           
           setIssues(issuesArray);
+          setCurrentPage(1); // Reset to first page when new issues are loaded
         } catch (err) {
           // Handle errors
           console.error("Error fetching issues:", err);
@@ -110,6 +97,27 @@ const ProjectDetail: React.FC = () => {
     
     fetchIssues();
   }, [project, activeTab]);
+  
+  // Calculate pagination values
+  const totalItems = issues.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
+  // Get paginated issues
+  const paginatedIssues = issues.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+  
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+  
+  // Handle items per page change
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page when items per page changes
+  };
   
   // Show loading spinner while fetching project details
   if (loading) {
@@ -182,15 +190,34 @@ const ProjectDetail: React.FC = () => {
           {activeTab === "list" && (
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Issues List</h2>
-              {issuesLoading ? (
-                // Show loading spinner while fetching issues
-                <div className="flex justify-center items-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                  <span className="ml-3 text-gray-600 dark:text-gray-400">Loading issues...</span>
-                </div>
-              ) : error ? (
-                // Show error message if there was an error fetching issues
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 dark:bg-red-900/20 dark:border-red-900">
+              
+              {/* Table toolbar with column selector */}
+              <JiraTableToolbar />
+              
+              {/* Dynamic table with pagination */}
+              <DynamicJiraTable 
+                data={paginatedIssues} 
+                isLoading={issuesLoading} 
+                visibleColumns={visibleColumns}
+                onSort={requestSort}
+                sortConfig={sortConfig}
+              />
+              
+              {/* Pagination controls */}
+              {totalItems > 0 && (
+                <JiraTablePagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  itemsPerPage={itemsPerPage}
+                  totalItems={totalItems}
+                  onPageChange={handlePageChange}
+                  onItemsPerPageChange={handleItemsPerPageChange}
+                />
+              )}
+              
+              {/* Error message */}
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 dark:bg-red-900/20 dark:border-red-900 mt-4">
                   <h3 className="text-red-800 font-medium dark:text-red-200">Error Loading Issues</h3>
                   <p className="text-red-700 mt-1 dark:text-red-300">{error}</p>
                   <button
@@ -199,72 +226,6 @@ const ProjectDetail: React.FC = () => {
                   >
                     Retry
                   </button>
-                </div>
-              ) : (
-                // Show issues table
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-700">
-                      <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          Key
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          Summary
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          Type
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          Priority
-                        </th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                          Assignee
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {issues && issues.length > 0 ? (
-                        // Map through issues and display each one
-                        issues.map((issue) => {
-                          return (
-                            <tr key={issue.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400">
-                                {issue.key || "N/A"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {issue.fields?.summary || "No summary"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                {issue.fields?.issuetype?.name || "Unknown"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
-                                  {issue.fields?.status?.name || "Unknown"}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                {issue.fields?.priority?.name || "Unknown"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                {issue.fields?.assignee?.displayName || "Unassigned"}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        // Show message if no issues found
-                        <tr>
-                          <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                            No issues found for this project
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
                 </div>
               )}
             </div>

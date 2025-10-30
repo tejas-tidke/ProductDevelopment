@@ -10,6 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@atlaskit/button": "^23.5.4",
+    "@atlaskit/dropdown-menu": "^16.3.17",
+    "@atlaskit/icon": "^28.5.3",
+    "@atlaskit/select": "^21.3.8",
+    "@atlaskit/table": "^0.12.13",
     "@fullcalendar/core": "^6.1.15",
     "@fullcalendar/daygrid": "^6.1.15",
     "@fullcalendar/interaction": "^6.1.15",

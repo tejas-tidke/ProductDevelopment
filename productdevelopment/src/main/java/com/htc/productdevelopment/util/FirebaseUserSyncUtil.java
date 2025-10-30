@@ -1,15 +1,14 @@
 package com.htc.productdevelopment.util;
 
+import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.service.FirebaseSyncService;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.stereotype.Component;
 
-/**
- * Utility class to sync all existing Firebase users to the database.
- * This can be run as a command-line utility or triggered manually.
- */
+import java.util.List;
+
 @Component
 public class FirebaseUserSyncUtil implements CommandLineRunner {
     
@@ -22,14 +21,15 @@ public class FirebaseUserSyncUtil implements CommandLineRunner {
     }
     
     /**
-     * Sync all Firebase users to the database.
+     * Synchronize all Firebase users to the local database.
+     * This method fetches all users from Firebase and ensures they exist in the local database.
      * This method can be called manually or run automatically on application startup.
      */
     public void syncAllFirebaseUsersToDatabase() {
         logger.info("Starting synchronization of all Firebase users to database");
         
         try {
-            var syncedUsers = firebaseSyncService.syncAllFirebaseUsers();
+            List<User> syncedUsers = firebaseSyncService.syncAllFirebaseUsers();
             logger.info("Successfully synchronized {} Firebase users to database", syncedUsers.size());
         } catch (Exception e) {
             logger.error("Error during Firebase user synchronization: {}", e.getMessage(), e);

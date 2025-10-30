@@ -73,7 +73,7 @@ public class JiraService {
                     
                     // Create a new project object and populate its fields
                     JiraProject project = new JiraProject();
-                    project.setId(getTextValue(projectNode, "id"));
+                    project.setProjectId(getTextValue(projectNode, "id"));
                     project.setKey(getTextValue(projectNode, "key"));
                     project.setName(getTextValue(projectNode, "name"));
                     project.setDescription(getTextValue(projectNode, "description"));
@@ -123,7 +123,7 @@ public class JiraService {
                 for (JsonNode projectNode : valuesNode) {
                     // Create a new project object and populate its fields
                     JiraProject project = new JiraProject();
-                    project.setId(getTextValue(projectNode, "id"));
+                    project.setProjectId(getTextValue(projectNode, "id"));
                     project.setKey(getTextValue(projectNode, "key"));
                     project.setName(getTextValue(projectNode, "name"));
                     project.setDescription(getTextValue(projectNode, "description"));
@@ -168,7 +168,7 @@ public class JiraService {
             
             // Create a new project object and populate its fields
             JiraProject project = new JiraProject();
-            project.setId(getTextValue(response, "id"));
+            project.setProjectId(getTextValue(response, "id"));
             project.setKey(getTextValue(response, "key"));
             project.setName(getTextValue(response, "name"));
             project.setDescription(getTextValue(response, "description"));

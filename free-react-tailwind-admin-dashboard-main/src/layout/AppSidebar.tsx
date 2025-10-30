@@ -244,7 +244,7 @@ const AppSidebar: React.FC = () => {
       name: "Tables",
       icon: <TableIcon />,
       subItems: [
-        { name: "Basic Tables", path: "/basic-tables", pro: false }
+        { name: "Basic Tables", path: "/basic-tables", pro: false },
       ],
     },
     {

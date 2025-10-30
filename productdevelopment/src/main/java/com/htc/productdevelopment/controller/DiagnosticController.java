@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -160,7 +161,7 @@ public class DiagnosticController {
         logger.info("Manual sync all users endpoint called");
         
         try {
-            var syncedUsers = firebaseSyncService.syncAllFirebaseUsers();
+            List<User> syncedUsers = firebaseSyncService.syncAllFirebaseUsers();
             
             Map<String, Object> response = new HashMap<>();
             response.put("status", "Manual sync completed");

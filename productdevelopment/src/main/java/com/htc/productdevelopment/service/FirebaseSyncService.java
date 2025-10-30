@@ -217,6 +217,40 @@ public class FirebaseSyncService {
     }
     
     /**
+     * Sync all Firebase users to local database
+     * @return List of users synced to local database
+     */
+    public List<User> syncAllFirebaseUsers() throws Exception {
+        logger.info("Syncing all Firebase users to local database");
+        
+        try {
+            List<User> syncedUsers = new ArrayList<>();
+            
+            // Get all users from Firebase (paginated)
+            ListUsersPage page = FirebaseAuth.getInstance().listUsersAsync(null).get();
+            
+            // Process each user
+            for (UserRecord userRecord : page.iterateAll()) {
+                try {
+                    // Sync each user to local database
+                    User user = syncFirebaseUserToDB(userRecord.getUid());
+                    syncedUsers.add(user);
+                    logger.debug("Synced Firebase user: {} ({})", userRecord.getUid(), userRecord.getEmail());
+                } catch (Exception e) {
+                    logger.error("Error syncing Firebase user {}: {}", userRecord.getUid(), e.getMessage(), e);
+                    // Continue with other users even if one fails
+                }
+            }
+            
+            logger.info("Successfully synced {} Firebase users to local database", syncedUsers.size());
+            return syncedUsers;
+        } catch (InterruptedException | ExecutionException e) {
+            logger.error("Error listing Firebase users: {}", e.getMessage(), e);
+            throw new Exception("Failed to sync all Firebase users: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
      * Add this method to automatically sync Firebase user with default role
      * @param uid Firebase user ID
      * @return User entity stored in local database
@@ -241,17 +275,19 @@ public class FirebaseSyncService {
             newUser.setUid(firebaseUser.getUid());
             newUser.setEmail(firebaseUser.getEmail());
             newUser.setName(firebaseUser.getDisplayName() != null ? firebaseUser.getDisplayName() : "");
-            newUser.setRole(User.Role.USER); // Default role
-            newUser.setActive(true);
-            newUser.setCreatedAt(new java.util.Date());
-            newUser.setUpdatedAt(new java.util.Date());
             
             // Check if this is the first user (admin)
             long userCount = userRepository.count();
             if (userCount == 0) {
                 logger.info("First user detected, assigning ADMIN role");
                 newUser.setRole(User.Role.ADMIN);
+            } else {
+                newUser.setRole(User.Role.USER); // Default role
             }
+            
+            newUser.setActive(true);
+            newUser.setCreatedAt(new java.util.Date());
+            newUser.setUpdatedAt(new java.util.Date());
             
             User savedUser = userRepository.save(newUser);
             logger.info("Auto-synced Firebase user to database with role {}: {}", savedUser.getRole(), uid);

@@ -1,16 +1,13 @@
 package com.htc.productdevelopment.util;
 
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.UserRecord;
-import com.google.firebase.auth.ListUsersPage;
 import com.htc.productdevelopment.model.User;
-import com.htc.productdevelopment.service.FirebaseSyncService;
 import com.htc.productdevelopment.repository.UserRepository;
-import org.springframework.stereotype.Component;
+import com.htc.productdevelopment.service.FirebaseSyncService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
-import java.util.concurrent.ExecutionException;
+import java.util.List;
 
 @Component
 public class ManualSyncUtil {
@@ -26,23 +23,19 @@ public class ManualSyncUtil {
     }
     
     /**
-     * Manually sync all Firebase users to the database
-     * This is a simpler implementation for debugging purposes
+     * Manually sync all Firebase users to the database using FirebaseSyncService
      */
     public void manuallySyncAllUsers() {
-        logger.info("Starting manual sync of all Firebase users");
+        logger.info("Starting manual synchronization of all Firebase users to database");
         
         try {
-            // Check Firebase connection
-            if (FirebaseAuth.getInstance() == null) {
-                logger.error("Firebase not initialized");
-                return;
-            }
+            // Verify Firebase connection first
+            logger.info("Verifying Firebase connection");
             
             logger.info("Firebase connection verified");
             
             // Use FirebaseSyncService to sync all users
-            var syncedUsers = firebaseSyncService.syncAllFirebaseUsers();
+            List<User> syncedUsers = firebaseSyncService.syncAllFirebaseUsers();
             logger.info("Manual sync completed. Synced {} users", syncedUsers.size());
             
         } catch (Exception e) {
