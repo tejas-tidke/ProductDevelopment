@@ -1,7 +1,7 @@
 package com.htc.productdevelopment.model;
 
 import jakarta.persistence.*;
-import java.util.Date;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "jira_issues")
@@ -26,31 +26,42 @@ public class JiraIssue {
     @Column(name = "issue_type")
     private String issueType;
     
+    @Column(name = "project_key")
+    private String projectKey;
+    
+    @Column(name = "reporter")
+    private String reporter;
+    
+    @Column(name = "assignee")
+    private String assignee;
+    
     @Column(name = "status")
     private String status;
     
     @Column(name = "priority")
     private String priority;
     
-    @Column(name = "assignee")
-    private String assignee;
-    
-    @Column(name = "reporter")
-    private String reporter;
-    
-    @Column(name = "created_date")
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date createdDate;
-    
-    @Column(name = "updated_date")
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date updatedDate;
-    
-    @Column(name = "project_key")
-    private String projectKey;
+    @Column(name = "due_date")
+    private LocalDate dueDate;
     
     // Constructors
     public JiraIssue() {}
+    
+    public JiraIssue(String issueId, String key, String summary, String description, 
+                     String issueType, String projectKey, String reporter, String assignee,
+                     String status, String priority, LocalDate dueDate) {
+        this.issueId = issueId;
+        this.key = key;
+        this.summary = summary;
+        this.description = description;
+        this.issueType = issueType;
+        this.projectKey = projectKey;
+        this.reporter = reporter;
+        this.assignee = assignee;
+        this.status = status;
+        this.priority = priority;
+        this.dueDate = dueDate;
+    }
     
     // Getters and Setters
     public Long getId() {
@@ -101,6 +112,30 @@ public class JiraIssue {
         this.issueType = issueType;
     }
     
+    public String getProjectKey() {
+        return projectKey;
+    }
+    
+    public void setProjectKey(String projectKey) {
+        this.projectKey = projectKey;
+    }
+    
+    public String getReporter() {
+        return reporter;
+    }
+    
+    public void setReporter(String reporter) {
+        this.reporter = reporter;
+    }
+    
+    public String getAssignee() {
+        return assignee;
+    }
+    
+    public void setAssignee(String assignee) {
+        this.assignee = assignee;
+    }
+    
     public String getStatus() {
         return status;
     }
@@ -117,44 +152,12 @@ public class JiraIssue {
         this.priority = priority;
     }
     
-    public String getAssignee() {
-        return assignee;
+    public LocalDate getDueDate() {
+        return dueDate;
     }
     
-    public void setAssignee(String assignee) {
-        this.assignee = assignee;
-    }
-    
-    public String getReporter() {
-        return reporter;
-    }
-    
-    public void setReporter(String reporter) {
-        this.reporter = reporter;
-    }
-    
-    public Date getCreatedDate() {
-        return createdDate;
-    }
-    
-    public void setCreatedDate(Date createdDate) {
-        this.createdDate = createdDate;
-    }
-    
-    public Date getUpdatedDate() {
-        return updatedDate;
-    }
-    
-    public void setUpdatedDate(Date updatedDate) {
-        this.updatedDate = updatedDate;
-    }
-    
-    public String getProjectKey() {
-        return projectKey;
-    }
-    
-    public void setProjectKey(String projectKey) {
-        this.projectKey = projectKey;
+    public void setDueDate(LocalDate dueDate) {
+        this.dueDate = dueDate;
     }
     
     @Override
@@ -166,13 +169,12 @@ public class JiraIssue {
                 ", summary='" + summary + '\'' +
                 ", description='" + description + '\'' +
                 ", issueType='" + issueType + '\'' +
+                ", projectKey='" + projectKey + '\'' +
+                ", reporter='" + reporter + '\'' +
+                ", assignee='" + assignee + '\'' +
                 ", status='" + status + '\'' +
                 ", priority='" + priority + '\'' +
-                ", assignee='" + assignee + '\'' +
-                ", reporter='" + reporter + '\'' +
-                ", createdDate=" + createdDate +
-                ", updatedDate=" + updatedDate +
-                ", projectKey='" + projectKey + '\'' +
+                ", dueDate=" + dueDate +
                 '}';
     }
 }

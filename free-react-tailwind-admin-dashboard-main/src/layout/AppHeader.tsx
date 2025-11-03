@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-
 import { Link } from "react-router";
 import { useSidebar } from "../context/SidebarContext";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
 import NotificationDropdown from "../components/header/NotificationDropdown";
 import UserDropdown from "../components/header/UserDropdown";
+import CreateIssueModal from "../components/modals/CreateIssueModal";
+import { jiraService } from "../services/jiraService";
 
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
 
@@ -39,6 +41,36 @@ const AppHeader: React.FC = () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+  // Handle create issue submission
+  const handleCreateIssue = async (issueData: {
+    issueType: string;
+    summary: string;
+    project: string;
+    description: string;
+    dueDate: string;
+    assigneeCustom?: string;
+    reporterCustom?: string;
+  }) => {
+    console.log("Creating issue:", issueData);
+    try {
+      // Call the API to create the issue
+      await jiraService.createIssue(issueData);
+      
+      // Show success message
+      console.log("Issue created successfully!");
+      
+      // Dispatch a custom event to notify other components to refresh the issue list
+      window.dispatchEvent(new CustomEvent('issueCreated', { detail: issueData }));
+      
+      // In a real implementation, you would also:
+      // 1. Refresh the issue list in the current project view
+      // 2. Update the UI to show the new issue
+    } catch (error) {
+      console.error("Error creating issue:", error);
+      alert("Failed to create issue. Please try again.");
+    }
+  };
 
   return (
     <header className="sticky top-0 flex w-full bg-white border-gray-200 z-99999 dark:border-gray-800 dark:bg-gray-900 lg:border-b">
@@ -117,7 +149,7 @@ const AppHeader: React.FC = () => {
             </svg>
           </button>
 
-          <div className="hidden lg:block">
+          <div className="hidden lg:flex items-center gap-2">
             <form>
               <div className="relative">
                 <span className="absolute -translate-y-1/2 pointer-events-none left-4 top-1/2">
@@ -150,6 +182,12 @@ const AppHeader: React.FC = () => {
                 </button>
               </div>
             </form>
+            <button 
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors h-11 flex items-center"
+              onClick={() => setIsCreateModalOpen(true)}
+            >
+              Create
+            </button>
           </div>
         </div>
         <div
@@ -168,6 +206,13 @@ const AppHeader: React.FC = () => {
           <UserDropdown />
         </div>
       </div>
+
+      {/* Create Issue Modal */}
+      <CreateIssueModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSubmit={handleCreateIssue}
+      />
     </header>
   );
 };

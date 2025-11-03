@@ -45,6 +45,33 @@ interface ProjectData {
   assigneeType: string;
 }
 
+// Define the issue data type
+interface IssueData {
+  issueType: string;
+  summary: string;
+  project: string;
+  description: string;
+  dueDate: string;
+  assignee?: string;
+}
+
+// Define the issue type data type
+interface JiraIssueType {
+  id: string;
+  name: string;
+  description: string;
+  iconUrl: string;
+}
+
+// Define the assignee data type
+interface Assignee {
+  accountId: string;
+  displayName: string;
+  avatarUrls: {
+    '48x48': string;
+  };
+}
+
 // Jira API functions
 export const jiraService = {
   // Get recent projects
@@ -64,6 +91,21 @@ export const jiraService = {
   
   // Get issues for a specific project
   getIssuesForProject: (projectKey: string) => jiraApiCall(`/api/jira/projects/${projectKey}/issues`),
+  
+  // Get all fields from Jira
+  getFields: () => jiraApiCall("/api/jira/fields"),
+  
+  // Get all issue types from Jira
+  getIssueTypes: (): Promise<JiraIssueType[]> => jiraApiCall("/api/jira/issuetypes"),
+  
+  // Get assignable users for a project
+  getAssignableUsers: (projectKey: string): Promise<Assignee[]> => jiraApiCall(`/api/jira/projects/${projectKey}/assignable`),
+  
+  // Create a new issue
+  createIssue: (issueData: IssueData) => jiraApiCall("/api/jira/issues", {
+    method: "POST",
+    body: JSON.stringify(issueData),
+  }),
 };
 
 export default { jiraService };

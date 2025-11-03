@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { jiraService } from '../services/jiraService';
 
 // Define types for our table data - matching the ProjectDetail interface
 export interface JiraIssue {
@@ -37,6 +38,15 @@ export interface TableColumn {
   isSelected: boolean;
 }
 
+// Define Jira field type
+export interface JiraField {
+  id: string;
+  name: string;
+  schema?: {
+    type: string;
+  };
+}
+
 // Define available columns
 const DEFAULT_COLUMNS: TableColumn[] = [
   { key: 'key', header: 'Key', isSortable: true, isSelected: true },
@@ -61,6 +71,47 @@ export const useJiraTable = (initialData: JiraIssue[] = []) => {
   // State for pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  
+  // State for fields from Jira
+  const [jiraFields, setJiraFields] = useState<JiraField[]>([]);
+  const [fieldsLoading, setFieldsLoading] = useState<boolean>(false);
+  
+  // Fetch fields from Jira
+  useEffect(() => {
+    const fetchFields = async () => {
+      try {
+        setFieldsLoading(true);
+        const fieldsData: JiraField[] = await jiraService.getFields();
+        setJiraFields(fieldsData);
+        
+        // Update columns based on Jira fields
+        const jiraColumns: TableColumn[] = fieldsData
+          .filter((field: JiraField) => field.schema && field.schema.type !== 'array')
+          .map((field: JiraField) => ({
+            key: field.id,
+            header: field.name,
+            isSortable: true,
+            isSelected: DEFAULT_COLUMNS.some(col => col.key === field.id)
+          }));
+        
+        // Merge with default columns, keeping defaults where they exist
+        const mergedColumns = [...DEFAULT_COLUMNS];
+        jiraColumns.forEach(jiraCol => {
+          if (!mergedColumns.some(col => col.key === jiraCol.key)) {
+            mergedColumns.push(jiraCol);
+          }
+        });
+        
+        setColumns(mergedColumns);
+      } catch (error) {
+        console.error('Error fetching Jira fields:', error);
+      } finally {
+        setFieldsLoading(false);
+      }
+    };
+    
+    fetchFields();
+  }, []);
   
   // Get visible columns
   const visibleColumns = useMemo(() => {
@@ -136,8 +187,9 @@ export const useJiraTable = (initialData: JiraIssue[] = []) => {
           bValue = b.fields?.created;
           break;
         default:
-          aValue = '';
-          bValue = '';
+          // For custom fields, try to get the value from the fields object
+          aValue = a.fields?.[sortConfig.key as keyof typeof a.fields] as string | undefined;
+          bValue = b.fields?.[sortConfig.key as keyof typeof b.fields] as string | undefined;
       }
       
       // Handle undefined values
@@ -210,5 +262,9 @@ export const useJiraTable = (initialData: JiraIssue[] = []) => {
     itemsPerPage,
     setCurrentPage,
     changeItemsPerPage,
+    
+    // Fields
+    jiraFields,
+    fieldsLoading,
   };
 };

@@ -1,117 +1,121 @@
 import React, { useState } from 'react';
-import Select, { OptionType } from '@atlaskit/select';
-import Button from '@atlaskit/button';
-import { useJiraTable } from '../../hooks/useJiraTable';
+import { TableColumn } from '../../hooks/useJiraTable';
 
 interface JiraColumnSelectorProps {
+  columns: TableColumn[];
+  onToggleColumn: (columnKey: string) => void;
+  onResetToDefault: () => void;
   onApply?: () => void;
-  onReset?: () => void;
+  fieldsLoading?: boolean;
 }
 
-const JiraColumnSelector: React.FC<JiraColumnSelectorProps> = ({ onApply, onReset }) => {
-  const {
-    columns,
-    toggleColumn,
-    selectAllColumns,
-    deselectAllColumns,
-    resetToDefaultColumns
-  } = useJiraTable();
-  
-  // Local state for selected options in the select component
-  const [selectedOptions, setSelectedOptions] = useState<OptionType[]>(
-    columns
-      .filter(col => col.isSelected)
-      .map(col => ({
-        label: col.header,
-        value: col.key
-      }))
-  );
-  
-  // All available options
-  const allOptions: OptionType[] = columns.map(col => ({
-    label: col.header,
-    value: col.key
-  }));
-  
-  // Handle selection change
-  const handleChange = (selected: readonly OptionType[]) => {
-    setSelectedOptions([...selected]);
-    
-    // Update column visibility based on selection
-    columns.forEach(column => {
-      const isSelected = selected.some(option => option.value === column.key);
-      if (column.isSelected !== isSelected) {
-        toggleColumn(column.key);
-      }
-    });
-  };
-  
-  // Handle select all
-  const handleSelectAll = () => {
-    setSelectedOptions(allOptions);
-    selectAllColumns();
-  };
-  
-  // Handle deselect all
-  const handleDeselectAll = () => {
-    setSelectedOptions([]);
-    deselectAllColumns();
-  };
+const JiraColumnSelector: React.FC<JiraColumnSelectorProps> = ({ 
+  columns, 
+  onToggleColumn, 
+  onResetToDefault,
+  onApply,
+  fieldsLoading = false
+}) => {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   
   // Handle reset to default
   const handleReset = () => {
-    const defaultSelected = allOptions.filter(option => 
-      columns.find(col => col.key === option.value)?.isSelected
-    );
-    setSelectedOptions(defaultSelected);
-    resetToDefaultColumns();
-    onReset?.();
+    onResetToDefault();
+    setIsDropdownOpen(false);
   };
   
   // Handle apply
   const handleApply = () => {
-    onApply?.();
+    setIsDropdownOpen(false);
+    if (onApply) {
+      onApply();
+    }
+  };
+  
+  // Toggle dropdown
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+  };
+  
+  // Close dropdown when clicking outside
+  const handleClickOutside = () => {
+    if (isDropdownOpen) {
+      setIsDropdownOpen(false);
+    }
   };
   
   return (
     <div className="flex flex-wrap items-center gap-2 mb-4">
-      <div className="flex-grow">
-        <Select
-          inputId="column-selector"
-          placeholder="Select columns to display..."
-          options={allOptions}
-          value={selectedOptions}
-          onChange={handleChange}
-          isMulti
-          isSearchable={false}
-        />
-      </div>
-      <div className="flex gap-2">
-        <Button 
-          appearance="subtle" 
-          onClick={handleSelectAll}
-        >
-          Select All
-        </Button>
-        <Button 
-          appearance="subtle" 
-          onClick={handleDeselectAll}
-        >
-          Deselect All
-        </Button>
-        <Button 
-          appearance="subtle" 
-          onClick={handleReset}
-        >
-          Reset
-        </Button>
-        <Button 
-          appearance="primary" 
+      <div className="flex gap-2 relative">
+        <div className="relative">
+          <button 
+            className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            onClick={toggleDropdown}
+          >
+            Columns
+          </button>
+          
+          {isDropdownOpen && (
+            <div 
+              className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-2">
+                <div className="px-2 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Select Columns
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {fieldsLoading ? (
+                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                      Loading fields...
+                    </div>
+                  ) : (
+                    columns.map(column => (
+                      <label 
+                        key={column.key} 
+                        className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={column.isSelected}
+                          onChange={() => onToggleColumn(column.key)}
+                          className="mr-2 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          {column.header}
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <div className="border-t border-gray-200 dark:border-gray-700 mt-1 pt-1">
+                  <button
+                    onClick={handleReset}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    Reset to Default
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <button 
+          className="px-4 py-2 bg-blue-600 border border-transparent rounded-md text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           onClick={handleApply}
         >
-          Apply
-        </Button>
+          Done
+        </button>
       </div>
+      
+      {/* Click outside handler */}
+      {isDropdownOpen && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={handleClickOutside}
+        />
+      )}
     </div>
   );
 };

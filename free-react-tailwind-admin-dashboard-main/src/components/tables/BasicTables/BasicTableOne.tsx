@@ -181,7 +181,7 @@ export default function BasicTableOne() {
                   <div className="flex -space-x-2">
                     {order.team.images.map((teamImage, index) => (
                       <div
-                        key={index}
+                        key={`team-${order.id}-${index}`}
                         className="w-6 h-6 overflow-hidden border-2 border-white rounded-full dark:border-gray-900"
                       >
                         <img

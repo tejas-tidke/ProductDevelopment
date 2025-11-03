@@ -96,12 +96,82 @@ public class JiraController {
     public ResponseEntity<?> getIssuesForProject(@PathVariable String projectKey) {
         try {
             logger.info("Received request for issues in Jira project: {}", projectKey);
-            JsonNode issues = jiraService.getIssuesForProject(projectKey);
+            JsonNode issuesResponse = jiraService.getIssuesForProject(projectKey);
             logger.info("Returning issues for project: {}", projectKey);
-            return ResponseEntity.ok(issues);
+            return ResponseEntity.ok(issuesResponse);
         } catch (Exception e) {
             logger.error("Error fetching issues for project: {}", projectKey, e);
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch issues: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get all fields from Jira
+     * @return The fields from Jira
+     */
+    @GetMapping("/fields")
+    public ResponseEntity<?> getFields() {
+        try {
+            logger.info("Received request for Jira fields");
+            JsonNode fields = jiraService.getFields();
+            logger.info("Returning fields from Jira");
+            return ResponseEntity.ok(fields);
+        } catch (Exception e) {
+            logger.error("Error fetching fields from Jira", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch fields: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get all issue types from Jira
+     * @return The issue types from Jira
+     */
+    @GetMapping("/issuetypes")
+    public ResponseEntity<?> getIssueTypes() {
+        try {
+            logger.info("Received request for Jira issue types");
+            JsonNode issueTypes = jiraService.getIssueTypes();
+            logger.info("Returning issue types from Jira");
+            return ResponseEntity.ok(issueTypes);
+        } catch (Exception e) {
+            logger.error("Error fetching issue types from Jira", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch issue types: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get users assignable to issues in a project
+     * @param projectKey The project key
+     * @return The assignable users for the project
+     */
+    @GetMapping("/projects/{projectKey}/assignable")
+    public ResponseEntity<?> getAssignableUsers(@PathVariable String projectKey) {
+        try {
+            logger.info("Received request for assignable users in Jira project: {}", projectKey);
+            JsonNode users = jiraService.getAssignableUsers(projectKey);
+            logger.info("Returning assignable users for project: {}", projectKey);
+            return ResponseEntity.ok(users);
+        } catch (Exception e) {
+            logger.error("Error fetching assignable users for project: {}", projectKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch assignable users: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Create a new Jira issue
+     * @param issueData The issue data to create
+     * @return The created issue
+     */
+    @PostMapping("/issues")
+    public ResponseEntity<?> createIssue(@RequestBody Map<String, Object> issueData) {
+        try {
+            logger.info("Received request to create new Jira issue");
+            JsonNode createdIssue = jiraService.createIssue(issueData);
+            logger.info("Issue created successfully");
+            return ResponseEntity.ok(createdIssue);
+        } catch (Exception e) {
+            logger.error("Error creating Jira issue", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to create issue: " + e.getMessage()));
         }
     }
 
@@ -120,6 +190,24 @@ public class JiraController {
         } catch (Exception e) {
             logger.error("Error creating Jira project", e);
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to create project: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Delete a Jira project
+     * @param projectKey The project key to delete
+     * @return Success or error response
+     */
+    @DeleteMapping("/projects/{projectKey}")
+    public ResponseEntity<?> deleteProject(@PathVariable String projectKey) {
+        try {
+            logger.info("Received request to delete Jira project with key: {}", projectKey);
+            JsonNode response = jiraService.deleteProject(projectKey);
+            logger.info("Project deleted successfully: {}", projectKey);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error deleting Jira project with key: {}", projectKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to delete project: " + e.getMessage()));
         }
     }
 }

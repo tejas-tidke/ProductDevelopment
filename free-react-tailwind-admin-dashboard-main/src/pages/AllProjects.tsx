@@ -191,7 +191,7 @@ const AllProjects: React.FC = () => {
                   {/* Table Body */}
                   <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                     {projects.map((project) => (
-                      <TableRow key={project.id}>
+                      <TableRow key={`project-row-${project.id}`}>
                         <TableCell className="px-5 py-4 sm:px-6 text-start">
                           <div className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
                             {project.name}
