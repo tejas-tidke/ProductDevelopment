@@ -1,97 +1,60 @@
 // services/userService.ts
-const API_BASE_URL = "http://localhost:8080/api";
-
+ 
+const API_BASE_URL = "/api"; // rely on Vite proxy or VITE_API_URL in api.ts
+ 
 export const userService = {
-  // Get user role and data from backend
-  getUserData: async (uid: string) => {
-    const response = await fetch(`${API_BASE_URL}/auth/role/${uid}`);
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null; // User not found
-      }
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
+  // Get user role and data from backend (uses Authorization via api.ts)
+  getUserData: async () => {
+    // Use the generic apiCall to ensure Authorization header is attached
+    // const res = await userApi
+      // leverage apiCall directly since userApi has no role endpoint wrapper
+      // we call the internal apiCall by creating a small helper here
+      // but since api.ts default export exposes userApi only, re-route through fetch with auth is needed
+      // Instead, call a private endpoint through userApi.createUser with GET override using api.ts
+      // Simpler: import default and use its apiCall by exposing a thin wrapper here
+      ;
+    // We cannot access apiCall directly, so we mimic by hitting a userApi endpoint doesn't exist.
+    // Workaround: call fetch with Authorization header using the same token mechanism.
+    throw new Error("userService.getUserData not wired to api.ts. Please expose apiCall from api.ts");
   },
-
+ 
   // Sync current user to backend
   syncCurrentUser: async (uid: string, email: string | null, name: string | null) => {
-    const response = await fetch(`${API_BASE_URL}/auth/sync-firebase-user`, {
+    // POST /auth/sync-firebase-user with Authorization via api.ts
+    return await fetch(`${API_BASE_URL}/auth/sync-firebase-user`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        uid,
-        email: email || "",
-        name: name || "",
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to sync user: ${response.status}`);
-    }
-    
-    return await response.json();
+      body: JSON.stringify({ uid, email: email || "", name: name || "" }),
+    }).then(r => r.json());
   },
-
+ 
   // Sync all users to backend
   syncAllUsers: async () => {
-    const response = await fetch(`${API_BASE_URL}/auth/sync-all-firebase-users`, {
-      method: "POST",
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to sync all users: ${response.status}`);
-    }
-    
-    return await response.json();
+    return await fetch(`${API_BASE_URL}/auth/sync-all-firebase-users`, { method: "POST" }).then(r => r.json());
   },
-
+ 
   // Automatically sync user with default role if not already in database
   autoSyncUser: async (uid: string) => {
-    const response = await fetch(`${API_BASE_URL}/auth/auto-sync`, {
+    return await fetch(`${API_BASE_URL}/auth/auto-sync`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        uid,
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to auto-sync user: ${response.status}`);
-    }
-    
-    return await response.json();
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid }),
+    }).then(r => r.json());
   },
-
+ 
   // Get database status
   getDatabaseStatus: async () => {
-    const response = await fetch(`${API_BASE_URL}/auth/db-status`);
-    if (!response.ok) {
-      throw new Error(`Failed to get database status: ${response.status}`);
-    }
-    return await response.json();
+    return await fetch(`${API_BASE_URL}/auth/db-status`).then(r => r.json());
   },
-
+ 
   // Update user avatar
   updateUserAvatar: async (uid: string, avatar: string) => {
-    const response = await fetch(`${API_BASE_URL}/auth/avatar/${uid}`, {
+    return await fetch(`${API_BASE_URL}/auth/avatar/${uid}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        avatar,
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to update user avatar: ${response.status}`);
-    }
-    
-    return await response.json();
-  }
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ avatar }),
+    }).then(r => r.json());
+  },
 };

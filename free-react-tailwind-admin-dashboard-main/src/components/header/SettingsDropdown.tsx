@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
+import { Link } from "react-router";
 
 export default function SettingsDropdown() {
   const [isOpen, setIsOpen] = useState(false);
@@ -44,10 +44,9 @@ export default function SettingsDropdown() {
       >
         <ul className="flex flex-col gap-1">
           <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              tag="a"
+            <Link
               to="/all-projects"
+              onClick={closeDropdown}
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
@@ -63,13 +62,12 @@ export default function SettingsDropdown() {
                 <path d="M13.9998 15.75C13.9998 14.7835 14.7833 14 15.7498 14H19.2498C20.2163 14 20.9998 14.7835 20.9998 15.75V18.25C20.9998 19.2165 20.2163 20 19.2498 20H15.7498C14.7833 20 13.9998 19.2165 13.9998 18.25V15.75Z" />
               </svg>
               Projects
-            </DropdownItem>
+            </Link>
           </li>
           <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              tag="a"
-              to="/users"
+            <Link
+              to="/blank"
+              onClick={closeDropdown}
               className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
             >
               <svg
@@ -82,7 +80,7 @@ export default function SettingsDropdown() {
                 <path fillRule="evenodd" clipRule="evenodd" d="M12 3.5C7.30558 3.5 3.5 7.30558 3.5 12C3.5 14.1526 4.3002 16.1184 5.61936 17.616C6.17279 15.3096 8.24852 13.5955 10.7246 13.5955H13.2746C15.7509 13.5955 17.8268 15.31 18.38 17.6167C19.6996 16.119 20.5 14.153 20.5 12C20.5 7.30558 16.6944 3.5 12 3.5ZM17.0246 18.8566V18.8455C17.0246 16.7744 15.3457 15.0955 13.2746 15.0955H10.7246C8.65354 15.0955 6.97461 16.7744 6.97461 18.8455V18.856C8.38223 19.8895 10.1198 20.5 12 20.5C13.8798 20.5 15.6171 19.8898 17.0246 18.8566ZM11.9991 7.25C10.8847 7.25 9.98126 8.15342 9.98126 9.26784C9.98126 10.3823 10.8847 11.2857 11.9991 11.2857C13.1135 11.2857 14.0169 10.3823 14.0169 9.26784C14.0169 8.15342 13.1135 7.25 11.9991 7.25ZM8.48126 9.26784C8.48126 7.32499 10.0563 5.75 11.9991 5.75C13.9419 5.75 15.5169 7.32499 15.5169 9.26784C15.5169 11.2107 13.9419 12.7857 11.9991 12.7857C10.0563 12.7857 8.48126 11.2107 8.48126 9.26784Z" />
               </svg>
               User management
-            </DropdownItem>
+            </Link>
           </li>
         </ul>
       </Dropdown>
