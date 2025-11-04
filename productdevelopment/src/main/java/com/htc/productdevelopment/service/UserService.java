@@ -79,6 +79,17 @@ public class UserService {
     }
     
     /**
+     * Retrieves a user by their ID.
+     * 
+     * @param id the ID of the user
+     * @return an Optional containing the User if found, or empty if not found
+     */
+    public Optional<User> getUserById(Long id) {
+        logger.debug("Fetching user by ID: {}", id);
+        return userRepository.findById(id);
+    }
+    
+    /**
      * Retrieves a user by their email address.
      * 
      * @param email the email of the user
@@ -87,6 +98,16 @@ public class UserService {
     public Optional<User> getUserByEmail(String email) {
         logger.debug("Fetching user by email: {}", email);
         return userRepository.findByEmail(email);
+    }
+    
+    /**
+     * Retrieves all users.
+     * 
+     * @return a list of all users
+     */
+    public List<User> getAllUsers() {
+        logger.debug("Fetching all users");
+        return userRepository.findAll();
     }
     
     /**
@@ -137,6 +158,56 @@ public class UserService {
             logger.error("User not found with UID: {}", uid);
             throw new RuntimeException("User not found with UID: " + uid);
         }
+    }
+    
+    /**
+     * Updates a user by their ID.
+     * 
+     * @param id the ID of the user
+     * @param userData the new user data
+     * @return the updated User entity
+     * @throws RuntimeException if the user is not found
+     */
+    public User updateUserById(Long id, User userData) {
+        logger.info("Updating user data for ID: {}", id);
+        
+        Optional<User> userOptional = userRepository.findById(id);
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            if (userData.getEmail() != null) user.setEmail(userData.getEmail());
+            if (userData.getName() != null) user.setName(userData.getName());
+            if (userData.getRole() != null) user.setRole(userData.getRole());
+            if (userData.getActive() != null) user.setActive(userData.getActive());
+            if (userData.getAvatar() != null) user.setAvatar(userData.getAvatar());
+            User savedUser = userRepository.save(user);
+            logger.info("User data updated successfully for ID: {}", id);
+            return savedUser;
+        } else {
+            logger.error("User not found with ID: {}", id);
+            throw new RuntimeException("User not found with ID: " + id);
+        }
+    }
+    
+    /**
+     * Creates a user from provided user data.
+     * 
+     * @param userData the user data
+     * @return the created User entity
+     */
+    public User createUserFromData(User userData) {
+        logger.info("Creating user from data");
+        
+        User user = new User();
+        if (userData.getUid() != null) user.setUid(userData.getUid());
+        if (userData.getEmail() != null) user.setEmail(userData.getEmail());
+        if (userData.getName() != null) user.setName(userData.getName());
+        if (userData.getRole() != null) user.setRole(userData.getRole());
+        if (userData.getActive() != null) user.setActive(userData.getActive());
+        if (userData.getAvatar() != null) user.setAvatar(userData.getAvatar());
+        
+        User savedUser = userRepository.save(user);
+        logger.info("User created successfully with ID: {}", savedUser.getId());
+        return savedUser;
     }
     
     /**
@@ -272,5 +343,89 @@ public class UserService {
     public long countUsersByActiveStatus(boolean active) {
         logger.debug("Counting users by active status: {}", active);
         return userRepository.countByActive(active);
+    }
+    
+    /**
+     * Disables a user by setting their active status to false.
+     * 
+     * @param uid the Firebase UID of the user
+     * @return the updated User entity
+     * @throws RuntimeException if the user is not found
+     */
+    public User disableUser(String uid) {
+        logger.info("Disabling user with UID: {}", uid);
+        
+        Optional<User> userOptional = userRepository.findByUid(uid);
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            user.setActive(false);
+            User savedUser = userRepository.save(user);
+            logger.info("User disabled successfully for UID: {}", uid);
+            return savedUser;
+        } else {
+            logger.error("User not found with UID: {}", uid);
+            throw new RuntimeException("User not found with UID: " + uid);
+        }
+    }
+    
+    /**
+     * Enables a user by setting their active status to true.
+     * 
+     * @param uid the Firebase UID of the user
+     * @return the updated User entity
+     * @throws RuntimeException if the user is not found
+     */
+    public User enableUser(String uid) {
+        logger.info("Enabling user with UID: {}", uid);
+        
+        Optional<User> userOptional = userRepository.findByUid(uid);
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            user.setActive(true);
+            User savedUser = userRepository.save(user);
+            logger.info("User enabled successfully for UID: {}", uid);
+            return savedUser;
+        } else {
+            logger.error("User not found with UID: {}", uid);
+            throw new RuntimeException("User not found with UID: " + uid);
+        }
+    }
+    
+    /**
+     * Deletes a user by their UID.
+     * 
+     * @param uid the Firebase UID of the user
+     * @throws RuntimeException if the user is not found
+     */
+    public void deleteUser(String uid) {
+        logger.info("Deleting user with UID: {}", uid);
+        
+        Optional<User> userOptional = userRepository.findByUid(uid);
+        if (userOptional.isPresent()) {
+            userRepository.delete(userOptional.get());
+            logger.info("User deleted successfully for UID: {}", uid);
+        } else {
+            logger.error("User not found with UID: {}", uid);
+            throw new RuntimeException("User not found with UID: " + uid);
+        }
+    }
+    
+    /**
+     * Deletes a user by their ID.
+     * 
+     * @param id the ID of the user
+     * @throws RuntimeException if the user is not found
+     */
+    public void deleteUserById(Long id) {
+        logger.info("Deleting user with ID: {}", id);
+        
+        Optional<User> userOptional = userRepository.findById(id);
+        if (userOptional.isPresent()) {
+            userRepository.delete(userOptional.get());
+            logger.info("User deleted successfully for ID: {}", id);
+        } else {
+            logger.error("User not found with ID: {}", id);
+            throw new RuntimeException("User not found with ID: " + id);
+        }
     }
 }

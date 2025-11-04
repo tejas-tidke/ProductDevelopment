@@ -129,8 +129,7 @@ const ColumnSelectorContent: React.FC<ColumnSelectorProps> = ({ columns, onColum
   // Fetch Jira fields when component mounts or projectKey changes
   useEffect(() => {
     const fetchJiraFields = async () => {
-      if (!projectKey) return;
-      
+      // Allow fetching fields even when projectKey is empty (for all issues view)
       try {
         setLoading(true);
         const fields: JiraField[] = await jiraService.getFields();

@@ -1,21 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
-  BoxCubeIcon,
   CalenderIcon,
   ChevronDownIcon,
   GridIcon,
-  ListIcon,
   PageIcon,
-  PieChartIcon,
-  PlugInIcon,
-  TableIcon,
-  UserCircleIcon,
-  HorizontaLDots
+  HorizontaLDots,
+  IssuesIcon
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
-import SidebarWidget from "./SidebarWidget";
 import { JIRA_CONFIG, getJiraAuthHeaders, getJiraRequestUrl } from "../config/jiraConfig";
+import { jiraService } from "../services/jiraService";
 
 type NavItem = {
   name: string;
@@ -34,6 +29,15 @@ type Project = {
   pro?: boolean;
   new?: boolean;
 };
+
+// Define interface for issue
+interface Issue {
+  id: string;
+  key: string;
+  fields: {
+    summary?: string;
+  };
+}
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
@@ -167,20 +171,11 @@ const AppSidebar: React.FC = () => {
       });
     });
 
-    if (!submenuMatched) setOpenSubmenu(null);
-  }, [location, isActive, recentProjects]);
-
-  useEffect(() => {
-    if (openSubmenu !== null) {
-      const key = `${openSubmenu.type}-${openSubmenu.index}`;
-      if (subMenuRefs.current[key]) {
-        setSubMenuHeight((prevHeights) => ({
-          ...prevHeights,
-          [key]: subMenuRefs.current[key]?.scrollHeight || 0,
-        }));
-      }
+    // Only close the submenu if it's not the Project menu (index 0) or if no submenu matched and it's not the Project menu
+    if (!submenuMatched && !(openSubmenu?.type === "main" && openSubmenu?.index === 0)) {
+      setOpenSubmenu(null);
     }
-  }, [openSubmenu]);
+  }, [location, isActive, recentProjects]);
 
   const handleSubmenuToggle = (index: number, menuType: "main" | "others") => {
     setOpenSubmenu((prevOpenSubmenu) => {
@@ -206,6 +201,43 @@ const AppSidebar: React.FC = () => {
     console.log('Projects state updated:', { recentProjects, isLoading, error });
   }, [recentProjects, isLoading, error]);
 
+  // State for recent issues
+  const [recentIssues, setRecentIssues] = useState<Issue[]>([]);
+  const [issuesLoading, setIssuesLoading] = useState<boolean>(false);
+
+  // Fetch recent issues
+  const fetchRecentIssues = async () => {
+    setIssuesLoading(true);
+    try {
+      const issues = await jiraService.getRecentIssues();
+      
+      // Get first 3 issues
+      const recentIssuesData = Array.isArray(issues) ? issues.slice(0, 3) : [];
+      setRecentIssues(recentIssuesData);
+    } catch (error) {
+      console.error("Failed to fetch recent issues:", error);
+      setRecentIssues([]);
+    } finally {
+      setIssuesLoading(false);
+    }
+  };
+
+  // Update submenu height when content changes
+  useEffect(() => {
+    if (openSubmenu !== null) {
+      const key = `${openSubmenu.type}-${openSubmenu.index}`;
+      // Use requestAnimationFrame to ensure the DOM has updated before measuring
+      requestAnimationFrame(() => {
+        if (subMenuRefs.current[key]) {
+          setSubMenuHeight((prevHeights) => ({
+            ...prevHeights,
+            [key]: subMenuRefs.current[key]?.scrollHeight || 0,
+          }));
+        }
+      });
+    }
+  }, [openSubmenu, recentIssues, recentProjects, issuesLoading]);
+
   const navItems: NavItem[] = [
     {
       icon: <GridIcon />,
@@ -213,6 +245,13 @@ const AppSidebar: React.FC = () => {
       subItems: [
         // This will be overridden by dynamic content
         { name: "Loading...", path: "#", pro: false },
+      ],
+    },
+    {
+      icon: <IssuesIcon />,
+      name: "Issues",
+      subItems: [
+        { name: "Loading recent issues...", path: "/issues", pro: false },
       ],
     },
     {
@@ -225,33 +264,34 @@ const AppSidebar: React.FC = () => {
       name: "Calendar",
       path: "/calendar",
     },
-    {
-      icon: <UserCircleIcon />,
-      name: "User Profile",
-      path: "/profile",
-    },
-    {
-      icon: <UserCircleIcon />,
-      name: "User Data Check",
-      path: "/user-data-check",
-    },
-    {
-      name: "Forms",
-      icon: <ListIcon />,
-      subItems: [{ name: "Form Elements", path: "/form-elements", pro: false }],
-    },
-    {
-      name: "Tables",
-      icon: <TableIcon />,
-      subItems: [
-        { name: "Basic Tables", path: "/basic-tables", pro: false },
-      ],
-    },
+    
+    // {
+    //   icon: <UserCircleIcon />,
+    //   name: "User Profile",
+    //   path: "/profile",
+    // },
+    // {
+    //   icon: <UserCircleIcon />,
+    //   name: "User Data Check",
+    //   path: "/user-data-check",
+    // },
+    // {
+    //   name: "Forms",
+    //   icon: <ListIcon />,
+    //   subItems: [{ name: "Form Elements", path: "/form-elements", pro: false }],
+    // },
+    // {
+    //   name: "Tables",
+    //   icon: <TableIcon />,
+    //   subItems: [
+    //     { name: "Basic Tables", path: "/basic-tables", pro: false },
+    //   ],
+    // },
     {
       name: "Pages",
       icon: <PageIcon />,
       subItems: [
-        { name: "Blank Page", path: "/blank", pro: false },
+        { name: "Create New User", path: "/blank", pro: false },
         { name: "Create New Project", path: "/create-new-project", pro: false },
         { name: "404 Error", path: "/error-404", pro: false },
       ],
@@ -259,34 +299,34 @@ const AppSidebar: React.FC = () => {
   ];
 
   const othersItems: NavItem[] = [
-    {
-      icon: <PieChartIcon />,
-      name: "Charts",
-      subItems: [
-        { name: "Line Chart", path: "/line-chart", pro: false },
-        { name: "Bar Chart", path: "/bar-chart", pro: false },
-      ],
-    },
-    {
-      icon: <BoxCubeIcon />,
-      name: "UI Elements",
-      subItems: [
-        { name: "Alerts", path: "/alerts", pro: false },
-        { name: "Avatar", path: "/avatars", pro: false },
-        { name: "Badge", path: "/badge", pro: false },
-        { name: "Buttons", path: "/buttons", pro: false },
-        { name: "Images", path: "/images", pro: false },
-        { name: "Videos", path: "/videos", pro: false },
-      ],
-    },
-    {
-      icon: <PlugInIcon />,
-      name: "Authentication",
-      subItems: [
-        { name: "Sign In", path: "/signin", pro: false },
-        { name: "Sign Up", path: "/signup", pro: false },
-      ],
-    },
+    // {
+    //   icon: <PieChartIcon />,
+    //   name: "Charts",
+    //   subItems: [
+    //     { name: "Line Chart", path: "/line-chart", pro: false },
+    //     { name: "Bar Chart", path: "/bar-chart", pro: false },
+    //   ],
+    // },
+    // {
+    //   icon: <BoxCubeIcon />,
+    //   name: "UI Elements",
+    //   subItems: [
+    //     { name: "Alerts", path: "/alerts", pro: false },
+    //     { name: "Avatar", path: "/avatars", pro: false },
+    //     { name: "Badge", path: "/badge", pro: false },
+    //     { name: "Buttons", path: "/buttons", pro: false },
+    //     { name: "Images", path: "/images", pro: false },
+    //     { name: "Videos", path: "/videos", pro: false },
+    //   ],
+    // },
+    // {
+    //   icon: <PlugInIcon />,
+    //   name: "Authentication",
+    //   subItems: [
+    //     { name: "Sign In", path: "/signin", pro: false },
+    //     { name: "Sign Up", path: "/signup", pro: false },
+    //   ],
+    // },
   ];
 
   // Project dropdown menu component
@@ -418,6 +458,12 @@ const AppSidebar: React.FC = () => {
                   if (nav.name === "Project") {
                     // Special handling for Project menu to update projects list
                     handleSubmenuToggle(index, menuType);
+                  } else if (nav.name === "Issues") {
+                    // Special handling for Issues menu to fetch recent issues
+                    if (!openSubmenu || openSubmenu.type !== menuType || openSubmenu.index !== index) {
+                      fetchRecentIssues();
+                    }
+                    handleSubmenuToggle(index, menuType);
                   } else {
                     handleSubmenuToggle(index, menuType);
                   }
@@ -457,6 +503,7 @@ const AppSidebar: React.FC = () => {
                   +
                 </button>
               )}
+
             </div>
           ) : (
             nav.path && (
@@ -511,6 +558,15 @@ const AppSidebar: React.FC = () => {
                                 ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
                                 : "hover:bg-gray-100 dark:hover:bg-gray-700/50"
                             }`}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setSelectedProject(project.path);
+                              // Keep the project submenu open
+                              setOpenSubmenu({ type: "main", index: 0 });
+                              // Navigate to the project page
+                              navigate(project.path);
+                            }}
                           >
                             <div className="font-medium truncate">{project.name}</div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
@@ -536,6 +592,57 @@ const AppSidebar: React.FC = () => {
                     </div>
                   )}
                 </div>
+              ) : nav.name === 'Issues' ? (
+                <div 
+                  className="mt-2 space-y-1 ml-9"
+                  ref={(el) => {
+                    // Update the ref for issues dropdown
+                    if (openSubmenu?.type === "main" && openSubmenu?.index === 1) { // Issues is at index 1
+                      subMenuRefs.current[`main-1`] = el;
+                      // Update height immediately when content changes
+                      if (el && openSubmenu) {
+                        // Use requestAnimationFrame to ensure the DOM has updated
+                        requestAnimationFrame(() => {
+                          setSubMenuHeight(prev => ({
+                            ...prev,
+                            [`main-1`]: el.scrollHeight
+                          }));
+                        });
+                      }
+                    }
+                  }}
+                >
+                  {issuesLoading ? (
+                    <div className="px-4 py-2 text-sm text-gray-500">Loading recent issues...</div>
+                  ) : recentIssues.length > 0 ? (
+                    <>
+                      {recentIssues.map((issue: Issue) => (
+                        <Link
+                          key={issue.id}
+                          to={`/issues/${issue.key}`}
+                          className="block px-4 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                        >
+                          <div className="font-medium truncate">{issue.key}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {issue.fields?.summary || "No summary"}
+                          </div>
+                        </Link>
+                      ))}
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+                      <Link
+                        to="/issues"
+                        className="block px-4 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                      >
+                        View all issues
+                      </Link>
+                    </>
+                  ) : (
+                    <div className="px-4 py-2 text-sm text-gray-500">
+                      No recent issues
+                    </div>
+                  )}
+                </div>
+
               ) : (
                 <ul className="mt-2 space-y-1 ml-9">
                   {nav.subItems.map((subItem) => (
@@ -637,25 +744,8 @@ const AppSidebar: React.FC = () => {
               </h2>
               {renderMenuItems(navItems, "main")}
             </div>
-            <div className="">
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Others"
-                ) : (
-                  <HorizontaLDots />
-                )}
-              </h2>
-              {renderMenuItems(othersItems, "others")}
-            </div>
           </div>
         </nav>
-        {(isExpanded || isHovered || isMobileOpen) && <SidebarWidget />}
       </div>
     </aside>
   );

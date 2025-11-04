@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router';
 import { jiraService } from '../../services/jiraService';
 import JiraTablePagination from './JiraTablePagination';
 import ColumnSelector from './ColumnSelector';
@@ -68,6 +69,7 @@ const DynamicJiraTable: React.FC<DynamicJiraTableProps> = ({ projectKey }) => {
     { key: 'created', title: 'Created', isSortable: true, isSelected: false },
     { key: 'updated', title: 'Updated', isSortable: true, isSelected: false },
     { key: 'priority', title: 'Priority', isSortable: true, isSelected: true },
+    { key: 'actions', title: 'Actions', isSortable: false, isSelected: true }, // Add Actions column
   ]);
   
   const [tableData, setTableData] = useState<Issue[]>([]);
@@ -258,33 +260,49 @@ const DynamicJiraTable: React.FC<DynamicJiraTableProps> = ({ projectKey }) => {
   const getCellValue = (issue: Issue, columnKey: string): React.ReactNode => {
     switch (columnKey) {
       case 'key':
-        return issue.key;
+        return (
+          <Link 
+            to={`/issues/${issue.key}`} 
+            className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+          >
+            {issue.key || 'N/A'}
+          </Link>
+        );
       case 'issuetype':
-        return issue.fields.issuetype?.name ? (
-          <IssueTypeIcon type={issue.fields.issuetype.name} size="sm" />
-        ) : 'N/A';
+        return (
+          <div className="flex items-center">
+            <IssueTypeIcon type={issue.fields.issuetype?.name || 'Task'} />
+          </div>
+        );
       case 'summary':
-        return issue.fields.summary;
+        return (
+          <Link 
+            to={`/issues/${issue.key}`} 
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {issue.fields.summary || 'No summary'}
+          </Link>
+        );
       case 'status':
-        return issue.fields.status?.name || 'N/A';
+        return issue.fields.status?.name || 'Unknown';
       case 'assignee':
         return issue.fields.assignee?.displayName || 'Unassigned';
       case 'reporter':
-        return issue.fields.reporter?.displayName || 'N/A';
+        return issue.fields.reporter?.displayName || 'Unknown';
       case 'created':
         return formatDate(issue.fields.created);
       case 'updated':
         return formatDate(issue.fields.updated);
       case 'priority':
-        return issue.fields.priority?.name || 'N/A';
-      case 'customfield_10200': // Assignee Custom Field
-        // Debugging: log the actual value
+        return issue.fields.priority?.name || 'Unknown';
+      case 'customfield_10200':
         console.log('customfield_10200 value:', issue.fields.customfield_10200);
         return issue.fields.customfield_10200 || 'N/A';
-      case 'customfield_10201': // Reporter Custom Field
-        // Debugging: log the actual value
+      case 'customfield_10201':
         console.log('customfield_10201 value:', issue.fields.customfield_10201);
         return issue.fields.customfield_10201 || 'N/A';
+      case 'actions':
+        return <ActionsDropdown issue={issue} />;
       default: {
         // For custom fields, try to get the value from the fields object
         const fieldValue = issue.fields[columnKey as keyof typeof issue.fields];
@@ -299,6 +317,127 @@ const DynamicJiraTable: React.FC<DynamicJiraTableProps> = ({ projectKey }) => {
         }
       }
     }
+  };
+
+  // Actions dropdown component
+  const ActionsDropdown: React.FC<{ issue: Issue }> = ({ issue }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+          setIsOpen(false);
+        }
+      };
+
+      if (isOpen) {
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, [isOpen]);
+
+    // Toggle dropdown
+    const toggleDropdown = () => {
+      setIsOpen(!isOpen);
+    };
+
+    // Close dropdown
+    const closeDropdown = () => {
+      setIsOpen(false);
+    };
+
+    // Handle view issue
+    const handleViewIssue = () => {
+      window.location.href = `/#/issues/${issue.key}`;
+      closeDropdown();
+    };
+
+    // Handle edit issue
+    const handleEditIssue = () => {
+      // For now, we'll just navigate to the issue detail page
+      // In a full implementation, you would open an edit modal
+      window.location.href = `/#/issues/${issue.key}`;
+      closeDropdown();
+    };
+
+    // Handle delete issue
+    const handleDeleteIssue = async () => {
+      if (window.confirm(`Are you sure you want to delete issue ${issue.key}?`)) {
+        try {
+          // In a full implementation, you would call the delete API
+          console.log(`Deleting issue ${issue.key}`);
+          // After deletion, you would refresh the issues list
+          alert('Issue deleted successfully');
+        } catch (error) {
+          console.error('Error deleting issue:', error);
+          alert('Failed to delete issue');
+        }
+      }
+      closeDropdown();
+    };
+
+    return (
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={toggleDropdown}
+          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center"
+          aria-label="Actions"
+        >
+          <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+          </svg>
+        </button>
+
+        {isOpen && (
+          <div className="absolute right-0 z-20 mt-1 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 transition-all duration-200 ease-out transform origin-top-right">
+            <div className="py-1" role="menu">
+              <button
+                onClick={handleViewIssue}
+                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-none first:rounded-t-md last:rounded-b-md transition-colors duration-150"
+                role="menuitem"
+              >
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                  </svg>
+                  View Issue
+                </div>
+              </button>
+              <button
+                onClick={handleEditIssue}
+                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-none first:rounded-t-md last:rounded-b-md transition-colors duration-150"
+                role="menuitem"
+              >
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                  </svg>
+                  Edit Issue
+                </div>
+              </button>
+              <button
+                onClick={handleDeleteIssue}
+                className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-gray-700 rounded-none first:rounded-t-md last:rounded-b-md transition-colors duration-150"
+                role="menuitem"
+              >
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                  Delete Issue
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Handle column reordering

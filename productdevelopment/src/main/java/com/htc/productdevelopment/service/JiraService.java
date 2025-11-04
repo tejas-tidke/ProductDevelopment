@@ -15,6 +15,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -189,40 +190,130 @@ public class JiraService {
     }
 
     /**
+     * Get all issues across all projects
+     * @return JsonNode containing all issues
+     * @throws Exception if the API call fails
+     */
+    public JsonNode getAllIssues() throws Exception {
+        try {
+            logger.info("Fetching all issues across all projects");
+            
+            // Build the API URL for searching all issues using the new JQL endpoint
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/search/jql";
+            
+            // Create the JQL query to get all issues with a reasonable limit
+            // Using "project is not EMPTY" as a search restriction to avoid unbounded queries
+            // Include all the fields we need for the frontend, including custom fields
+            Map<String, Object> requestBody = Map.of(
+                "jql", "project is not EMPTY ORDER BY key",
+                "maxResults", 1000,
+                "fields", List.of(
+                    "summary", 
+                    "project", 
+                    "assignee", 
+                    "issuetype", 
+                    "status", 
+                    "priority", 
+                    "created", 
+                    "updated", 
+                    "reporter", 
+                    "customfield_10200", 
+                    "customfield_10201"
+                )
+            );
+            
+            // Make the API call with POST method
+            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, requestBody);
+            
+            logger.info("Successfully fetched all issues");
+            return response;
+        } catch (Exception e) {
+            logger.error("Error fetching all issues", e);
+            throw e;
+        }
+    }
+
+    /**
+     * Get recent issues across all projects (max 3)
+     * @return JsonNode containing recent issues
+     * @throws Exception if the API call fails
+     */
+    public JsonNode getRecentIssues() throws Exception {
+        try {
+            logger.info("Fetching recent issues across all projects");
+            
+            // Build the API URL for searching recent issues using the new JQL endpoint
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/search/jql";
+            
+            // Create the JQL query to get recent issues with a limit of 3
+            // Using "project is not EMPTY" as a search restriction to avoid unbounded queries
+            // Order by created date descending to get the most recent issues
+            // Include all the fields we need for the frontend, including custom fields
+            Map<String, Object> requestBody = Map.of(
+                "jql", "project is not EMPTY ORDER BY created DESC",
+                "maxResults", 3,
+                "fields", List.of(
+                    "summary", 
+                    "project", 
+                    "assignee", 
+                    "issuetype", 
+                    "status", 
+                    "priority", 
+                    "created", 
+                    "updated", 
+                    "reporter", 
+                    "customfield_10200", 
+                    "customfield_10201"
+                )
+            );
+            
+            // Make the API call with POST method
+            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, requestBody);
+            
+            logger.info("Successfully fetched recent issues");
+            return response;
+        } catch (Exception e) {
+            logger.error("Error fetching recent issues", e);
+            throw e;
+        }
+    }
+
+    /**
      * Get issues for a specific Jira project
      * @param projectKey The project key
-     * @return List of issues for the project
+     * @return JsonNode containing the response
      * @throws Exception if the API call fails
      */
     public JsonNode getIssuesForProject(String projectKey) throws Exception {
         try {
             logger.info("Fetching issues for project key: {}", projectKey);
             
-            // Build the API URL for searching issues using the new JQL endpoint
-            String url = UriComponentsBuilder.fromHttpUrl(jiraConfig.getBaseUrl())
-                .path("/rest/api/3/search/jql")
-                .toUriString();
+            // Build the API URL for searching issues in a specific project using the new JQL endpoint
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/search/jql";
             
-            // Create the request body with JQL query to filter issues by project
+            // Create the JQL query with proper formatting
             Map<String, Object> requestBody = Map.of(
-                "jql", "project = " + projectKey,
-                "maxResults", 50, // Limit results for better performance
+                "jql", "project = \"" + projectKey + "\"",
+                "maxResults", 1000,
                 "fields", List.of(
-                    "summary",
-                    "issuetype",
-                    "status",
-                    "priority",
-                    "assignee",
-                    "reporter",
-                    "customfield_10200",
+                    "summary", 
+                    "project", 
+                    "assignee", 
+                    "issuetype", 
+                    "status", 
+                    "priority", 
+                    "created", 
+                    "updated", 
+                    "reporter", 
+                    "customfield_10200", 
                     "customfield_10201"
                 )
             );
             
-            // Make the API call
+            // Make the API call with POST method
             JsonNode response = makeJiraApiCall(url, HttpMethod.POST, requestBody);
-            logger.info("Issues fetched successfully for project: {}", projectKey);
             
+            logger.info("Successfully fetched issues for project: {}", projectKey);
             return response;
         } catch (Exception e) {
             logger.error("Error fetching issues for project: {}", projectKey, e);
@@ -338,26 +429,73 @@ public class JiraService {
                 fields.put("duedate", issueData.get("dueDate"));
             }
             
-            // Add assignee using hardcoded custom field (customfield_10200)
-            if (issueData.get("assigneeCustom") != null && !((String) issueData.get("assigneeCustom")).isEmpty()) {
-                fields.put("customfield_10200", issueData.get("assigneeCustom"));
-            }
-            
-            // Add reporter using hardcoded custom field (customfield_10201)
-            if (issueData.get("reporterCustom") != null && !((String) issueData.get("reporterCustom")).isEmpty()) {
-                fields.put("customfield_10201", issueData.get("reporterCustom"));
-            }
+            // Note: Custom fields (customfield_10200, customfield_10201) are not included in issue creation
+            // as they may not be available on the creation screen in Jira.
+            // These fields can be updated after issue creation if needed.
             
             Map<String, Object> requestBody = Map.of("fields", fields);
             
-            // Make the API call
+            // Make the API call to create the issue
             JsonNode response = makeJiraApiCall(url, HttpMethod.POST, requestBody);
             logger.info("Issue created successfully");
+            
+            // If custom fields are provided, update the issue with them
+            try {
+                String issueKey = response.get("key").asText();
+                if ((issueData.get("assigneeCustom") != null && !((String) issueData.get("assigneeCustom")).isEmpty()) ||
+                    (issueData.get("reporterCustom") != null && !((String) issueData.get("reporterCustom")).isEmpty())) {
+                    
+                    Map<String, Object> updateFields = new HashMap<>();
+                    
+                    // Add assignee using hardcoded custom field (customfield_10200)
+                    if (issueData.get("assigneeCustom") != null && !((String) issueData.get("assigneeCustom")).isEmpty()) {
+                        updateFields.put("customfield_10200", issueData.get("assigneeCustom"));
+                    }
+                    
+                    // Add reporter using hardcoded custom field (customfield_10201)
+                    if (issueData.get("reporterCustom") != null && !((String) issueData.get("reporterCustom")).isEmpty()) {
+                        updateFields.put("customfield_10201", issueData.get("reporterCustom"));
+                    }
+                    
+                    // Update the issue with custom fields
+                    updateIssue(issueKey, updateFields);
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to update custom fields for issue, but issue was created successfully", e);
+            }
             
             return response;
         } catch (Exception e) {
             logger.error("Error creating Jira issue", e);
             throw e;
+        }
+    }
+    
+    /**
+     * Update an existing Jira issue
+     * @param issueKey The issue key to update
+     * @param fields The fields to update
+     * @return JsonNode containing the response
+     * @throws Exception if the API call fails
+     */
+    public JsonNode updateIssue(String issueKey, Map<String, Object> fields) throws Exception {
+        try {
+            logger.info("Updating Jira issue: {}", issueKey);
+            
+            // Build the API URL for updating an issue
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueKey;
+            
+            Map<String, Object> requestBody = Map.of("fields", fields);
+            
+            // Make the API call
+            JsonNode response = makeJiraApiCall(url, HttpMethod.PUT, requestBody);
+            logger.info("Issue updated successfully: {}", issueKey);
+            
+            return response;
+        } catch (Exception e) {
+            logger.error("Error updating Jira issue: {}", issueKey, e);
+            // Don't throw the exception, just log it as the issue was already created
+            return null;
         }
     }
 
@@ -374,11 +512,18 @@ public class JiraService {
         Map<String, Object> paragraph = new HashMap<>();
         paragraph.put("type", "paragraph");
         
-        Map<String, Object> textContent = new HashMap<>();
-        textContent.put("type", "text");
-        textContent.put("text", text);
+        // Only add text content if text is not null or empty
+        if (text != null && !text.isEmpty()) {
+            Map<String, Object> textContent = new HashMap<>();
+            textContent.put("type", "text");
+            textContent.put("text", text);
+            
+            paragraph.put("content", List.of(textContent));
+        } else {
+            // Add an empty content array if no text
+            paragraph.put("content", new java.util.ArrayList<>());
+        }
         
-        paragraph.put("content", List.of(textContent));
         content.put("content", List.of(paragraph));
         
         return content;

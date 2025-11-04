@@ -106,6 +106,50 @@ public class JiraController {
     }
 
     /**
+     * Get recent issues across all projects (max 3)
+     * @return Recent issues from all projects
+     */
+    @GetMapping("/issues/recent")
+    public ResponseEntity<?> getRecentIssues() {
+        try {
+            logger.info("Received request for recent issues across all projects");
+            JsonNode recentIssues = jiraService.getRecentIssues();
+            logger.info("Returning recent issues");
+            // Return the issues array directly instead of the full response
+            if (recentIssues.has("issues")) {
+                return ResponseEntity.ok(recentIssues.get("issues"));
+            } else {
+                return ResponseEntity.ok(recentIssues);
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching recent issues", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch recent issues: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get all issues across all projects
+     * @return All issues from all projects
+     */
+    @GetMapping("/issues")
+    public ResponseEntity<?> getAllIssues() {
+        try {
+            logger.info("Received request for all issues across all projects");
+            JsonNode allIssues = jiraService.getAllIssues();
+            logger.info("Returning all issues");
+            // Return the issues array directly instead of the full response
+            if (allIssues.has("issues")) {
+                return ResponseEntity.ok(allIssues.get("issues"));
+            } else {
+                return ResponseEntity.ok(allIssues);
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching all issues", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch all issues: " + e.getMessage()));
+        }
+    }
+
+    /**
      * Get all fields from Jira
      * @return The fields from Jira
      */

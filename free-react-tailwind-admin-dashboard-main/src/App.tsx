@@ -229,16 +229,18 @@ import BarChart from "./pages/Charts/BarChart";
 import Calendar from "./pages/Calendar";
 import BasicTables from "./pages/Tables/BasicTables";
 import FormElements from "./pages/Forms/FormElements";
-import Blank from "./pages/Blank";
+import Blank from "./pages/CreateNewUser";
 import AppLayout from "./layout/AppLayout";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 import Home from "./pages/Dashboard/Home";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
-import ProtectedAdminRoute from "./components/auth/ProtectedAdminRoute";
 import UserDataCheck from "./pages/UserDataCheck";
 import CreateNewProject from "./layout/CreateNewProject";
 import AllProjects from "./pages/AllProjects";
 import ProjectDetail from "./pages/ProjectDetail";
+import Issues from "./pages/Issues";
+import IssueDetail from "./pages/IssueDetail";
+import UsersList from "./pages/UsersList";
 
 export default function App() {
   return (
@@ -410,6 +412,36 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <ProjectDetail />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Issues Page */}
+            <Route 
+              path="/issues" 
+              element={
+                <ProtectedRoute>
+                  <Issues />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Individual Issue Detail */}
+            <Route 
+              path="/issues/:issueKey" 
+              element={
+                <ProtectedRoute>
+                  <IssueDetail />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Users List Page */}
+            <Route 
+              path="/users" 
+              element={
+                <ProtectedRoute>
+                  <UsersList />
                 </ProtectedRoute>
               } 
             />

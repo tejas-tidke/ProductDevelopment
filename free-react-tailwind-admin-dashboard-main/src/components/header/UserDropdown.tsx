@@ -186,6 +186,31 @@ export default function UserDropdown() {
               User Management
             </DropdownItem>
           </li>
+          <li>
+            <DropdownItem
+              onItemClick={closeDropdown}
+              tag="a"
+              to="/users"
+              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+            >
+              <svg
+                className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M12 6C13.1046 6 14 5.10457 14 4C14 2.89543 13.1046 2 12 2C10.8954 2 10 2.89543 10 4C10 5.10457 10.8954 6 12 6ZM15.8639 15.864C17.2446 14.4833 18 12.7003 18 10.875C18 9.04974 17.2446 7.26674 15.8639 5.88602C14.4832 4.5053 12.7002 3.75 10.875 3.75C9.04974 3.75 7.26674 4.5053 5.88602 5.88602C4.5053 7.26674 3.75 9.04974 3.75 10.875C3.75 12.7003 4.5053 14.4833 5.88602 15.864C7.26674 17.2447 9.04974 18 10.875 18C12.7002 18 14.4832 17.2447 15.8639 15.864ZM17.2783 17.2784C15.6289 18.9278 13.3352 19.875 10.875 19.875C8.41481 19.875 6.12106 18.9278 4.47168 17.2784C2.8223 15.629 1.875 13.3353 1.875 10.875C1.875 8.41481 2.8223 6.12106 4.47168 4.47168C6.12106 2.8223 8.41481 1.875 10.875 1.875C13.3352 1.875 15.6289 2.8223 17.2783 4.47168C18.9277 6.12106 19.875 8.41481 19.875 10.875C19.875 13.3353 18.9277 15.629 17.2783 17.2784Z"
+                  fill=""
+                />
+              </svg>
+              List of Users
+            </DropdownItem>
+          </li>
         </ul>
         <button
           onClick={handleSignOut}

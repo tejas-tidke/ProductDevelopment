@@ -92,6 +92,12 @@ export const jiraService = {
   // Get issues for a specific project
   getIssuesForProject: (projectKey: string) => jiraApiCall(`/api/jira/projects/${projectKey}/issues`),
   
+  // Get all issues across all projects
+  getAllIssues: () => jiraApiCall("/api/jira/issues"),
+  
+  // Get recent issues across all projects
+  getRecentIssues: () => jiraApiCall("/api/jira/issues/recent"),
+  
   // Get all fields from Jira
   getFields: () => jiraApiCall("/api/jira/fields"),
   

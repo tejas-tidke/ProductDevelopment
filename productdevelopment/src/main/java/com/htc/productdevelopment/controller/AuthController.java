@@ -382,4 +382,64 @@ public class AuthController {
             return ResponseEntity.badRequest().body("Error auto-syncing user: " + e.getMessage());
         }
     }
+    
+    /**
+     * Disable a user by setting their active status to false
+     * @param uid User ID
+     * @return Updated user
+     */
+    @PutMapping("/users/{uid}/disable")
+    public ResponseEntity<?> disableUser(@PathVariable String uid) {
+        logger.info("Received request to disable user: {}", uid);
+        
+        try {
+            // Disable user
+            User user = userService.disableUser(uid);
+            logger.info("User disabled successfully: {}", uid);
+            return ResponseEntity.ok(user);
+        } catch (Exception e) {
+            logger.error("Error disabling user: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Error disabling user: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Enable a user by setting their active status to true
+     * @param uid User ID
+     * @return Updated user
+     */
+    @PutMapping("/users/{uid}/enable")
+    public ResponseEntity<?> enableUser(@PathVariable String uid) {
+        logger.info("Received request to enable user: {}", uid);
+        
+        try {
+            // Enable user
+            User user = userService.enableUser(uid);
+            logger.info("User enabled successfully: {}", uid);
+            return ResponseEntity.ok(user);
+        } catch (Exception e) {
+            logger.error("Error enabling user: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Error enabling user: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Delete a user by UID
+     * @param uid User ID
+     * @return Success message
+     */
+    @DeleteMapping("/users/{uid}")
+    public ResponseEntity<?> deleteUser(@PathVariable String uid) {
+        logger.info("Received request to delete user: {}", uid);
+        
+        try {
+            // Delete user
+            userService.deleteUser(uid);
+            logger.info("User deleted successfully: {}", uid);
+            return ResponseEntity.ok("User deleted successfully");
+        } catch (Exception e) {
+            logger.error("Error deleting user: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Error deleting user: " + e.getMessage());
+        }
+    }
 }

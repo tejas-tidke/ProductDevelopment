@@ -64,6 +64,16 @@ export const userApi = {
   deleteUser: (id: string) => apiCall(`/api/users/${id}`, {
     method: "DELETE",
   }),
+  
+  // Disable user
+  disableUser: (id: string) => apiCall(`/api/auth/users/${id}/disable`, {
+    method: "PUT",
+  }),
+  
+  // Enable user
+  enableUser: (id: string) => apiCall(`/api/auth/users/${id}/enable`, {
+    method: "PUT",
+  }),
 };
 
 export default { userApi };
