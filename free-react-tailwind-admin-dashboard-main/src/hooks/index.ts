@@ -1,0 +1,1 @@
+export { useJiraTable } from './useJiraTable';
