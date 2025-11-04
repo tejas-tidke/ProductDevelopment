@@ -5,7 +5,9 @@ import com.htc.productdevelopment.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -17,6 +19,7 @@ import org.slf4j.LoggerFactory;
  */
 @RestController
 @RequestMapping("/api/users")
+@CrossOrigin(origins = "http://localhost:5173")
 public class UserController {
     
     // Logger for tracking controller operations
@@ -48,7 +51,9 @@ public class UserController {
             return ResponseEntity.ok(users);
         } catch (Exception e) {
             logger.error("Error fetching all users: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error fetching users: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error fetching users: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -73,7 +78,9 @@ public class UserController {
             }
         } catch (Exception e) {
             logger.error("Error fetching user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error fetching user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error fetching user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -93,7 +100,9 @@ public class UserController {
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             logger.error("Error creating user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error creating user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error creating user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -114,7 +123,9 @@ public class UserController {
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             logger.error("Error updating user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error updating user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error updating user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -131,10 +142,14 @@ public class UserController {
             // Delete user
             userService.deleteUserById(id);
             logger.info("User deleted successfully: {}", id);
-            return ResponseEntity.ok("User deleted successfully");
+            Map<String, String> successResponse = new HashMap<>();
+            successResponse.put("message", "User deleted successfully");
+            return ResponseEntity.ok(successResponse);
         } catch (Exception e) {
             logger.error("Error deleting user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error deleting user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error deleting user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
 }

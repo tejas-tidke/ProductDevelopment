@@ -112,6 +112,11 @@ export const jiraService = {
     method: "POST",
     body: JSON.stringify(issueData),
   }),
+  
+  // Delete an issue by ID or key
+  deleteIssue: (issueIdOrKey: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}`, {
+    method: "DELETE",
+  }),
 };
 
 export default { jiraService };

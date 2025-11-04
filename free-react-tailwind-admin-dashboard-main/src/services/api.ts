@@ -13,7 +13,7 @@ async function getAuthToken() {
 }
 
 // Generic API call function
-async function apiCall(endpoint: string, options: RequestInit = {}) {
+export async function apiCall(endpoint: string, options: RequestInit = {}) {
   const token = await getAuthToken();
   
   const config: RequestInit = {
@@ -31,7 +31,14 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
     throw new Error(`API call failed: ${response.statusText}`);
   }
   
-  return response.json();
+  // Check if response is JSON
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return response.json();
+  } else {
+    // Return text for non-JSON responses
+    return response.text();
+  }
 }
 
 // User API functions

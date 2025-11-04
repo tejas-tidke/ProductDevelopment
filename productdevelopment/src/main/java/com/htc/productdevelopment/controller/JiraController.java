@@ -254,4 +254,22 @@ public class JiraController {
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to delete project: " + e.getMessage()));
         }
     }
+
+    /**
+     * Delete a Jira issue
+     * @param issueIdOrKey The issue ID or key to delete
+     * @return Success or error response
+     */
+    @DeleteMapping("/issues/{issueIdOrKey}")
+    public ResponseEntity<?> deleteIssue(@PathVariable String issueIdOrKey) {
+        try {
+            logger.info("Received request to delete Jira issue with ID/Key: {}", issueIdOrKey);
+            JsonNode response = jiraService.deleteIssue(issueIdOrKey);
+            logger.info("Issue deleted successfully: {}", issueIdOrKey);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error deleting Jira issue with ID/Key: {}", issueIdOrKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to delete issue: " + e.getMessage()));
+        }
+    }
 }

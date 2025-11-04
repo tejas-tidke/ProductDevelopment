@@ -627,4 +627,28 @@ public class JiraService {
             throw e;
         }
     }
+
+    /**
+     * Delete a Jira issue
+     * @param issueIdOrKey The issue ID or key to delete
+     * @return JsonNode containing the response
+     * @throws Exception if the API call fails
+     */
+    public JsonNode deleteIssue(String issueIdOrKey) throws Exception {
+        try {
+            logger.info("Deleting Jira issue with ID/Key: {}", issueIdOrKey);
+            
+            // Build the API URL for deleting an issue
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueIdOrKey;
+            
+            // Make the API call
+            JsonNode response = makeJiraApiCall(url, HttpMethod.DELETE, null);
+            logger.info("Issue deleted successfully: {}", issueIdOrKey);
+            
+            return response;
+        } catch (Exception e) {
+            logger.error("Error deleting Jira issue with ID/Key: {}", issueIdOrKey, e);
+            throw e;
+        }
+    }
 }

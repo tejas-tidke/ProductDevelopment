@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory;
  */
 @RestController
 @RequestMapping("/api/auth")
+@CrossOrigin(origins = "http://localhost:5173")
 public class AuthController {
     
     // Logger for tracking controller operations
@@ -62,7 +63,9 @@ public class AuthController {
             // Validate required fields
             if (email == null || email.isEmpty() || password == null || password.isEmpty()) {
                 logger.warn("User creation failed: Email and password are required");
-                return ResponseEntity.badRequest().body("Email and password are required");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Email and password are required");
+                return ResponseEntity.badRequest().body(errorResponse);
             }
             
             // Set default role to USER if not provided
@@ -81,7 +84,9 @@ public class AuthController {
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             logger.error("Error creating Firebase user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error creating user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error creating user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -103,7 +108,9 @@ public class AuthController {
             // Validate required field
             if (uid == null || uid.isEmpty()) {
                 logger.warn("Registration failed: UID is required");
-                return ResponseEntity.badRequest().body("UID is required");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "UID is required");
+                return ResponseEntity.badRequest().body(errorResponse);
             }
             
             // Create user in database
@@ -112,7 +119,9 @@ public class AuthController {
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             logger.error("Error registering user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body(e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -132,7 +141,9 @@ public class AuthController {
             // Validate required field
             if (uid == null || uid.isEmpty()) {
                 logger.warn("Sync failed: UID is required");
-                return ResponseEntity.badRequest().body("UID is required");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "UID is required");
+                return ResponseEntity.badRequest().body(errorResponse);
             }
             
             // Sync user from Firebase to database
@@ -141,7 +152,9 @@ public class AuthController {
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             logger.error("Error syncing Firebase user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error syncing user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error syncing user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -161,7 +174,9 @@ public class AuthController {
             // Validate required field
             if (idToken == null || idToken.isEmpty()) {
                 logger.warn("Sync failed: ID token is required");
-                return ResponseEntity.badRequest().body("ID token is required");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "ID token is required");
+                return ResponseEntity.badRequest().body(errorResponse);
             }
             
             // Sync user from Firebase to database using token
@@ -170,7 +185,9 @@ public class AuthController {
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             logger.error("Error syncing Firebase user by token: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error syncing user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error syncing user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -251,7 +268,9 @@ public class AuthController {
             return ResponseEntity.ok(users);
         } catch (IllegalArgumentException e) {
             logger.warn("Invalid role value: {}", role);
-            return ResponseEntity.badRequest().body("Invalid role value");
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Invalid role value");
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -300,7 +319,9 @@ public class AuthController {
             // Validate required field
             if (roleStr == null || roleStr.isEmpty()) {
                 logger.warn("Role update failed: Role is required");
-                return ResponseEntity.badRequest().body("Role is required");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Role is required");
+                return ResponseEntity.badRequest().body(errorResponse);
             }
             
             // Convert role string to enum
@@ -312,10 +333,14 @@ public class AuthController {
             return ResponseEntity.ok(user);
         } catch (IllegalArgumentException e) {
             logger.error("Invalid role value: {}", e.getMessage());
-            return ResponseEntity.badRequest().body("Invalid role value");
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Invalid role value");
+            return ResponseEntity.badRequest().body(errorResponse);
         } catch (Exception e) {
             logger.error("Error updating user role: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body(e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -336,7 +361,9 @@ public class AuthController {
             // Validate required field
             if (avatar == null) {
                 logger.warn("Avatar update failed: Avatar is null");
-                return ResponseEntity.badRequest().body("Avatar is required");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Avatar is required");
+                return ResponseEntity.badRequest().body(errorResponse);
             }
             
             // Update user avatar
@@ -345,7 +372,9 @@ public class AuthController {
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             logger.error("Error updating user avatar: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body(e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -365,7 +394,9 @@ public class AuthController {
             // Validate required field
             if (uid == null || uid.isEmpty()) {
                 logger.warn("Auto-sync failed: UID is required");
-                return ResponseEntity.badRequest().body("UID is required");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "UID is required");
+                return ResponseEntity.badRequest().body(errorResponse);
             }
             
             // Auto-sync user
@@ -379,7 +410,9 @@ public class AuthController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Error auto-syncing user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error auto-syncing user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error auto-syncing user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -399,7 +432,9 @@ public class AuthController {
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             logger.error("Error disabling user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error disabling user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error disabling user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -419,7 +454,9 @@ public class AuthController {
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             logger.error("Error enabling user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error enabling user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error enabling user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
@@ -436,10 +473,14 @@ public class AuthController {
             // Delete user
             userService.deleteUser(uid);
             logger.info("User deleted successfully: {}", uid);
-            return ResponseEntity.ok("User deleted successfully");
+            Map<String, String> successResponse = new HashMap<>();
+            successResponse.put("message", "User deleted successfully");
+            return ResponseEntity.ok(successResponse);
         } catch (Exception e) {
             logger.error("Error deleting user: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body("Error deleting user: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error deleting user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
 }
