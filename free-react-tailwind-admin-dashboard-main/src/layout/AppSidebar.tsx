@@ -11,6 +11,11 @@ import {
 import { useSidebar } from "../context/SidebarContext";
 import { JIRA_CONFIG, getJiraAuthHeaders, getJiraRequestUrl } from "../config/jiraConfig";
 import { jiraService } from "../services/jiraService";
+import NotificationDropdown from "../components/header/NotificationDropdown";
+import SettingsDropdown from "../components/header/SettingsDropdown";
+import UserDropdown from "../components/header/UserDropdown";
+
+
 
 type NavItem = {
   name: string;
@@ -50,12 +55,21 @@ const AppSidebar: React.FC = () => {
   } | null>(null);
   const [subMenuHeight, setSubMenuHeight] = useState<Record<string, number>>({});
   const subMenuRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Bottom icons state management
+  const [openBottomDropdown, setOpenBottomDropdown] = useState<'notifications' | 'settings' | 'profile' | null>(null);
   
   // Project state management
   const [recentProjects, setRecentProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+
+
+
+
+
 
   // Fetch projects from backend
   const fetchJiraProjects = async () => {
@@ -680,7 +694,7 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 ${
+      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 ${
         isExpanded || isMobileOpen
           ? "w-[290px]"
           : isHovered
@@ -693,7 +707,7 @@ const AppSidebar: React.FC = () => {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className={`py-8 flex ${
+        className={`py-8 px-5 flex ${
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
@@ -725,8 +739,8 @@ const AppSidebar: React.FC = () => {
           )}
         </Link>
       </div>
-      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
-        <nav className="mb-6">
+      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar flex-1">
+        <nav className="mb-6 px-5">
           <div className="flex flex-col gap-4">
             <div>
               <h2
@@ -746,6 +760,53 @@ const AppSidebar: React.FC = () => {
             </div>
           </div>
         </nav>
+      </div>
+      {/* Bottom section with icons - moved outside scrollable container */}
+      <div className="px-5 pb-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
+        <div className="flex flex-col gap-4">
+          {/* Notification */}
+          <div className="menu-item group relative">
+            <div className="flex items-center">
+              <div className="relative">
+                <NotificationDropdown
+                  isOpen={openBottomDropdown === 'notifications'}
+                  onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'notifications' ? null : 'notifications')}
+                />
+              </div>
+              {(isExpanded || isHovered || isMobileOpen) && (
+                <span className="menu-item-text ml-3">Notifications</span>
+              )}
+            </div>
+          </div>
+          {/* Settings */}
+          <div className="menu-item group relative">
+            <div className="flex items-center">
+              <div className="relative">
+                <SettingsDropdown
+                  isOpen={openBottomDropdown === 'settings'}
+                  onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'settings' ? null : 'settings')}
+                />
+              </div>
+              {(isExpanded || isHovered || isMobileOpen) && (
+                <span className="menu-item-text ml-3">Settings</span>
+              )}
+            </div>
+          </div>
+          {/* Profile */}
+          <div className="menu-item group relative">
+            <div className="flex items-center">
+              <div className="relative">
+                <UserDropdown
+                  isOpen={openBottomDropdown === 'profile'}
+                  onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'profile' ? null : 'profile')}
+                />
+              </div>
+              {(isExpanded || isHovered || isMobileOpen) && (
+                <span className="menu-item-text ml-3">Profile</span>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </aside>
   );

@@ -6,8 +6,12 @@ import { useSignOut } from "../../hooks/useSignOut";
 import { useAuth } from "../../context/AuthContext";
 import { userService } from "../../services/userService";
 
-export default function UserDropdown() {
-  const [isOpen, setIsOpen] = useState(false);
+interface UserDropdownProps {
+  isOpen: boolean;
+  onToggle: () => void;
+}
+
+export default function UserDropdown({ isOpen, onToggle }: UserDropdownProps) {
   const [userAvatar, setUserAvatar] = useState<string>("/images/user/user-01.jpg");
   const [userDisplayName, setUserDisplayName] = useState<string>("User");
   const [userEmail, setUserEmail] = useState<string>("");
@@ -21,11 +25,11 @@ export default function UserDropdown() {
       if (currentUser?.uid) {
         try {
           setUserEmail(currentUser.email || "");
-          
+
           // Use display name from Firebase or email prefix
           const displayName = currentUser.displayName || currentUser.email?.split("@")[0] || "User";
           setUserDisplayName(displayName);
-          
+
           // Fetch user data from backend to get avatar
           const userData = await userService.getUserData(currentUser.uid);
           if (userData && userData.user && userData.user.avatar) {
@@ -48,12 +52,8 @@ export default function UserDropdown() {
     loadUserData();
   }, [currentUser]);
 
-  function toggleDropdown() {
-    setIsOpen(!isOpen);
-  }
-
   function closeDropdown() {
-    setIsOpen(false);
+    onToggle();
   }
 
   const handleSignOut = async () => {
@@ -68,38 +68,19 @@ export default function UserDropdown() {
   return (
     <div className="relative">
       <button
-        onClick={toggleDropdown}
-        className="flex items-center text-gray-700 dropdown-toggle dark:text-gray-400"
+        onClick={onToggle}
+        className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full dropdown-toggle hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+        aria-label="Profile"
       >
-        <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
-          <img src={userAvatar} alt="User" />
+        <span className="overflow-hidden rounded-full h-9 w-9">
+          <img src={userAvatar} alt="User" className="w-full h-full object-cover" />
         </span>
-
-        <span className="block mr-1 font-medium text-theme-sm">{userDisplayName}</span>
-        <svg
-          className={`stroke-gray-500 dark:stroke-gray-400 transition-transform duration-200 ${
-            isOpen ? "rotate-180" : ""
-          }`}
-          width="18"
-          height="20"
-          viewBox="0 0 18 20"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="M4.3125 8.65625L9 13.3437L13.6875 8.65625"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
       </button>
 
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
+        className="fixed left-full ml-4 bottom-0 flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark z-60"
       >
         <div>
           <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">

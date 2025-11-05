@@ -1,23 +1,26 @@
+
+
+
 import { useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
+import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Link } from "react-router";
 
-export default function SettingsDropdown() {
-  const [isOpen, setIsOpen] = useState(false);
+interface SettingsDropdownProps {
+  isOpen: boolean;
+  onToggle: () => void;
+}
 
-  function toggleDropdown() {
-    setIsOpen(!isOpen);
-  }
-
+export default function SettingsDropdown({ isOpen, onToggle }: SettingsDropdownProps) {
   function closeDropdown() {
-    setIsOpen(false);
+    onToggle();
   }
 
   return (
     <div className="relative">
       <button
         className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full dropdown-toggle hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-        onClick={toggleDropdown}
+        onClick={onToggle}
         aria-label="Settings"
       >
         {/* Gear icon */}
@@ -40,7 +43,7 @@ export default function SettingsDropdown() {
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute right-0 mt-[17px] flex w-[220px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
+        className="fixed left-full ml-4 bottom-0 flex w-[220px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark z-60"
       >
         <ul className="flex flex-col gap-1">
           <li>

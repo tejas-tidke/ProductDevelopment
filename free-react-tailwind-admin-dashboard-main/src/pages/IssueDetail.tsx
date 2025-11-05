@@ -616,9 +616,185 @@ const IssueDetail: React.FC = () => {
           
           {/* Issue Content */}
           <div className="px-6 py-4">
-            <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-              {/* Main Content - 70% width */}
-              <div className="lg:col-span-7">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Left Panel - 20% width (Details Sidebar) */}
+              <div className="lg:col-span-1">
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Details</h3>
+                  
+                  <div className="space-y-4">
+                    {/* Description */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Description</h4>
+                      <div className="text-sm text-gray-900 dark:text-white">
+                        {issue.fields.description || "No description provided"}
+                      </div>
+                    </div>
+                    
+                    {/* Issue Type */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Issue Type</h4>
+                      <div className="flex items-center">
+                        <div className="mr-2">
+                          <IssueTypeIcon type={issue.fields.issuetype?.name || 'default'} size="sm" />
+                        </div>
+                        <span className="text-sm text-gray-900 dark:text-white">
+                          {issue.fields.issuetype?.name || "Unknown"}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Project */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Project</h4>
+                      <div className="text-sm text-gray-900 dark:text-white">
+                        {issue.fields.project?.name || "Unknown"}
+                      </div>
+                    </div>
+                    
+                    {/* Priority */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Priority</h4>
+                      <div className="text-sm text-gray-900 dark:text-white">
+                        {issue.fields.priority?.name || "Unknown"}
+                      </div>
+                    </div>
+                    
+                    {/* Status */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Status</h4>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(issue.fields.status?.statusCategory)}`}>
+                        {issue.fields.status?.name || "Unknown"}
+                      </span>
+                    </div>
+                    
+                    {/* Assignee */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Assignee</h4>
+                      <div className="flex items-center">
+                        {issue.fields.assignee ? (
+                          <>
+                            <img 
+                              className="h-6 w-6 rounded-full" 
+                              src={issue.fields.assignee.avatarUrls["48x48"]} 
+                              alt={issue.fields.assignee.displayName} 
+                            />
+                            <span className="ml-2 text-sm text-gray-900 dark:text-white">
+                              {issue.fields.assignee.displayName}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-sm text-gray-900 dark:text-white">Unassigned</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Reporter */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Reporter</h4>
+                      <div className="flex items-center">
+                        {issue.fields.reporter ? (
+                          <>
+                            <img 
+                              className="h-6 w-6 rounded-full" 
+                              src={issue.fields.reporter.avatarUrls["48x48"]} 
+                              alt={issue.fields.reporter.displayName} 
+                            />
+                            <span className="ml-2 text-sm text-gray-900 dark:text-white">
+                              {issue.fields.reporter.displayName}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-sm text-gray-900 dark:text-white">Unknown</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Custom Fields */}
+                    {issue.fields.customfield_10200 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Assignee (Custom)</h4>
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {issue.fields.customfield_10200}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {issue.fields.customfield_10201 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Reporter (Custom)</h4>
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {issue.fields.customfield_10201}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Dates */}
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Created */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Created</h4>
+                        <div className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                          </svg>
+                          <span className="text-sm text-gray-900 dark:text-white">{formatDate(issue.fields.created)}</span>
+                        </div>
+                      </div>
+
+                      {/* Updated */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Updated</h4>
+                        <div className="flex items-center space-x-2">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                          </svg>
+                          <span className="text-sm text-gray-900 dark:text-white">{formatDate(issue.fields.updated)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Attachments */}
+                    <div>
+                      {(attachments && attachments.length > 0) && (
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Attachments</h4>
+                          <div className="space-y-2">
+                            {attachments.map((attachment) => (
+                              <div key={attachment.id} className="flex items-center justify-between p-2 bg-white dark:bg-gray-600 rounded border border-gray-200 dark:border-gray-500">
+                                <div className="flex items-center">
+                                  <svg className="w-5 h-5 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                                  </svg>
+                                  <div>
+                                    <a 
+                                      href={`/api/jira/attachment/content/${attachment.id}`}
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                      {attachment.filename}
+                                    </a>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      {Math.round(attachment.size / 1024)} KB
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  {formatDate(attachment.created)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Main Content - 80% width (Issue Details) */}
+              <div className="lg:col-span-4">
                 {/* Tabs */}
                 <div className="border-b border-gray-200 dark:border-gray-700">
                   <nav className="-mb-px flex space-x-8">
@@ -879,182 +1055,6 @@ const IssueDetail: React.FC = () => {
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
-              
-              {/* Sidebar - 30% width */}
-              <div className="lg:col-span-3">
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Details</h3>
-                  
-                  <div className="space-y-4">
-                    {/* Description */}
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Description</h4>
-                      <div className="text-sm text-gray-900 dark:text-white">
-                        {issue.fields.description || "No description provided"}
-                      </div>
-                    </div>
-                    
-                    {/* Issue Type */}
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Issue Type</h4>
-                      <div className="flex items-center">
-                        <div className="mr-2">
-                          <IssueTypeIcon type={issue.fields.issuetype?.name || 'default'} size="sm" />
-                        </div>
-                        <span className="text-sm text-gray-900 dark:text-white">
-                          {issue.fields.issuetype?.name || "Unknown"}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {/* Project */}
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Project</h4>
-                      <div className="text-sm text-gray-900 dark:text-white">
-                        {issue.fields.project?.name || "Unknown"}
-                      </div>
-                    </div>
-                    
-                    {/* Priority */}
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Priority</h4>
-                      <div className="text-sm text-gray-900 dark:text-white">
-                        {issue.fields.priority?.name || "Unknown"}
-                      </div>
-                    </div>
-                    
-                    {/* Status */}
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Status</h4>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(issue.fields.status?.statusCategory)}`}>
-                        {issue.fields.status?.name || "Unknown"}
-                      </span>
-                    </div>
-                    
-                    {/* Assignee */}
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Assignee</h4>
-                      <div className="flex items-center">
-                        {issue.fields.assignee ? (
-                          <>
-                            <img 
-                              className="h-6 w-6 rounded-full" 
-                              src={issue.fields.assignee.avatarUrls["48x48"]} 
-                              alt={issue.fields.assignee.displayName} 
-                            />
-                            <span className="ml-2 text-sm text-gray-900 dark:text-white">
-                              {issue.fields.assignee.displayName}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-sm text-gray-900 dark:text-white">Unassigned</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Reporter */}
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Reporter</h4>
-                      <div className="flex items-center">
-                        {issue.fields.reporter ? (
-                          <>
-                            <img 
-                              className="h-6 w-6 rounded-full" 
-                              src={issue.fields.reporter.avatarUrls["48x48"]} 
-                              alt={issue.fields.reporter.displayName} 
-                            />
-                            <span className="ml-2 text-sm text-gray-900 dark:text-white">
-                              {issue.fields.reporter.displayName}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-sm text-gray-900 dark:text-white">Unknown</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Custom Fields */}
-                    {issue.fields.customfield_10200 && (
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Assignee (Custom)</h4>
-                        <div className="text-sm text-gray-900 dark:text-white">
-                          {issue.fields.customfield_10200}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {issue.fields.customfield_10201 && (
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Reporter (Custom)</h4>
-                        <div className="text-sm text-gray-900 dark:text-white">
-                          {issue.fields.customfield_10201}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Dates */}
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Created */}
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Created</h4>
-                        <div className="flex items-center space-x-2">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                          </svg>
-                          <span className="text-sm text-gray-900 dark:text-white">{formatDate(issue.fields.created)}</span>
-                        </div>
-                      </div>
-
-                      {/* Updated */}
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Updated</h4>
-                        <div className="flex items-center space-x-2">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                          </svg>
-                          <span className="text-sm text-gray-900 dark:text-white">{formatDate(issue.fields.updated)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Attachments */}
-                    <div>
-                      {(attachments && attachments.length > 0) && (
-                        <div>
-                          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Attachments</h4>
-                          <div className="space-y-2">
-                            {attachments.map((attachment) => (
-                              <div key={attachment.id} className="flex items-center justify-between p-2 bg-white dark:bg-gray-600 rounded border border-gray-200 dark:border-gray-500">
-                                <div className="flex items-center">
-                                  <svg className="w-5 h-5 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
-                                  </svg>
-                                  <div>
-                                    <a 
-                                      href={`/api/jira/attachment/content/${attachment.id}`}
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
-                                    >
-                                      {attachment.filename}
-                                    </a>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                                      {Math.round(attachment.size / 1024)} KB
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">
-                                  {formatDate(attachment.created)}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
