@@ -5,6 +5,7 @@ import com.htc.productdevelopment.model.JiraProject;
 import com.htc.productdevelopment.service.JiraService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -83,7 +84,12 @@ public class JiraController {
             return ResponseEntity.ok(project);
         } catch (Exception e) {
             logger.error("Error fetching Jira project with ID/Key: {}", projectIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch project: " + e.getMessage()));
+            // Provide more detailed error information to the frontend
+            String errorMessage = "Failed to fetch project: " + e.getMessage();
+            if (e.getCause() != null && e.getCause().getMessage() != null) {
+                errorMessage += " - " + e.getCause().getMessage();
+            }
+            return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
         }
     }
 
@@ -162,10 +168,37 @@ public class JiraController {
             return ResponseEntity.ok(fields);
         } catch (Exception e) {
             logger.error("Error fetching fields from Jira", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch fields: " + e.getMessage()));
+            // Provide more detailed error information to the frontend
+            String errorMessage = "Failed to fetch fields: " + e.getMessage();
+            if (e.getCause() != null && e.getCause().getMessage() != null) {
+                errorMessage += " - " + e.getCause().getMessage();
+            }
+            return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
         }
     }
 
+    /**
+     * Test connectivity to Jira API
+     * @return Success or error response
+     */
+    @GetMapping("/test-connectivity")
+    public ResponseEntity<?> testJiraConnectivity() {
+        try {
+            logger.info("Received request to test Jira connectivity");
+            boolean success = jiraService.testJiraConnectivity();
+            if (success) {
+                logger.info("Jira connectivity test successful");
+                return ResponseEntity.ok(Map.of("message", "Jira connectivity test successful"));
+            } else {
+                logger.warn("Jira connectivity test failed");
+                return ResponseEntity.internalServerError().body(Map.of("message", "Jira connectivity test failed"));
+            }
+        } catch (Exception e) {
+            logger.error("Error testing Jira connectivity", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to test Jira connectivity: " + e.getMessage()));
+        }
+    }
+    
     /**
      * Get all issue types from Jira
      * @return The issue types from Jira
@@ -179,7 +212,12 @@ public class JiraController {
             return ResponseEntity.ok(issueTypes);
         } catch (Exception e) {
             logger.error("Error fetching issue types from Jira", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch issue types: " + e.getMessage()));
+            // Provide more detailed error information to the frontend
+            String errorMessage = "Failed to fetch issue types: " + e.getMessage();
+            if (e.getCause() != null && e.getCause().getMessage() != null) {
+                errorMessage += " - " + e.getCause().getMessage();
+            }
+            return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
         }
     }
 
@@ -209,13 +247,18 @@ public class JiraController {
     @PostMapping("/issues")
     public ResponseEntity<?> createIssue(@RequestBody Map<String, Object> issueData) {
         try {
-            logger.info("Received request to create new Jira issue");
+            logger.info("Received request to create new Jira issue with data: {}", issueData);
             JsonNode createdIssue = jiraService.createIssue(issueData);
-            logger.info("Issue created successfully");
+            logger.info("Issue created successfully: {}", createdIssue);
             return ResponseEntity.ok(createdIssue);
         } catch (Exception e) {
-            logger.error("Error creating Jira issue", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to create issue: " + e.getMessage()));
+            logger.error("Error creating Jira issue with data: {}", issueData, e);
+            // Provide more detailed error information to the frontend
+            String errorMessage = "Failed to create issue: " + e.getMessage();
+            if (e.getCause() != null && e.getCause().getMessage() != null) {
+                errorMessage += " - " + e.getCause().getMessage();
+            }
+            return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
         }
     }
 
@@ -270,6 +313,136 @@ public class JiraController {
         } catch (Exception e) {
             logger.error("Error deleting Jira issue with ID/Key: {}", issueIdOrKey, e);
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to delete issue: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get a specific Jira issue by ID or key with all details
+     * @param issueIdOrKey The issue ID or key
+     * @return The Jira issue details
+     */
+    @GetMapping("/issues/{issueIdOrKey}")
+    public ResponseEntity<?> getIssueByIdOrKey(@PathVariable String issueIdOrKey) {
+        try {
+            logger.info("Received request for Jira issue with ID/Key: {}", issueIdOrKey);
+            JsonNode issue = jiraService.getIssueByIdOrKey(issueIdOrKey);
+            logger.info("Returning issue: {}", issueIdOrKey);
+            return ResponseEntity.ok(issue);
+        } catch (Exception e) {
+            logger.error("Error fetching Jira issue with ID/Key: {}", issueIdOrKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch issue: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get comments for a specific Jira issue
+     * @param issueIdOrKey The issue ID or key
+     * @return The comments for the issue
+     */
+    @GetMapping("/issues/{issueIdOrKey}/comments")
+    public ResponseEntity<?> getIssueComments(@PathVariable String issueIdOrKey) {
+        try {
+            logger.info("Received request for comments of Jira issue: {}", issueIdOrKey);
+            JsonNode comments = jiraService.getIssueComments(issueIdOrKey);
+            logger.info("Returning comments for issue: {}", issueIdOrKey);
+            return ResponseEntity.ok(comments);
+        } catch (Exception e) {
+            logger.error("Error fetching comments for issue: {}", issueIdOrKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch comments: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get worklogs for a specific Jira issue
+     * @param issueIdOrKey The issue ID or key
+     * @return The worklogs for the issue
+     */
+    @GetMapping("/issues/{issueIdOrKey}/worklogs")
+    public ResponseEntity<?> getIssueWorklogs(@PathVariable String issueIdOrKey) {
+        try {
+            logger.info("Received request for worklogs of Jira issue: {}", issueIdOrKey);
+            JsonNode worklogs = jiraService.getIssueWorklogs(issueIdOrKey);
+            logger.info("Returning worklogs for issue: {}", issueIdOrKey);
+            return ResponseEntity.ok(worklogs);
+        } catch (Exception e) {
+            logger.error("Error fetching worklogs for issue: {}", issueIdOrKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch worklogs: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Update a Jira issue
+     * @param issueIdOrKey The issue ID or key to update
+     * @param issueData The issue data to update
+     * @return The updated issue
+     */
+    @PutMapping("/issues/{issueIdOrKey}")
+    public ResponseEntity<?> updateIssue(@PathVariable String issueIdOrKey, @RequestBody Map<String, Object> issueData) {
+        try {
+            logger.info("Received request to update Jira issue: {}", issueIdOrKey);
+            JsonNode updatedIssue = jiraService.updateIssue(issueIdOrKey, issueData);
+            logger.info("Issue updated successfully: {}", issueIdOrKey);
+            return ResponseEntity.ok(updatedIssue);
+        } catch (Exception e) {
+            logger.error("Error updating Jira issue: {}", issueIdOrKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to update issue: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Add an attachment to a Jira issue
+     * @param issueIdOrKey The issue ID or key
+     * @param file The file to attach
+     * @return Success or error response
+     */
+    @PostMapping("/issues/{issueIdOrKey}/attachments")
+    public ResponseEntity<?> addAttachmentToIssue(@PathVariable String issueIdOrKey, @RequestParam("file") MultipartFile file) {
+        try {
+            logger.info("Received request to add attachment to Jira issue: {}", issueIdOrKey);
+            byte[] fileContent = file.getBytes();
+            String fileName = file.getOriginalFilename();
+            JsonNode response = jiraService.addAttachmentToIssue(issueIdOrKey, fileContent, fileName);
+            logger.info("Attachment added successfully to issue: {}", issueIdOrKey);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error adding attachment to Jira issue: {}", issueIdOrKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to add attachment: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get attachments for a Jira issue
+     * @param issueIdOrKey The issue ID or key
+     * @return The attachments for the issue
+     */
+    @GetMapping("/issues/{issueIdOrKey}/attachments")
+    public ResponseEntity<?> getIssueAttachments(@PathVariable String issueIdOrKey) {
+        try {
+            logger.info("Received request for attachments of Jira issue: {}", issueIdOrKey);
+            JsonNode attachments = jiraService.getIssueAttachments(issueIdOrKey);
+            logger.info("Returning attachments for issue: {}", issueIdOrKey);
+            return ResponseEntity.ok(attachments);
+        } catch (Exception e) {
+            logger.error("Error fetching attachments for issue: {}", issueIdOrKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch attachments: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get attachment content by ID
+     * @param attachmentId The attachment ID
+     * @return The attachment content
+     */
+    @GetMapping("/attachment/content/{attachmentId}")
+    public ResponseEntity<?> getAttachmentContent(@PathVariable String attachmentId) {
+        try {
+            logger.info("Received request for attachment content with ID: {}", attachmentId);
+            byte[] content = jiraService.getAttachmentContent(attachmentId);
+            logger.info("Returning attachment content for ID: {}", attachmentId);
+            return ResponseEntity.ok(content);
+        } catch (Exception e) {
+            logger.error("Error fetching attachment content for ID: {}", attachmentId, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch attachment content: " + e.getMessage()));
         }
     }
 }

@@ -241,6 +241,7 @@ import ProjectDetail from "./pages/ProjectDetail";
 import Issues from "./pages/Issues";
 import IssueDetail from "./pages/IssueDetail";
 import UsersList from "./pages/UsersList";
+import IssuesSplitView from "./pages/IssueSplitView";
 
 export default function App() {
   return (
@@ -427,15 +428,24 @@ export default function App() {
             />
             
             {/* Individual Issue Detail */}
-            <Route 
+            {/* <Route 
               path="/issues/:issueKey" 
               element={
                 <ProtectedRoute>
                   <IssueDetail />
                 </ProtectedRoute>
               } 
-            />
+            /> */}
             
+            <Route 
+              path="/issues/:issueKey" 
+              element={
+                <ProtectedRoute>
+                  <IssuesSplitView />
+                </ProtectedRoute>
+              } 
+            />
+
             {/* Users List Page */}
             <Route 
               path="/users" 

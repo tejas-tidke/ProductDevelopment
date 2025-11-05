@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { jiraService, IssueData } from '../../services/jiraService';
+import { jiraService, IssueUpdateData } from '../../services/jiraService';
 import IssueTypeIcon from '../tables/IssueTypeIcon';
 
 // Define types
@@ -25,7 +25,8 @@ interface IssueType {
   iconUrl: string;
 }
 
-interface CreatedIssue {
+// Define the issue structure
+interface Issue {
   id: string;
   key: string;
   fields: {
@@ -39,18 +40,17 @@ interface CreatedIssue {
       name: string;
     };
     customfield_10200?: string;
-    [key: string]: unknown;
   };
 }
 
-interface CreateIssueModalProps {
+interface EditIssueModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (issueData: IssueData) => Promise<CreatedIssue>;
-  onIssueCreated?: (issue: CreatedIssue, attachments: File[]) => void;
+  onSubmit: (issueIdOrKey: string, issueData: IssueUpdateData) => void;
+  issue: Issue; // The issue to edit
 }
 
-const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onSubmit, onIssueCreated }) => {
+const EditIssueModal: React.FC<EditIssueModalProps> = ({ isOpen, onClose, onSubmit, issue }) => {
   const [issueType, setIssueType] = useState('');
   const [summary, setSummary] = useState('');
   const [project, setProject] = useState('');
@@ -67,9 +67,17 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   const dropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch projects and issue types from Jira when modal opens
+  // Populate form with issue data when modal opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && issue) {
+      // Set form values from the issue data
+      setIssueType(issue.fields?.issuetype?.name || '');
+      setSummary(issue.fields?.summary || '');
+      setProject(issue.fields?.project?.key || '');
+      setDescription(issue.fields?.description || '');
+      setDueDate(issue.fields?.duedate || '');
+      setAssigneeCustom(issue.fields?.customfield_10200 || '');
+      
       fetchJiraProjects();
       fetchIssueTypes();
       // Reset dropdown when modal opens
@@ -77,7 +85,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
         dropdownRef.current.classList.add('hidden');
       }
     }
-  }, [isOpen]);
+  }, [isOpen, issue]);
 
   const fetchJiraProjects = async () => {
     try {
@@ -150,26 +158,24 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
 
   // Handle form submission
   const handleSubmit = async () => {
-    if (validateForm()) {
+    if (validateForm() && issue) {
       try {
-        // Automatically set reporter to current user (hardcoded for now)
-        const issueData: IssueData = {
-          issueType,
-          summary,
-          project,
-          description,
-          dueDate,
-          assignee: assigneeCustom || undefined
+        // Create the issue data object with proper field names for the backend
+        const issueData: IssueUpdateData = {
+          issueType: issueType,
+          summary: summary,
+          project: project,
+          description: description,
+          dueDate: dueDate || '', // Send empty string if dueDate is not set
+          assigneeCustom: assigneeCustom || undefined,
+          reporterCustom: "Manish Jangir" // Hardcoded current user for custom field
         };
         
-        console.log('Creating issue with data:', issueData);
-        
-        // Call the onSubmit handler
-        const createdIssue = await onSubmit(issueData);
-        console.log('Issue created successfully:', createdIssue);
+        // Call the onSubmit handler for issue update
+        await onSubmit(issue.key, issueData);
         
         // Upload attachments if any
-        if (attachments.length > 0 && createdIssue && createdIssue.key) {
+        if (attachments.length > 0) {
           try {
             let successCount = 0;
             let failCount = 0;
@@ -177,8 +183,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
             // Create an array of promises for all attachment uploads
             const attachmentPromises = attachments.map(async (attachment) => {
               try {
-                console.log(`Uploading attachment: ${attachment.name}`);
-                const response = await jiraService.addAttachmentToIssue(createdIssue.key, attachment);
+                const response = await jiraService.addAttachmentToIssue(issue.key, attachment);
                 console.log(`Successfully uploaded attachment: ${attachment.name}`, response);
                 // Check if response indicates success
                 if (response && Array.isArray(response) && response.length > 0) {
@@ -187,7 +192,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                   return { success: false, fileName: attachment.name, error: "Empty response" };
                 }
               } catch (error) {
-                console.error('Error uploading attachment:', attachment.name, error);
+                console.error('Error uploading attachment:', error);
                 return { success: false, fileName: attachment.name, error };
               }
             });
@@ -205,23 +210,18 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
             });
             
             if (failCount === 0) {
-              alert(`Issue created successfully with ${successCount} attachment(s)`);
+              alert(`Issue updated successfully with ${successCount} new attachment(s)`);
             } else if (successCount === 0) {
-              alert('Issue created successfully, but all attachments failed to upload. Please check your network connection and try again.');
+              alert('Issue updated successfully, but all new attachments failed to upload. Please check your network connection and try again.');
             } else {
-              alert(`Issue created successfully with ${successCount} attachment(s) uploaded, ${failCount} failed. Please check your network connection and try again for failed attachments.`);
+              alert(`Issue updated successfully with ${successCount} new attachment(s) uploaded, ${failCount} failed. Please check your network connection and try again for failed attachments.`);
             }
           } catch (error) {
             console.error('Error uploading attachments:', error);
-            alert('Issue created successfully, but some attachments failed to upload. Please check your network connection and try again.');
+            alert('Issue updated successfully, but some attachments failed to upload. Please check your network connection and try again.');
           }
         } else {
-          alert('Issue created successfully');
-        }
-        
-        // Notify parent component if callback is provided
-        if (onIssueCreated) {
-          onIssueCreated(createdIssue, attachments);
+          alert('Issue updated successfully');
         }
         
         // Reset form
@@ -237,11 +237,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
         // Close the modal
         onClose();
       } catch (error) {
-        console.error('Error creating issue:', error);
+        console.error('Error updating issue:', error);
         if (error instanceof Error) {
-          alert(`Failed to create issue: ${error.message}`);
+          alert(`Failed to update issue: ${error.message}`);
         } else {
-          alert('Failed to create issue. Please check your network connection and try again.');
+          alert('Failed to update issue. Please check your network connection and try again.');
         }
       }
     }
@@ -293,7 +293,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
           {/* Modal header */}
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">
-              Create Issue
+              Edit Issue
             </h3>
           </div>
 
@@ -419,6 +419,22 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Assignee (Custom Field - customfield_10200)
+                </label>
+                <input
+                  type="text"
+                  value={assigneeCustom}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                    setAssigneeCustom(e.target.value);
+                  }}
+                  placeholder="Enter assignee name"
+                  className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  aria-label="Assignee Custom"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Description
                 </label>
                 <textarea
@@ -474,10 +490,10 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                     multiple
                     onChange={handleFileChange}
                     className="hidden"
-                    id="attachment-input-create"
+                    id="attachment-input"
                   />
                   <label 
-                    htmlFor="attachment-input-create"
+                    htmlFor="attachment-input"
                     className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600"
                   >
                     <svg className="mr-2 -ml-1 h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -529,7 +545,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                 onClick={handleSubmit}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
-                Create
+                Update
               </button>
             </div>
           </div>
@@ -539,4 +555,4 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   );
 };
 
-export default CreateIssueModal;
+export default EditIssueModal;

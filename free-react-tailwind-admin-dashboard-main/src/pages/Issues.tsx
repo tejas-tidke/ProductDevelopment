@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
+import { useDrag, useDrop } from "react-dnd";
 import PageMeta from "../components/common/PageMeta";
-import { jiraService } from "../services/jiraService";
-import ColumnSelector from "../components/tables/ColumnSelector";
+import { jiraService, IssueData, IssueUpdateData } from "../services/jiraService";
+import EditIssueModal from "../components/modals/EditIssueModal";
+import CreateIssueModal from "../components/modals/CreateIssueModal";
 import { CustomFilterDropdown } from "../components/filters/CustomFilterDropdown";
-import { DndProvider, useDrag, useDrop } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import ColumnSelector from "../components/tables/ColumnSelector";
 
 // Define types based on actual Jira API response
 interface Project {
@@ -33,7 +36,7 @@ interface JiraField {
   clauseNames: string[];
 }
 
-// Updated interface to include all fields
+// Define the issue structure for the table
 interface Issue {
   id: string;
   key: string;
@@ -41,6 +44,7 @@ interface Issue {
     summary?: string;
     project?: {
       name: string;
+      key: string;
     };
     assignee?: {
       displayName: string;
@@ -92,6 +96,26 @@ const Issues: React.FC = () => {
   const [issueTypes, setIssueTypes] = useState<JiraIssueType[]>([]);
   const [statuses, setStatuses] = useState<{ id: string; name: string }[]>([]);
   const [customFields, setCustomFields] = useState<JiraField[]>([]);
+  
+  // State for edit modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedIssue, setSelectedIssue] = useState<{
+    id: string;
+    key: string;
+    fields: {
+      summary?: string;
+      project?: {
+        key: string;
+      };
+      description?: string;
+      duedate?: string;
+      issuetype?: {
+        name: string;
+      };
+      customfield_10200?: string;
+    };
+  } | null>(null);
   
   // State for column visibility
   const [allColumns, setAllColumns] = useState<Column[]>([
@@ -174,6 +198,74 @@ const Issues: React.FC = () => {
     console.log(`Adding filter for field: ${fieldId}`);
   };
 
+  // Handle edit issue submission
+  const handleEditIssueSubmit = async (issueIdOrKey: string, issueData: IssueUpdateData) => {
+    try {
+      await jiraService.updateIssue(issueIdOrKey, issueData);
+      // Refresh the issues list
+      const issuesResponse = await jiraService.getAllIssues();
+      let allIssues: Issue[] = [];
+      if (Array.isArray(issuesResponse)) {
+        allIssues = issuesResponse;
+      } else if (issuesResponse && Array.isArray(issuesResponse.issues)) {
+        allIssues = issuesResponse.issues;
+      } else {
+        allIssues = [];
+      }
+      setIssues(allIssues);
+      alert('Issue updated successfully');
+    } catch (error) {
+      console.error('Error updating issue:', error);
+      alert('Failed to update issue');
+    }
+  };
+
+  // Handle create issue submission
+  const handleCreateIssueSubmit = async (issueData: IssueData) => {
+    try {
+      console.log('Submitting issue data to backend:', issueData);
+      const createdIssue = await jiraService.createIssue(issueData);
+      console.log('Issue created successfully:', createdIssue);
+      // Refresh the issues list
+      const issuesResponse = await jiraService.getAllIssues();
+      let allIssues: Issue[] = [];
+      if (Array.isArray(issuesResponse)) {
+        allIssues = issuesResponse;
+      } else if (issuesResponse && Array.isArray(issuesResponse.issues)) {
+        allIssues = issuesResponse.issues;
+      } else {
+        allIssues = [];
+      }
+      setIssues(allIssues);
+      return createdIssue;
+    } catch (error) {
+      console.error('Error creating issue:', error);
+      if (error instanceof Error) {
+        alert(`Failed to create issue: ${error.message}`);
+      } else {
+        alert('Failed to create issue. Please check your network connection and try again.');
+      }
+      throw error;
+    }
+  };
+
+  // Open edit modal with selected issue
+  const openEditModal = (issue: Issue) => {
+    setSelectedIssue(issue);
+    setIsEditModalOpen(true);
+  };
+
+  // Close edit modal
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setSelectedIssue(null);
+  };
+
+  // Close create modal
+  const closeCreateModal = () => {
+    setIsCreateModalOpen(false);
+  };
+
   // Fetch all issues and dropdown data
   useEffect(() => {
     const fetchData = async () => {
@@ -181,30 +273,55 @@ const Issues: React.FC = () => {
         setLoading(true);
         setError(null);
         
-        // Fetch all projects for dropdown
-        const projectsData = await jiraService.getAllProjects();
-        const validProjects = projectsData
-          .filter((project: Project) => project.id || project.key)
-          .map((project: Project) => ({
-            id: project.id || project.key,
-            key: project.key,
-            name: project.name,
-            description: project.description || "",
-            projectTypeKey: project.projectTypeKey || ""
-          }));
-        setProjects(validProjects);
+        // Fetch all projects for dropdown with error handling
+        try {
+          const projectsData = await jiraService.getAllProjects();
+          const validProjects = projectsData
+            .filter((project: Project) => project.id || project.key)
+            .map((project: Project) => ({
+              id: project.id || project.key,
+              key: project.key,
+              name: project.name,
+              description: project.description || "",
+              projectTypeKey: project.projectTypeKey || ""
+            }));
+          setProjects(validProjects);
+        } catch (err) {
+          console.error('Error fetching Jira projects:', err);
+          // Use fallback static projects if API call fails
+          const staticProjects: Project[] = [
+            { id: '1', key: 'CMP', name: 'Company Project', description: 'Default company project', projectTypeKey: 'software' },
+            { id: '2', key: 'PROJ', name: 'Sample Project', description: 'Sample project for testing', projectTypeKey: 'software' }
+          ];
+          setProjects(staticProjects);
+          // Don't show error to user for projects as we have fallback
+        }
         
-        // Fetch issue types for dropdown
-        const issueTypesData = await jiraService.getIssueTypes();
-        const validIssueTypes = issueTypesData
-          .filter((type: JiraIssueType) => type.id && type.name)
-          .map((type: JiraIssueType) => ({
-            id: type.id,
-            name: type.name,
-            description: type.description || "",
-            iconUrl: type.iconUrl || ""
-          }));
-        setIssueTypes(validIssueTypes);
+        // Fetch issue types for dropdown with error handling
+        try {
+          const issueTypesData = await jiraService.getIssueTypes();
+          const validIssueTypes = issueTypesData
+            .filter((type: JiraIssueType) => type.id && type.name)
+            .map((type: JiraIssueType) => ({
+              id: type.id,
+              name: type.name,
+              description: type.description || "",
+              iconUrl: type.iconUrl || ""
+            }));
+          setIssueTypes(validIssueTypes);
+        } catch (err) {
+          console.error('Error fetching issue types:', err);
+          // Use fallback static issue types if API call fails
+          const staticIssueTypes: JiraIssueType[] = [
+            { id: '1', name: 'Task', description: 'A task that needs to be done', iconUrl: '' },
+            { id: '2', name: 'Bug', description: 'A problem or error', iconUrl: '' },
+            { id: '3', name: 'Story', description: 'A user story', iconUrl: '' },
+            { id: '4', name: 'Epic', description: 'A large user story', iconUrl: '' },
+            { id: '5', name: 'Sub-task', description: 'A sub-task of a story or task', iconUrl: '' }
+          ];
+          setIssueTypes(staticIssueTypes);
+          // Don't show error to user for issue types as we have fallback
+        }
         
         // Fetch Jira fields (including custom fields)
         try {
@@ -248,51 +365,56 @@ const Issues: React.FC = () => {
         }
         
         // Fetch all issues from backend using the new endpoint
-        const issuesResponse = await jiraService.getAllIssues();
-        console.log("Raw issues response:", issuesResponse); // Debug log to see the actual structure
-        
-        // Handle the simplified Jira API response structure (just the issues array)
-        let allIssues: Issue[] = [];
-        if (Array.isArray(issuesResponse)) {
-          // Simplified response - direct array of issues
-          allIssues = issuesResponse;
-        } else if (issuesResponse && Array.isArray(issuesResponse.issues)) {
-          // Standard Jira API response structure
-          allIssues = issuesResponse.issues;
-        } else {
-          // Unexpected structure
-          console.warn("Unexpected issues response structure:", issuesResponse);
-          allIssues = [];
+        try {
+          const issuesResponse = await jiraService.getAllIssues();
+          console.log("Raw issues response:", issuesResponse); // Debug log to see the actual structure
+          
+          // Handle the simplified Jira API response structure (just the issues array)
+          let allIssues: Issue[] = [];
+          if (Array.isArray(issuesResponse)) {
+            // Simplified response - direct array of issues
+            allIssues = issuesResponse;
+          } else if (issuesResponse && Array.isArray(issuesResponse.issues)) {
+            // Standard Jira API response structure
+            allIssues = issuesResponse.issues;
+          } else {
+            // Unexpected structure
+            console.warn("Unexpected issues response structure:", issuesResponse);
+            allIssues = [];
+          }
+          
+          console.log("Processed issues:", allIssues); // Debug log to see the issues structure
+          setIssues(allIssues);
+          
+          // Extract unique statuses from all issues with proper null checking
+          const uniqueStatuses = Array.from(
+            new Set(allIssues
+              .filter((issue: Issue) => issue.fields?.status?.name)
+              .map((issue: Issue) => issue.fields?.status?.name || ""))
+          )
+          .filter((name): name is string => name !== null && name !== undefined && name !== "")
+          .map(name => ({ id: name, name }));
+          setStatuses(uniqueStatuses);
+          
+          // Extract unique assignees from all issues with proper null checking
+          const uniqueAssignees = Array.from(
+            new Set(allIssues
+              .filter((issue: Issue) => issue.fields?.assignee?.displayName)
+              .map((issue: Issue) => issue.fields?.assignee?.displayName || ""))
+          )
+          .filter((name): name is string => name !== null && name !== undefined && name !== "")
+          .map(name => ({ 
+            id: name || "unassigned", 
+            name: name || "Unassigned" 
+          }));
+          setAssignees(uniqueAssignees);
+        } catch (err) {
+          console.error("Error fetching issues:", err);
+          setError("Failed to fetch issues from Jira. Please check your network connection and try again.");
         }
-        
-        console.log("Processed issues:", allIssues); // Debug log to see the issues structure
-        setIssues(allIssues);
-        
-        // Extract unique statuses from all issues with proper null checking
-        const uniqueStatuses = Array.from(
-          new Set(allIssues
-            .filter((issue: Issue) => issue.fields?.status?.name)
-            .map((issue: Issue) => issue.fields?.status?.name || ""))
-        )
-        .filter((name): name is string => name !== null && name !== undefined && name !== "")
-        .map(name => ({ id: name, name }));
-        setStatuses(uniqueStatuses);
-        
-        // Extract unique assignees from all issues with proper null checking
-        const uniqueAssignees = Array.from(
-          new Set(allIssues
-            .filter((issue: Issue) => issue.fields?.assignee?.displayName)
-            .map((issue: Issue) => issue.fields?.assignee?.displayName || ""))
-        )
-        .filter((name): name is string => name !== null && name !== undefined && name !== "")
-        .map(name => ({ 
-          id: name || "unassigned", 
-          name: name || "Unassigned" 
-        }));
-        setAssignees(uniqueAssignees);
       } catch (err) {
         console.error("Error fetching data:", err);
-        setError("Failed to fetch issues. Please try again later.");
+        setError("Failed to fetch data from Jira. Please check your network connection and try again.");
       } finally {
         setLoading(false);
       }
@@ -474,9 +596,7 @@ const Issues: React.FC = () => {
 
     // Handle edit issue
     const handleEditIssue = () => {
-      // For now, we'll just navigate to the issue detail page
-      // In a full implementation, you would open an edit modal
-      navigate(`/issues/${issue.key}`);
+      openEditModal(issue);
       closeDropdown();
     };
 
@@ -484,9 +604,18 @@ const Issues: React.FC = () => {
     const handleDeleteIssue = async () => {
       if (window.confirm(`Are you sure you want to delete issue ${issue.key}?`)) {
         try {
-          // In a full implementation, you would call the delete API
-          console.log(`Deleting issue ${issue.key}`);
-          // After deletion, you would refresh the issues list
+          await jiraService.deleteIssue(issue.key);
+          // Refresh the issues list
+          const issuesResponse = await jiraService.getAllIssues();
+          let allIssues: Issue[] = [];
+          if (Array.isArray(issuesResponse)) {
+            allIssues = issuesResponse;
+          } else if (issuesResponse && Array.isArray(issuesResponse.issues)) {
+            allIssues = issuesResponse.issues;
+          } else {
+            allIssues = [];
+          }
+          setIssues(allIssues);
           alert('Issue deleted successfully');
         } catch (error) {
           console.error('Error deleting issue:', error);
@@ -671,6 +800,27 @@ const Issues: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
             Issues
           </h1>
+          
+          {/* Edit Issue Modal */}
+          {selectedIssue && (
+            <EditIssueModal
+              isOpen={isEditModalOpen}
+              onClose={closeEditModal}
+              onSubmit={handleEditIssueSubmit}
+              issue={selectedIssue}
+            />
+          )}
+          
+          {/* Create Issue Modal */}
+          <CreateIssueModal
+            isOpen={isCreateModalOpen}
+            onClose={closeCreateModal}
+            onSubmit={handleCreateIssueSubmit}
+            onIssueCreated={async (createdIssue, attachments) => {
+              // Handle any post-creation logic here if needed
+              console.log('Issue created with attachments:', createdIssue, attachments);
+            }}
+          />
           
           {/* Filters Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4 mb-6">
