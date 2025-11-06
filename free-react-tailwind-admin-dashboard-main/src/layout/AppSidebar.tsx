@@ -16,7 +16,6 @@ import SettingsDropdown from "../components/header/SettingsDropdown";
 import UserDropdown from "../components/header/UserDropdown";
 
 
-
 type NavItem = {
   name: string;
   icon: React.ReactNode;
@@ -240,77 +239,120 @@ const AppSidebar: React.FC = () => {
   useEffect(() => {
     if (openSubmenu !== null) {
       const key = `${openSubmenu.type}-${openSubmenu.index}`;
-      // Use requestAnimationFrame to ensure the DOM has updated before measuring
-      requestAnimationFrame(() => {
-        if (subMenuRefs.current[key]) {
+
+      const updateHeight = () => {
+        const element = subMenuRefs.current[key];
+        if (element) {
+          // Force layout calculation by accessing offsetHeight
+          void element.offsetHeight; // Trigger layout (void to ignore unused expression warning)
+
+          // Temporarily set height to auto to measure natural height
+          const originalHeight = element.style.height;
+          const originalOverflow = element.style.overflow;
+          element.style.height = 'auto';
+          element.style.overflow = 'visible';
+
+          // Force another layout calculation
+          void element.offsetHeight; // Trigger layout (void to ignore unused expression warning)
+
+          const naturalHeight = element.offsetHeight;
+          element.style.height = originalHeight;
+          element.style.overflow = originalOverflow;
+
           setSubMenuHeight((prevHeights) => ({
             ...prevHeights,
-            [key]: subMenuRefs.current[key]?.scrollHeight || 0,
+            [key]: naturalHeight,
           }));
         }
+      };
+
+      // Use multiple attempts with proper timing
+      requestAnimationFrame(() => {
+        updateHeight();
+        setTimeout(updateHeight, 0);
+        setTimeout(updateHeight, 10);
+        setTimeout(updateHeight, 50);
       });
     }
   }, [openSubmenu, recentIssues, recentProjects, issuesLoading]);
 
-  const navItems: NavItem[] = [
+ const navItems: NavItem[] = [
     {
-      icon: <GridIcon />,
-      name: "Project",
-      subItems: [
-        // This will be overridden by dynamic content
-        { name: "Loading...", path: "#", pro: false },
-      ],
-    },
-    {
-      icon: <IssuesIcon />,
-      name: "Issues",
-      subItems: [
-        { name: "Loading recent issues...", path: "/issues", pro: false },
-      ],
-    },
-    {
-      icon: <GridIcon />,
-      name: "Dashboard",
-      subItems: [{ name: "Ecommerce", path: "/dashboard", pro: false }],
-    },
-    {
-      icon: <CalenderIcon />,
-      name: "Calendar",
-      path: "/calendar",
-    },
-    
-    // {
-    //   icon: <UserCircleIcon />,
-    //   name: "User Profile",
-    //   path: "/profile",
-    // },
-    // {
-    //   icon: <UserCircleIcon />,
-    //   name: "User Data Check",
-    //   path: "/user-data-check",
-    // },
-    // {
-    //   name: "Forms",
-    //   icon: <ListIcon />,
-    //   subItems: [{ name: "Form Elements", path: "/form-elements", pro: false }],
-    // },
-    // {
-    //   name: "Tables",
-    //   icon: <TableIcon />,
-    //   subItems: [
-    //     { name: "Basic Tables", path: "/basic-tables", pro: false },
-    //   ],
-    // },
-    {
-      name: "Pages",
-      icon: <PageIcon />,
-      subItems: [
-        { name: "Create New User", path: "/blank", pro: false },
-        { name: "Create New Project", path: "/create-new-project", pro: false },
-        { name: "404 Error", path: "/error-404", pro: false },
-      ],
-    },
-  ];
+    // Updated to point to the new Evaluate page the project references
+    name: "Evaluate a Tool",
+    icon: <GridIcon />,
+    path: "/evaluate-new",
+  },
+  {
+    name: "Procurement Request",
+    icon: <PageIcon />,
+    subItems: [
+      { name: "Renewal", path: "/procurement/renewal", pro: false, new: true },
+      { name: "New Request", path: "/procurement/new", pro: false, new: true },
+    ],
+  },
+  {
+    icon: <GridIcon />,
+    name: "Project",
+    subItems: [
+      { name: "Loading...", path: "#", pro: false },
+    ],
+  },
+  {
+    icon: <IssuesIcon />,
+    name: "Issues",
+    subItems: [
+      { name: "Loading recent issues...", path: "/issues", pro: false },
+    ],
+  },
+  {
+    icon: <GridIcon />,
+    name: "Dashboard",
+    subItems: [{ name: "Ecommerce", path: "/dashboard", pro: false }],
+  },
+
+// maine new addd kiya(Anurag)
+
+  {
+  name: "Request",
+  icon: <PageIcon />,
+  path: "/requests",
+},
+{
+  name: "Request Management",
+  icon: <GridIcon />,
+  subItems: [
+    { name: "All Open", path: "/request-management/all-open" },
+    { name: "Assigned to Me", path: "/request-management/assigned-to-me" },
+    { name: "Unassigned", path: "/request-management/unassigned" },
+    { name: "Resolved", path: "/request-management/resolved" },
+  ],
+},
+{
+  name: "Reports",
+  icon: <PageIcon />,
+  path: "/reports",
+},
+
+
+//these
+
+  {
+    icon: <CalenderIcon />,
+    name: "Calendar",
+    path: "/calendar",
+  },
+
+  {
+    name: "Pages",
+    icon: <PageIcon />,
+    subItems: [
+      { name: "Create New User", path: "/blank", pro: false },
+      { name: "Create New Project", path: "/create-new-project", pro: false },
+      { name: "404 Error", path: "/error-404", pro: false },
+    ],
+  },
+];
 
   const othersItems: NavItem[] = [
     // {
@@ -473,6 +515,7 @@ const AppSidebar: React.FC = () => {
                     // Special handling for Project menu to update projects list
                     handleSubmenuToggle(index, menuType);
                   } else if (nav.name === "Issues") {
+                    
                     // Special handling for Issues menu to fetch recent issues
                     if (!openSubmenu || openSubmenu.type !== menuType || openSubmenu.index !== index) {
                       fetchRecentIssues();
@@ -497,26 +540,30 @@ const AppSidebar: React.FC = () => {
                   <span className="flex-1 text-left text-sm font-medium">{nav.name}</span>
                 )}
                 {(isExpanded || isHovered || isMobileOpen) && nav.subItems && (
-                  <ChevronDownIcon
-                    className={`ml-auto w-5 h-5 transition-transform duration-200 flex-shrink-0 ${
-                      openSubmenu?.type === menuType &&
-                      openSubmenu?.index === index
-                        ? "rotate-180 text-brand-500"
-                        : ""
-                    }`}
-                  />
+                  <div className="ml-auto flex items-center gap-2">
+                    {nav.name === "Project" && (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCreateProject(e);
+                        }}
+                        className="flex items-center justify-center w-6 h-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md text-sm transition-colors cursor-pointer"
+                        title="Create New Project"
+                      >
+                        +
+                      </span>
+                    )}
+                    <ChevronDownIcon
+                      className={`w-5 h-5 transition-transform duration-200 flex-shrink-0 ${
+                        openSubmenu?.type === menuType &&
+                        openSubmenu?.index === index
+                          ? "rotate-180 text-brand-500"
+                          : ""
+                      }`}
+                    />
+                  </div>
                 )}
               </button>
-              {/* Plus icon for Project menu */}
-              {(isExpanded || isHovered || isMobileOpen) && nav.name === "Project" && (
-                <button
-                  onClick={handleCreateProject}
-                  className="ml-2 flex items-center justify-center w-6 h-6 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-md text-sm transition-colors"
-                  title="Create New Project"
-                >
-                  +
-                </button>
-              )}
 
             </div>
           ) : (
@@ -547,11 +594,11 @@ const AppSidebar: React.FC = () => {
               ref={(el) => {
                 subMenuRefs.current[`${menuType}-${index}`] = el;
               }}
-              className="overflow-hidden transition-all duration-300"
+              className="overflow-hidden transition-all duration-300 relative z-20"
               style={{
                 height:
                   openSubmenu?.type === menuType && openSubmenu?.index === index
-                    ? `${subMenuHeight[`${menuType}-${index}`]}px`
+                    ? (index === 1 ? 'auto' : `${subMenuHeight[`${menuType}-${index}`]}px`)
                     : "0px",
               }}
             >
@@ -633,7 +680,7 @@ const AppSidebar: React.FC = () => {
                       {recentIssues.map((issue: Issue) => (
                         <Link
                           key={issue.id}
-                          to={`/issues/${issue.key}`}
+                          to={`/issues-split/${issue.key}`}
                           className="block px-4 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50"
                         >
                           <div className="font-medium truncate">{issue.key}</div>
@@ -716,14 +763,14 @@ const AppSidebar: React.FC = () => {
             <>
               <img
                 className="dark:hidden"
-                src="/images/logo/logo.svg"
+                src="/images/logo/logo1.svg"
                 alt="Logo"
                 width={150}
                 height={40}
               />
               <img
-                className="hidden dark:block"
-                src="/images/logo/logo-dark.svg"
+                className="hidden dark:block dark:invert dark:brightness-0 dark:contrast-100"
+                src="/images/logo/logo1.svg"
                 alt="Logo"
                 width={150}
                 height={40}
@@ -731,7 +778,7 @@ const AppSidebar: React.FC = () => {
             </>
           ) : (
             <img
-              src="/images/logo/logo-icon.svg"
+              src="/images/logo/logo1.svg"
               alt="Logo"
               width={32}
               height={32}
@@ -739,6 +786,7 @@ const AppSidebar: React.FC = () => {
           )}
         </Link>
       </div>
+      {/* Make entire sidebar content scrollable */}
       <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar flex-1">
         <nav className="mb-6 px-5">
           <div className="flex flex-col gap-4">
@@ -760,50 +808,63 @@ const AppSidebar: React.FC = () => {
             </div>
           </div>
         </nav>
-      </div>
-      {/* Bottom section with icons - moved outside scrollable container */}
-      <div className="px-5 pb-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
-        <div className="flex flex-col gap-4">
-          {/* Notification */}
-          <div className="menu-item group relative">
-            <div className="flex items-center">
-              <div className="relative">
-                <NotificationDropdown
-                  isOpen={openBottomDropdown === 'notifications'}
-                  onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'notifications' ? null : 'notifications')}
-                />
+        {/* Account section now part of the scrollable content */}
+        <div className="px-5 pb-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
+          <h2
+            className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+              !isExpanded && !isHovered
+                ? "lg:justify-center"
+                : "justify-start"
+            }`}
+          >
+            {isExpanded || isHovered || isMobileOpen ? (
+              "Account"
+            ) : (
+              <HorizontaLDots className="size-6" />
+            )}
+          </h2>
+          <div className="flex flex-col gap-4">
+            {/* Notification */}
+            <div className="menu-item group relative">
+              <div className="flex items-center">
+                <div className="relative">
+                  <NotificationDropdown
+                    isOpen={openBottomDropdown === 'notifications'}
+                    onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'notifications' ? null : 'notifications')}
+                  />
+                </div>
+                {(isExpanded || isHovered || isMobileOpen) && (
+                  <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Notifications</span>
+                )}
               </div>
-              {(isExpanded || isHovered || isMobileOpen) && (
-                <span className="menu-item-text ml-3">Notifications</span>
-              )}
             </div>
-          </div>
-          {/* Settings */}
-          <div className="menu-item group relative">
-            <div className="flex items-center">
-              <div className="relative">
-                <SettingsDropdown
-                  isOpen={openBottomDropdown === 'settings'}
-                  onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'settings' ? null : 'settings')}
-                />
+            {/* Settings */}
+            <div className="menu-item group relative">
+              <div className="flex items-center">
+                <div className="relative">
+                  <SettingsDropdown
+                    isOpen={openBottomDropdown === 'settings'}
+                    onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'settings' ? null : 'settings')}
+                  />
+                </div>
+                {(isExpanded || isHovered || isMobileOpen) && (
+                  <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Settings</span>
+                )}
               </div>
-              {(isExpanded || isHovered || isMobileOpen) && (
-                <span className="menu-item-text ml-3">Settings</span>
-              )}
             </div>
-          </div>
-          {/* Profile */}
-          <div className="menu-item group relative">
-            <div className="flex items-center">
-              <div className="relative">
-                <UserDropdown
-                  isOpen={openBottomDropdown === 'profile'}
-                  onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'profile' ? null : 'profile')}
-                />
+            {/* Profile */}
+            <div className="menu-item group relative">
+              <div className="flex items-center">
+                <div className="relative">
+                  <UserDropdown
+                    isOpen={openBottomDropdown === 'profile'}
+                    onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'profile' ? null : 'profile')}
+                  />
+                </div>
+                {(isExpanded || isHovered || isMobileOpen) && (
+                  <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Profile</span>
+                )}
               </div>
-              {(isExpanded || isHovered || isMobileOpen) && (
-                <span className="menu-item-text ml-3">Profile</span>
-              )}
             </div>
           </div>
         </div>

@@ -70,17 +70,10 @@ interface Issue {
         "48x48": string;
       };
     };
-    description?: string;
+    description?: string | null;
     customfield_10200?: string;
     customfield_10201?: string;
   };
-}
-
-interface Column {
-  key: string;
-  title: string;
-  isSortable: boolean;
-  isSelected: boolean;
 }
 
 // Comment interface
@@ -139,6 +132,8 @@ interface Activity {
   created: string;
   data: Comment | HistoryItem | Transition;
 }
+
+
 
 // Issue Type Icon Component
 const IssueTypeIcon: React.FC<{ type: string; size?: 'sm' | 'md' | 'lg' }> = ({ type, size = 'md' }) => {
@@ -235,7 +230,7 @@ const IssuesSplitView: React.FC = () => {
   const [selectedStatusDetail, setSelectedStatusDetail] = useState<string>('');
 
   // State for resizable split view
-  const [leftPanelWidth, setLeftPanelWidth] = useState(40); // Percentage width of left panel
+  const [leftPanelWidth, setLeftPanelWidth] = useState(30); // Percentage width of left panel (30% for issuesplitviewlist)
   const [isResizing, setIsResizing] = useState(false);
   const splitViewRef = useRef<HTMLDivElement>(null);
   
@@ -285,6 +280,92 @@ const IssuesSplitView: React.FC = () => {
     console.log(`Adding filter for field: ${fieldId}`);
   };
 
+  // Fetch detailed issue information including comments, history, and transitions
+  const fetchIssueDetails = async (issueKey: string) => {
+    try {
+      // Fetch comments
+      const commentsData = await jiraService.getIssueComments(issueKey);
+      setComments(commentsData.comments || []);
+
+      // For now, we'll use mock data for history and transitions
+      // In a real implementation, you would fetch this from the Jira API
+      const mockHistory: HistoryItem[] = [
+        {
+          id: '1',
+          author: {
+            displayName: 'John Doe',
+            avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
+          },
+          field: 'Status',
+          oldValue: 'To Do',
+          newValue: 'In Progress',
+          created: new Date().toISOString()
+        },
+        {
+          id: '2',
+          author: {
+            displayName: 'Jane Smith',
+            avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
+          },
+          field: 'Assignee',
+          oldValue: 'Unassigned',
+          newValue: 'John Doe',
+          created: new Date(Date.now() - 86400000).toISOString() // 1 day ago
+        }
+      ];
+
+      const mockTransitions: Transition[] = [
+        {
+          id: '1',
+          author: {
+            displayName: 'System',
+            avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
+          },
+          action: 'Start Progress',
+          details: 'Issue moved from To Do to In Progress',
+          created: new Date().toISOString()
+        }
+      ];
+
+      setHistory(mockHistory);
+      setTransitions(mockTransitions);
+
+      // Combine all activities into a single timeline sorted by date
+      const allActivities: Activity[] = [
+        ...commentsData.comments.map((comment: Comment) => ({
+          id: comment.id,
+          type: 'comment' as const,
+          author: comment.author,
+          created: comment.created,
+          data: comment
+        })),
+        ...mockHistory.map((historyItem: HistoryItem) => ({
+          id: historyItem.id,
+          type: 'history' as const,
+          author: historyItem.author,
+          created: historyItem.created,
+          data: historyItem
+        })),
+        ...mockTransitions.map((transition: Transition) => ({
+          id: transition.id,
+          type: 'transition' as const,
+          author: transition.author,
+          created: transition.created,
+          data: transition
+        }))
+      ].sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+
+      setActivities(allActivities);
+    } catch (err) {
+      console.error('Error fetching issue details:', err);
+      // Set empty arrays on error
+      setComments([]);
+      setHistory([]);
+      setTransitions([]);
+      setActivities([]);
+    }
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -298,6 +379,15 @@ const IssuesSplitView: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isMoreDropdownOpen]);
+
+  // Fetch issue details when selected issue changes
+  useEffect(() => {
+    if (selectedIssue) {
+      fetchIssueDetails(selectedIssue.key);
+    }
+  }, [selectedIssue]);
+
+
 
   // Fetch all issues and dropdown data
   useEffect(() => {
@@ -371,37 +461,6 @@ const IssuesSplitView: React.FC = () => {
           setSelectedIssue(foundIssue);
           if (foundIssue) {
             setSelectedStatusDetail(foundIssue.fields.status?.name || '');
-            // Initialize empty arrays for real data (to be populated by API calls)
-            setComments([]);
-            setHistory([]);
-            setTransitions([]);
-
-            // Combine all activities into a single timeline sorted by date
-            const allActivities: Activity[] = [
-              ...comments.map((comment: Comment) => ({
-                id: comment.id,
-                type: 'comment' as const,
-                author: comment.author,
-                created: comment.created,
-                data: comment
-              })),
-              ...history.map((historyItem: HistoryItem) => ({
-                id: historyItem.id,
-                type: 'history' as const,
-                author: historyItem.author,
-                created: historyItem.created,
-                data: historyItem
-              })),
-              ...transitions.map((transition: Transition) => ({
-                id: transition.id,
-                type: 'transition' as const,
-                author: transition.author,
-                created: transition.created,
-                data: transition
-              }))
-            ].sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
-
-            setActivities(allActivities);
           }
         }
       } catch (err) {
@@ -466,7 +525,8 @@ const IssuesSplitView: React.FC = () => {
   const handleIssueClick = (issue: Issue) => {
     setSelectedIssue(issue);
     setSelectedStatusDetail(issue.fields.status?.name || '');
-    navigate(`/issues/${issue.key}`);
+    // Update URL without navigating away from the split view
+    navigate(`/issues-split/${issue.key}`, { replace: true });
   };
 
   // Format dates
@@ -508,7 +568,7 @@ const IssuesSplitView: React.FC = () => {
       if (selectedIssue?.fields.project?.key) {
         navigate(`/project/${selectedIssue.fields.project.key}`);
       } else {
-        navigate('/issues');
+        navigate('/issues-split');
       }
     }
     setIsMoreDropdownOpen(false);
@@ -545,7 +605,7 @@ const IssuesSplitView: React.FC = () => {
     if (selectedIssue?.fields.project?.key) {
       navigate(`/project/${selectedIssue.fields.project.key}`);
     } else {
-      navigate('/issues');
+      navigate('/issues-split');
     }
   };
 
@@ -577,7 +637,7 @@ const IssuesSplitView: React.FC = () => {
   return (
     <>
       <PageMeta title={selectedIssue ? `${selectedIssue.key} - Issues` : "Issues"} description="View all issues" />
-      <div className="h-screen flex flex-col">
+      <div className="flex flex-col h-full">
         {/* Header with Filters */}
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Issues</h1>
@@ -924,7 +984,9 @@ const IssuesSplitView: React.FC = () => {
                       <div className="prose max-w-none">
                         {selectedIssue.fields.description ? (
                           <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                            {selectedIssue.fields.description}
+                            {typeof selectedIssue.fields.description === 'object' 
+                              ? JSON.stringify(selectedIssue.fields.description)
+                              : selectedIssue.fields.description}
                           </div>
                         ) : (
                           <p className="text-gray-500 dark:text-gray-400 italic">No description provided</p>
@@ -1042,7 +1104,7 @@ const IssuesSplitView: React.FC = () => {
                             {/* Combined Timeline of All Activities */}
                             {activities.length > 0 ? (
                               <div className="space-y-6">
-                                {activities.map((activity) => (
+                                {activities.map((activity: Activity) => (
                                   <div key={activity.id} className="flex space-x-3">
                                     <div className="flex-shrink-0">
                                       <img
@@ -1074,7 +1136,9 @@ const IssuesSplitView: React.FC = () => {
                                       <div className="mt-1">
                                         {activity.type === 'comment' && (
                                           <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                            {(activity.data as Comment).body}
+                                            {typeof (activity.data as Comment).body === 'object' 
+                                              ? JSON.stringify((activity.data as Comment).body)
+                                              : (activity.data as Comment).body}
                                           </div>
                                         )}
                                         {activity.type === 'history' && (
@@ -1160,7 +1224,9 @@ const IssuesSplitView: React.FC = () => {
                                         </span>
                                       </div>
                                       <div className="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                        {comment.body}
+                                        {typeof comment.body === 'object' 
+                                          ? JSON.stringify(comment.body)
+                                          : comment.body}
                                       </div>
                                     </div>
                                   </div>
@@ -1178,7 +1244,7 @@ const IssuesSplitView: React.FC = () => {
                           <div className="p-4">
                             {history.length > 0 ? (
                               <div className="space-y-4">
-                                {history.map((historyItem) => (
+                                {history.map((historyItem: HistoryItem) => (
                                   <div key={historyItem.id} className="flex space-x-3">
                                     <div className="flex-shrink-0">
                                       <img
@@ -1219,7 +1285,7 @@ const IssuesSplitView: React.FC = () => {
                           <div className="p-4">
                             {transitions.length > 0 ? (
                               <div className="space-y-4">
-                                {transitions.map((transition) => (
+                                {transitions.map((transition: Transition) => (
                                   <div key={transition.id} className="flex space-x-3">
                                     <div className="flex-shrink-0">
                                       <img

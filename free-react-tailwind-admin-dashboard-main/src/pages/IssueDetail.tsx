@@ -97,7 +97,7 @@ interface Issue {
         "48x48": string;
       };
     };
-    description?: string;
+    description?: string | null;
     customfield_10200?: string; // Assignee custom field
     customfield_10201?: string; // Reporter custom field
     // Additional Jira system fields
@@ -539,7 +539,24 @@ const IssueDetail: React.FC = () => {
             isOpen={isEditModalOpen}
             onClose={() => setIsEditModalOpen(false)}
             onSubmit={handleEditIssueSubmit}
-            issue={issue}
+            issue={
+              {
+                id: issue.id,
+                key: issue.key,
+                fields: {
+                  summary: issue.fields.summary,
+                  project: issue.fields.project ? { key: issue.fields.project.key } : undefined,
+                  description: issue.fields.description ? 
+                    (typeof issue.fields.description === 'object' 
+                      ? JSON.stringify(issue.fields.description) 
+                      : issue.fields.description) : 
+                    undefined,
+                  duedate: issue.fields.duedate,
+                  issuetype: issue.fields.issuetype ? { name: issue.fields.issuetype.name } : undefined,
+                  customfield_10200: issue.fields.customfield_10200
+                }
+              }
+            }
           />
         )}
         
@@ -627,7 +644,11 @@ const IssueDetail: React.FC = () => {
                     <div>
                       <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Description</h4>
                       <div className="text-sm text-gray-900 dark:text-white">
-                        {issue.fields.description || "No description provided"}
+                        {issue.fields.description ? (
+                          typeof issue.fields.description === 'object' 
+                            ? JSON.stringify(issue.fields.description)
+                            : issue.fields.description
+                        ) : "No description provided"}
                       </div>
                     </div>
                     
@@ -869,7 +890,11 @@ const IssueDetail: React.FC = () => {
                                       </span>
                                     </div>
                                     <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                                      {comment.body}
+                                      {comment.body ? (
+                                        typeof comment.body === 'object' 
+                                          ? JSON.stringify(comment.body)
+                                          : comment.body
+                                      ) : ""}
                                     </div>
                                   </div>
                                 </div>
@@ -981,7 +1006,11 @@ const IssueDetail: React.FC = () => {
                                     </span>
                                   </div>
                                   <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                                    {comment.body}
+                                    {comment.body ? (
+                                      typeof comment.body === 'object' 
+                                        ? JSON.stringify(comment.body)
+                                        : comment.body
+                                    ) : ""}
                                   </div>
                                 </div>
                               </div>

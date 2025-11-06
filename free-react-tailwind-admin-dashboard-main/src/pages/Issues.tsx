@@ -513,7 +513,7 @@ const Issues: React.FC = () => {
       case 'key':
         return (
           <Link 
-            to={`/issues/${issue.key}`} 
+            to={`/issues-split/${issue.key}`} 
             className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
           >
             {issue.key || "N/A"}
@@ -524,7 +524,7 @@ const Issues: React.FC = () => {
       case 'summary':
         return (
           <Link 
-            to={`/issues/${issue.key}`} 
+            to={`/issues-split/${issue.key}`} 
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
             {issue.fields?.summary || "No summary"}
@@ -590,7 +590,7 @@ const Issues: React.FC = () => {
 
     // Handle view issue
     const handleViewIssue = () => {
-      navigate(`/issues/${issue.key}`);
+      navigate(`/issues-split/${issue.key}`);
       closeDropdown();
     };
 
