@@ -51,13 +51,16 @@ public class FirebaseConfig {
                     logger.info("Firebase app already initialized");
                 }
             } else {
-                logger.warn("Firebase service account file not found. Skipping Firebase initialization.");
-                logger.warn("Make sure firebase-service-account.json is in src/main/resources/");
+                logger.error("Firebase service account file not found!");
+                logger.error("Current working directory: {}", System.getProperty("user.dir"));
+                logger.error("Make sure firebase-service-account.json is in src/main/resources/");
+                logger.error("The file should NOT be named @firebase-service-account.json");
             }
         } catch (IOException e) {
-            logger.error("Error initializing Firebase: {}", e.getMessage(), e);
+            logger.error("Error reading Firebase service account file: {}", e.getMessage(), e);
         } catch (Exception e) {
             logger.error("Unexpected error during Firebase initialization: {}", e.getMessage(), e);
+            logger.error("This typically happens when the service account file is invalid or missing");
         }
     }
 }

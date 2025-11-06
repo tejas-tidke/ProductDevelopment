@@ -5,6 +5,7 @@ import com.google.firebase.auth.FirebaseToken;
 import com.google.firebase.auth.UserRecord;
 import com.google.firebase.auth.ListUsersPage;
 import com.google.firebase.auth.UserRecord.CreateRequest;
+import com.google.firebase.FirebaseApp;
 import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -53,6 +54,12 @@ public class FirebaseSyncService {
         logger.info("Creating new Firebase user with email: {}", email);
         
         try {
+            // Check if Firebase is properly initialized
+            if (FirebaseApp.getApps().isEmpty()) {
+                logger.error("Firebase not initialized. Check firebase-service-account.json file.");
+                throw new Exception("Firebase not properly configured. Please check firebase-service-account.json file.");
+            }
+            
             // Create user in Firebase
             CreateRequest request = new CreateRequest()
                 .setEmail(email)
@@ -79,6 +86,10 @@ public class FirebaseSyncService {
             return user;
         } catch (Exception e) {
             logger.error("Error creating Firebase user: {}", e.getMessage(), e);
+            // Re-throw with more context if it's a Firebase initialization issue
+            if (e.getMessage().contains("FirebaseApp")) {
+                throw new Exception("Firebase not properly configured. Please check firebase-service-account.json file.", e);
+            }
             throw e;
         }
     }

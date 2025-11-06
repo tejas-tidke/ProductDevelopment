@@ -85,8 +85,18 @@ public class AuthController {
         } catch (Exception e) {
             logger.error("Error creating Firebase user: {}", e.getMessage(), e);
             Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Error creating user: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
+            
+            // Provide more specific error messages
+            String errorMessage = e.getMessage();
+            if (errorMessage.contains("FirebaseApp")) {
+                errorResponse.put("error", "Firebase not properly configured. Please check firebase-service-account.json file.");
+            } else if (errorMessage.contains("PERMISSION_DENIED")) {
+                errorResponse.put("error", "Firebase permission denied. Check service account permissions.");
+            } else {
+                errorResponse.put("error", "Error creating user: " + errorMessage);
+            }
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
     

@@ -28,7 +28,26 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   
   if (!response.ok) {
-    throw new Error(`API call failed: ${response.statusText}`);
+    // Try to parse error response, fallback to status text if not possible
+    let errorMessage = `API call failed: ${response.status} ${response.statusText}`;
+    
+    try {
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } else {
+        const errorText = await response.text();
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      }
+    } catch (parseError) {
+      // If parsing fails, use the status text
+      console.warn("Failed to parse error response:", parseError);
+    }
+    
+    throw new Error(errorMessage);
   }
   
   // Check if response is JSON
