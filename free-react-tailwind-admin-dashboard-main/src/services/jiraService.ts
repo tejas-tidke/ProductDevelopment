@@ -138,6 +138,21 @@ export interface Assignee {
   };
 }
 
+// Define the transition data type
+export interface IssueTransition {
+  id: string;
+  name: string;
+  to: {
+    id: string;
+    name: string;
+    statusCategory: {
+      id: number;
+      key: string;
+      colorName: string;
+    };
+  };
+}
+
 // Jira API functions
 export const jiraService = {
   // Get recent projects
@@ -225,7 +240,36 @@ export const jiraService = {
         // Don't set Content-Type, let the browser set it with the boundary
       }
     });
-  }
+  },
+  
+  // Get transitions for a specific issue
+  getIssueTransitions: async (issueIdOrKey: string): Promise<IssueTransition[]> => {
+    console.log(`Fetching transitions for issue: ${issueIdOrKey}`);
+    const response = await jiraApiCall(`/api/jira/issues/${issueIdOrKey}/transitions`);
+    console.log("Raw transitions response:", response);
+    console.log("Response type:", typeof response);
+    
+    // Handle different response formats
+    if (response && typeof response === 'object' && 'transitions' in response && Array.isArray(response.transitions)) {
+      console.log("Returning transitions from response.transitions:", response.transitions.length);
+      return response.transitions;
+    }
+    if (Array.isArray(response)) {
+      console.log("Returning transitions from array:", response.length);
+      return response;
+    }
+    console.log("Returning empty transitions array");
+    return [];
+  },
+
+  // Transition an issue to a new status
+  transitionIssue: async (issueIdOrKey: string, transitionId: string) => {
+    console.log(`Transitioning issue: ${issueIdOrKey} with transition ID: ${transitionId}`);
+    return jiraApiCall(`/api/jira/issues/${issueIdOrKey}/transitions`, {
+      method: "POST",
+      body: JSON.stringify({ transitionId }),
+    });
+  },
 };
 
 export default { jiraService };

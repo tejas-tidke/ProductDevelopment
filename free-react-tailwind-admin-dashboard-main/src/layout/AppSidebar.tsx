@@ -4,9 +4,14 @@ import {
   CalenderIcon,
   ChevronDownIcon,
   GridIcon,
-  PageIcon,
   HorizontaLDots,
-  IssuesIcon
+  IssuesIcon,
+  DocsIcon,
+  FolderIcon,
+  TaskIcon,
+  ListIcon,
+  PieChartIcon,
+  FileIcon
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { JIRA_CONFIG, getJiraAuthHeaders, getJiraRequestUrl } from "../config/jiraConfig";
@@ -18,7 +23,7 @@ import UserDropdown from "../components/header/UserDropdown";
 
 type NavItem = {
   name: string;
-  icon: React.ReactNode;
+  icon: React.ReactNode | null;
   path?: string;
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
@@ -63,6 +68,9 @@ const AppSidebar: React.FC = () => {
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Search bar state
+  const [searchTerm, setSearchTerm] = useState<string>("");
 
 
 
@@ -278,21 +286,21 @@ const AppSidebar: React.FC = () => {
 
  const navItems: NavItem[] = [
     {
-    // Updated to point to the new Evaluate page the project references
-    name: "Evaluate a Tool",
-    icon: <GridIcon />,
-    path: "/evaluate-new",
+    // Search bar item - special handling in renderMenuItems
+    name: "search-bar",
+    icon: null,
+    path: "#",
   },
   {
     name: "Procurement Request",
-    icon: <PageIcon />,
+    icon: <DocsIcon />,
     subItems: [
       { name: "Renewal", path: "/procurement/renewal", pro: false, new: true },
       { name: "New Request", path: "/procurement/new", pro: false, new: true },
     ],
   },
   {
-    icon: <GridIcon />,
+    icon: <FolderIcon />,
     name: "Project",
     subItems: [
       { name: "Loading...", path: "#", pro: false },
@@ -315,12 +323,12 @@ const AppSidebar: React.FC = () => {
 
   {
   name: "Request",
-  icon: <PageIcon />,
+  icon: <TaskIcon />,
   path: "/requests",
 },
 {
   name: "Request Management",
-  icon: <GridIcon />,
+  icon: <ListIcon />,
   subItems: [
     { name: "All Open", path: "/request-management/all-open" },
     { name: "Assigned to Me", path: "/request-management/assigned-to-me" },
@@ -330,7 +338,7 @@ const AppSidebar: React.FC = () => {
 },
 {
   name: "Reports",
-  icon: <PageIcon />,
+  icon: <PieChartIcon />,
   path: "/reports",
 },
 
@@ -345,7 +353,7 @@ const AppSidebar: React.FC = () => {
 
   {
     name: "Pages",
-    icon: <PageIcon />,
+    icon: <FileIcon />,
     subItems: [
       { name: "Create New User", path: "/blank", pro: false },
       { name: "Create New Project", path: "/create-new-project", pro: false },
@@ -497,7 +505,39 @@ const AppSidebar: React.FC = () => {
     <ul className="flex flex-col gap-4">
       {items.map((nav, index) => (
         <li key={nav.name}>
-          {nav.subItems ? (
+          {nav.name === "search-bar" ? (
+            // Special case: Render search bar instead of navigation item
+            <div className="menu-item group menu-item-inactive">
+              <div className="flex items-center flex-1">
+                <div className="menu-item-icon-size menu-item-icon-inactive">
+                  <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                {(isExpanded || isHovered || isMobileOpen) && (
+                  <div className="flex-1 ml-3">
+                    <input
+                      type="text"
+                      placeholder="Evaluate a Tool"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          // Handle search submission
+                          if (searchTerm.trim()) {
+                            // Navigate to search results page
+                            navigate(`/search?q=${encodeURIComponent(searchTerm)}`);
+                          }
+                        }
+                      }}
+                      className="w-full px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : nav.subItems ? (
             <div
               className={`menu-item group ${
                 openSubmenu?.type === menuType && openSubmenu?.index === index
@@ -534,10 +574,10 @@ const AppSidebar: React.FC = () => {
                       : "menu-item-icon-inactive"
                   }`}
                 >
-                  {nav.icon}
+                  {nav.icon || <div className="w-5 h-5" />}
                 </span>
                 {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className="flex-1 text-left text-sm font-medium">{nav.name}</span>
+                  <span className="flex-1 text-left text-sm font-medium ml-3">{nav.name}</span>
                 )}
                 {(isExpanded || isHovered || isMobileOpen) && nav.subItems && (
                   <div className="ml-auto flex items-center gap-2">
@@ -581,10 +621,10 @@ const AppSidebar: React.FC = () => {
                       : "menu-item-icon-inactive"
                   }`}
                 >
-                  {nav.icon}
+                  {nav.icon || <div className="w-5 h-5" />}
                 </span>
                 {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className="menu-item-text">{nav.name}</span>
+                  <span className="menu-item-text ml-3">{nav.name}</span>
                 )}
               </Link>
             )

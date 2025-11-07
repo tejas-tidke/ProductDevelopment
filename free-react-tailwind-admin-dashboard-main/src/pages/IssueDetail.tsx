@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import PageMeta from "../components/common/PageMeta";
-import { jiraService, IssueUpdateData } from "../services/jiraService";
+import { jiraService, IssueUpdateData, IssueTransition } from "../services/jiraService";
 import EditIssueModal from "../components/modals/EditIssueModal";
 
 // Comment interface
@@ -228,10 +228,13 @@ const IssueDetail: React.FC = () => {
   // Remove unused state variables
   const [newComment, setNewComment] = useState('');
   const [isAddingComment, setIsAddingComment] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [attachments, setAttachments] = useState<Issue['fields']['attachment']>([]);
-
+  const [availableTransitions, setAvailableTransitions] = useState<IssueTransition[]>([]);
+  
+  // Add new state variables for dynamic status dropdown
+  const [currentStatus, setCurrentStatus] = useState<string>("");
+  
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -286,10 +289,37 @@ const IssueDetail: React.FC = () => {
   };
 
   // Handle status change
-  const handleStatusChange = (newStatus: string) => {
-    setSelectedStatus(newStatus);
-    // In a real implementation, this would call the API to update the status
-    console.log(`Changing status to: ${newStatus}`);
+  const handleStatusChange = async (transitionId: string, newStatusName: string) => {
+    try {
+      console.log(`Attempting to transition issue ${issueKey} with transition ID: ${transitionId} to status: ${newStatusName}`);
+      // Call the API to transition the issue
+      const transitionResponse = await jiraService.transitionIssue(issueKey!, transitionId);
+      console.log("Transition response:", transitionResponse);
+      setCurrentStatus(newStatusName);
+      console.log(`Successfully transitioned issue to: ${newStatusName}`);
+      
+      // Refresh the issue data to get the updated status
+      const updatedIssue = await jiraService.getIssueByIdOrKey(issueKey!);
+      setIssue(updatedIssue);
+      console.log("Updated issue data:", updatedIssue);
+      
+      // Refresh the available transitions
+      const transitionsResponse = await jiraService.getIssueTransitions(issueKey!);
+      console.log("Refreshed transitions response:", transitionsResponse);
+      // Check if transitionsResponse has a 'transitions' property and it's an array
+      if (transitionsResponse && 
+          typeof transitionsResponse === 'object' && 
+          'transitions' in transitionsResponse && 
+          Array.isArray(transitionsResponse.transitions)) {
+        setAvailableTransitions(transitionsResponse.transitions);
+        console.log("Refreshed available transitions:", transitionsResponse.transitions);
+      }
+      
+      alert(`Issue status changed to: ${newStatusName}`);
+    } catch (error) {
+      console.error("Error changing issue status:", error);
+      alert("Failed to change issue status. Please try again later.");
+    }
   };
 
   // Handle add comment
@@ -325,7 +355,113 @@ const IssueDetail: React.FC = () => {
         console.log("Issue fields:", issueResponse.fields);
         console.log("Attachment field in issue:", issueResponse.fields?.attachment);
         setIssue(issueResponse);
-        setSelectedStatus(issueResponse.fields?.status?.name || '');
+        setCurrentStatus(issueResponse.fields?.status?.name || '');
+        console.log("Current status set to:", issueResponse.fields?.status?.name);
+        
+        // Fetch available transitions for the issue
+        try {
+          console.log("Fetching transitions for issue:", issueKey);
+          const transitionsResponse = await jiraService.getIssueTransitions(issueKey!);
+          console.log("Raw transitions response:", transitionsResponse);
+          console.log("Type of transitions response:", typeof transitionsResponse);
+          // Log transitions count safely
+          if (Array.isArray(transitionsResponse)) {
+            console.log("Available transitions count:", transitionsResponse.length);
+          } else if (transitionsResponse && typeof transitionsResponse === 'object') {
+            // Try to safely access transitions property
+            const obj = transitionsResponse as Record<string, unknown>;
+            if ('transitions' in obj && Array.isArray(obj.transitions)) {
+              console.log("Available transitions count:", obj.transitions.length);
+            } else {
+              console.log("Available transitions count: 0 (object without transitions array)");
+            }
+          } else {
+            console.log("Available transitions count: 0 (invalid response)");
+          }
+          
+          // Check if transitionsResponse has a 'transitions' property and it's an array
+          if (transitionsResponse && 
+              typeof transitionsResponse === 'object' && 
+              'transitions' in transitionsResponse && 
+              Array.isArray(transitionsResponse.transitions)) {
+            setAvailableTransitions(transitionsResponse.transitions);
+            console.log("Available transitions set:", transitionsResponse.transitions);
+            // Log each transition for debugging
+            transitionsResponse.transitions.forEach((transition, index) => {
+              console.log(`Transition ${index}: ID=${transition.id}, Name=${transition.name}, To=${transition.to.name}`);
+            });
+          } else {
+            console.warn("Invalid transitions response format:", transitionsResponse);
+            console.log("Checking if response is directly an array...");
+            // Check if the response itself is an array of transitions (different format)
+            if (Array.isArray(transitionsResponse)) {
+              console.log("Transitions response is directly an array, setting as transitions");
+              setAvailableTransitions(transitionsResponse);
+              console.log("Available transitions set from array:", transitionsResponse);
+              transitionsResponse.forEach((transition, index) => {
+                console.log(`Transition ${index}: ID=${transition.id}, Name=${transition.name}, To=${transition.to.name}`);
+              });
+            } else {
+              // Try to find transitions in different possible locations
+              let foundTransitions = null;
+              
+              // Check if it's in a 'data' property
+              if (transitionsResponse && 
+                  typeof transitionsResponse === 'object') {
+                const typedResponse = transitionsResponse as Record<string, unknown>;
+                if ('data' in typedResponse &&
+                    typedResponse.data !== null &&
+                    typeof typedResponse.data === 'object') {
+                  const dataObj = typedResponse.data as Record<string, unknown>;
+                  if ('transitions' in dataObj && Array.isArray(dataObj.transitions)) {
+                    foundTransitions = dataObj.transitions;
+                  }
+                }
+              }
+              
+              // Check if it's directly in the response object (no 'transitions' wrapper)
+              if (!foundTransitions && 
+                  transitionsResponse && 
+                  typeof transitionsResponse === 'object') {
+                // Look for properties that might contain transitions
+                const responseObj = transitionsResponse as Record<string, unknown>;
+                for (const key in responseObj) {
+                  if (Array.isArray(responseObj[key])) {
+                    // Check if this array contains transition-like objects
+                    const array = responseObj[key] as unknown[];
+                    if (array.length > 0 && 
+                        typeof array[0] === 'object' && 
+                        array[0] !== null &&
+                        'id' in array[0] &&
+                        'name' in array[0]) {
+                      console.log(`Found transitions in property '${key}'`);
+                      foundTransitions = array as IssueTransition[];
+                      break;
+                    }
+                  }
+                }
+              }
+              
+              if (foundTransitions) {
+                setAvailableTransitions(foundTransitions);
+                console.log("Found transitions:", foundTransitions);
+                foundTransitions.forEach((transition, index) => {
+                  console.log(`Transition ${index}: ID=${transition.id}, Name=${transition.name}, To=${transition.to.name}`);
+                });
+              } else {
+                console.log("No transitions found in response, setting empty array");
+                setAvailableTransitions([]);
+              }
+            }
+          }
+          // Log the final state after setting transitions
+          setTimeout(() => {
+            console.log("Final available transitions count:", availableTransitions.length);
+          }, 0);
+        } catch (err) {
+          console.warn("Failed to fetch transitions:", err);
+          setAvailableTransitions([]);
+        }
         
         // Extract attachments from the issue response
         if (issueResponse.fields && issueResponse.fields.attachment) {
@@ -454,26 +590,7 @@ const IssueDetail: React.FC = () => {
     });
   };
 
-  // Get status color based on status category
-  const getStatusColor = (statusCategory?: { colorName: string }) => {
-    if (!statusCategory) return 'bg-gray-100 text-gray-800';
-    
-    switch (statusCategory.colorName) {
-      case 'green':
-        return 'bg-green-100 text-green-800';
-      case 'yellow':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'red':
-        return 'bg-red-100 text-red-800';
-      case 'blue':
-        return 'bg-blue-100 text-blue-800';
-      case 'medium-gray':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
+  // Get status color based on status category or name
   if (loading) {
     return (
       <>
@@ -573,9 +690,6 @@ const IssueDetail: React.FC = () => {
                     {issue.key}: {issue.fields.summary}
                   </h1>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(issue.fields.status?.statusCategory)}`}>
-                      {issue.fields.status?.name}
-                    </span>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
                       {issue.fields.issuetype?.name}
                     </span>
@@ -584,6 +698,34 @@ const IssueDetail: React.FC = () => {
                     </span>
                   </div>
                 </div>
+              </div>
+              
+              {/* Status Dropdown */}
+              <div className="ml-4">
+                <select
+                  value={currentStatus}
+                  onChange={async (e) => {
+                    const selectedTransition = availableTransitions.find(
+                      (t) => t.to.name === e.target.value
+                    );
+                    if (selectedTransition) {
+                      await jiraService.transitionIssue(issueKey!, selectedTransition.id);
+                      setCurrentStatus(e.target.value);
+                      alert(`Status updated to ${e.target.value}`);
+                    }
+                  }}
+                  className="border border-gray-300 rounded-md px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200"
+                  aria-label="Change issue status"
+                >
+                  <option value={currentStatus} disabled>
+                    {currentStatus}
+                  </option>
+                  {availableTransitions.map((t) => (
+                    <option key={t.id} value={t.to.name}>
+                      {t.to.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div className="mt-4 md:mt-0 relative more-dropdown">
@@ -679,14 +821,6 @@ const IssueDetail: React.FC = () => {
                       <div className="text-sm text-gray-900 dark:text-white">
                         {issue.fields.priority?.name || "Unknown"}
                       </div>
-                    </div>
-                    
-                    {/* Status */}
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Status</h4>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(issue.fields.status?.statusCategory)}`}>
-                        {issue.fields.status?.name || "Unknown"}
-                      </span>
                     </div>
                     
                     {/* Assignee */}
@@ -1066,20 +1200,29 @@ const IssueDetail: React.FC = () => {
                     <div className="space-y-4">
                       <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Change Status</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Available transitions count: {availableTransitions.length}
+                        </p>
                         <div className="flex flex-wrap gap-2">
-                          {['To Do', 'In Progress', 'Done'].map((status) => (
-                            <button
-                              key={status}
-                              onClick={() => handleStatusChange(status)}
-                              className={`px-3 py-1.5 text-sm rounded-md ${
-                                selectedStatus === status
-                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
-                                  : 'bg-white text-gray-700 dark:bg-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500'
-                              }`}
-                            >
-                              {status}
-                            </button>
-                          ))}
+                          {availableTransitions.length > 0 ? (
+                            <>
+                              {availableTransitions.map((transition) => (
+                                <button
+                                  key={transition.id}
+                                  onClick={() => handleStatusChange(transition.id, transition.to.name)}
+                                  className={`px-3 py-1.5 text-sm rounded-md ${
+                                    currentStatus === transition.to.name
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
+                                      : 'bg-white text-gray-700 dark:bg-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500'
+                                  }`}
+                                >
+                                  {transition.name}
+                                </button>
+                              ))}
+                            </>
+                          ) : (
+                            <p className="text-gray-500 dark:text-gray-400">No transitions available.</p>
+                          )}
                         </div>
                       </div>
                     </div>

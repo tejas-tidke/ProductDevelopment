@@ -1021,4 +1021,62 @@ public class JiraService {
             throw new Exception("Failed to fetch attachment content for ID " + attachmentId + ": " + e.getMessage(), e);
         }
     }
+    
+    /**
+     * Get transitions available for a specific Jira issue
+     * @param issueIdOrKey The issue ID or key
+     * @return JsonNode containing the available transitions for the issue
+     * @throws Exception if the API call fails
+     */
+    public JsonNode getIssueTransitions(String issueIdOrKey) throws Exception {
+        try {
+            logger.info("Fetching transitions for Jira issue: {}", issueIdOrKey);
+            
+            // Build the API URL for getting transitions
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueIdOrKey + "/transitions";
+            
+            // Make the API call
+            JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
+            logger.info("Transitions fetched successfully for issue: {}", issueIdOrKey);
+            logger.info("Raw transitions response type: {}", response.getClass().getName());
+            logger.info("Raw transitions response: {}", response.toString());
+            
+            return response;
+        } catch (Exception e) {
+            logger.error("Error fetching transitions for issue: {}", issueIdOrKey, e);
+            throw e;
+        }
+    }
+    
+    /**
+     * Transition a Jira issue to a new status
+     * @param issueIdOrKey The issue ID or key
+     * @param transitionId The ID of the transition to execute
+     * @return JsonNode containing the response
+     * @throws Exception if the API call fails
+     */
+    public JsonNode transitionIssue(String issueIdOrKey, String transitionId) throws Exception {
+        try {
+            logger.info("Transitioning Jira issue: {} to transition ID: {}", issueIdOrKey, transitionId);
+            
+            // Build the API URL for transitioning an issue
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueIdOrKey + "/transitions";
+            
+            // Create the request body
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("transition", Map.of("id", transitionId));
+            
+            // Convert request body to JSON
+            String jsonBody = objectMapper.writeValueAsString(requestBody);
+            
+            // Make the API call
+            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, jsonBody);
+            logger.info("Issue transitioned successfully: {}", issueIdOrKey);
+            
+            return response;
+        } catch (Exception e) {
+            logger.error("Error transitioning issue: {} with transition ID: {}", issueIdOrKey, transitionId, e);
+            throw e;
+        }
+    }
 }

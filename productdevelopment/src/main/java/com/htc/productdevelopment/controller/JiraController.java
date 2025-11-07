@@ -445,4 +445,57 @@ public class JiraController {
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch attachment content: " + e.getMessage()));
         }
     }
+    
+    /**
+     * Get transitions available for a specific Jira issue
+     * @param issueIdOrKey The issue ID or key
+     * @return The available transitions for the issue
+     */
+    @GetMapping("/issues/{issueIdOrKey}/transitions")
+    public ResponseEntity<?> getIssueTransitions(@PathVariable String issueIdOrKey) {
+        try {
+            logger.info("Received request for transitions of Jira issue: {}", issueIdOrKey);
+            JsonNode transitions = jiraService.getIssueTransitions(issueIdOrKey);
+            logger.info("Returning transitions for issue: {}", issueIdOrKey);
+            logger.info("Transitions response type: {}", transitions.getClass().getName());
+            logger.info("Transitions response: {}", transitions.toString());
+            // Check if the response has a "transitions" field
+            if (transitions.has("transitions")) {
+                logger.info("Response has transitions field with {} transitions", transitions.get("transitions").size());
+            } else {
+                logger.info("Response does not have transitions field");
+                logger.info("Response keys (if object): {}", transitions.isObject() ? transitions.fieldNames() : "Not an object");
+            }
+            return ResponseEntity.ok(transitions);
+        } catch (Exception e) {
+            logger.error("Error fetching transitions for issue: {}", issueIdOrKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch transitions: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Transition a Jira issue to a new status
+     * @param issueIdOrKey The issue ID or key
+     * @param transitionData The transition data containing the transition ID
+     * @return Success or error response
+     */
+    @PostMapping("/issues/{issueIdOrKey}/transitions")
+    public ResponseEntity<?> transitionIssue(@PathVariable String issueIdOrKey, @RequestBody Map<String, Object> transitionData) {
+        try {
+            logger.info("Received request to transition Jira issue: {} with data: {}", issueIdOrKey, transitionData);
+            
+            String transitionId = (String) transitionData.get("transitionId");
+            if (transitionId == null || transitionId.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Transition ID is required"));
+            }
+            
+            JsonNode response = jiraService.transitionIssue(issueIdOrKey, transitionId);
+            logger.info("Issue transitioned successfully: {}", issueIdOrKey);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error transitioning issue: {}", issueIdOrKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to transition issue: " + e.getMessage()));
+        }
+    }
+
 }

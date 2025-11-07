@@ -182,6 +182,29 @@ const Issues: React.FC = () => {
     setAllColumns(reorderedColumns);
   };
 
+  // Get status color based on status name
+  const getStatusColor = (statusName?: string) => {
+    if (statusName) {
+      const statusNameLower = statusName.toLowerCase();
+      if (statusNameLower.includes('done') || statusNameLower.includes('complete')) {
+        return 'bg-green-100 text-green-800';
+      } else if (statusNameLower.includes('progress') || statusNameLower.includes('in progress')) {
+        return 'bg-blue-100 text-blue-800';
+      } else if (statusNameLower.includes('review') || statusNameLower.includes('test')) {
+        return 'bg-yellow-100 text-yellow-800';
+      } else if (statusNameLower.includes('todo') || statusNameLower.includes('to do')) {
+        return 'bg-gray-100 text-gray-800';
+      } else if (statusNameLower.includes('backlog')) {
+        return 'bg-gray-200 text-gray-800';
+      } else if (statusNameLower.includes('cancel') || statusNameLower.includes('reject')) {
+        return 'bg-red-100 text-red-800';
+      }
+    }
+    
+    // Default color
+    return 'bg-gray-100 text-gray-800';
+  };
+
   // Handle sort for draggable headers (simplified version)
   const handleSort = (key: string) => {
     // Toggle direction if same key, otherwise default to asc
@@ -531,7 +554,11 @@ const Issues: React.FC = () => {
           </Link>
         );
       case 'status':
-        return issue.fields?.status?.name || "Unknown";
+        return (
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(issue.fields?.status?.name)}`}>
+            {issue.fields?.status?.name || "Unknown"}
+          </span>
+        );
       case 'assignee':
         return issue.fields?.assignee?.displayName || issue.fields?.assignee ? "No name" : "Unassigned";
       case 'reporter':

@@ -316,7 +316,7 @@ const IssuesSplitView: React.FC = () => {
 
       const mockTransitions: Transition[] = [
         {
-          id: '1',
+          id: '3',
           author: {
             displayName: 'System',
             avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
@@ -333,21 +333,21 @@ const IssuesSplitView: React.FC = () => {
       // Combine all activities into a single timeline sorted by date
       const allActivities: Activity[] = [
         ...commentsData.comments.map((comment: Comment) => ({
-          id: comment.id,
+          id: `comment-${comment.id}`,
           type: 'comment' as const,
           author: comment.author,
           created: comment.created,
           data: comment
         })),
         ...mockHistory.map((historyItem: HistoryItem) => ({
-          id: historyItem.id,
+          id: `history-${historyItem.id}`,
           type: 'history' as const,
           author: historyItem.author,
           created: historyItem.created,
           data: historyItem
         })),
         ...mockTransitions.map((transition: Transition) => ({
-          id: transition.id,
+          id: `transition-${transition.id}`,
           type: 'transition' as const,
           author: transition.author,
           created: transition.created,
@@ -1206,7 +1206,7 @@ const IssuesSplitView: React.FC = () => {
                             {comments.length > 0 ? (
                               <div className="space-y-4">
                                 {comments.map((comment) => (
-                                  <div key={comment.id} className="flex space-x-3">
+                                  <div key={`comment-${comment.id}`} className="flex space-x-3">
                                     <div className="flex-shrink-0">
                                       <img
                                         className="w-8 h-8 rounded-full"
@@ -1245,7 +1245,7 @@ const IssuesSplitView: React.FC = () => {
                             {history.length > 0 ? (
                               <div className="space-y-4">
                                 {history.map((historyItem: HistoryItem) => (
-                                  <div key={historyItem.id} className="flex space-x-3">
+                                  <div key={`history-${historyItem.id}`} className="flex space-x-3">
                                     <div className="flex-shrink-0">
                                       <img
                                         className="w-8 h-8 rounded-full"
@@ -1286,7 +1286,7 @@ const IssuesSplitView: React.FC = () => {
                             {transitions.length > 0 ? (
                               <div className="space-y-4">
                                 {transitions.map((transition: Transition) => (
-                                  <div key={transition.id} className="flex space-x-3">
+                                  <div key={`transition-${transition.id}`} className="flex space-x-3">
                                     <div className="flex-shrink-0">
                                       <img
                                         className="w-8 h-8 rounded-full"

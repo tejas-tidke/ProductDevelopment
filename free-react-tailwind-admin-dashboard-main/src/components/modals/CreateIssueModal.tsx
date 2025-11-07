@@ -492,7 +492,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                       <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Selected Files:</h4>
                       <ul className="space-y-1">
                         {attachments.map((file, index) => (
-                          <li key={index} className="flex items-center justify-between text-sm bg-gray-100 rounded p-2 dark:bg-gray-700">
+                          <li key={`${file.name}-${file.size}`} className="flex items-center justify-between text-sm bg-gray-100 rounded p-2 dark:bg-gray-700">
                             <span className="truncate max-w-xs">{file.name}</span>
                             <button
                               type="button"

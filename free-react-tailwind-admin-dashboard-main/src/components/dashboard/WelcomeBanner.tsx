@@ -1,5 +1,5 @@
 import { useAuth } from "../../context/AuthContext";
-import UserRoleBadge from "../UserProfile/UserRoleBadge";
+// import UserRoleBadge from "../UserProfile/UserRoleBadge";
 
 export default function WelcomeBanner() {
   const { currentUser } = useAuth();
@@ -15,10 +15,10 @@ export default function WelcomeBanner() {
             Here's what's happening with your account today.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        {/* <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500 dark:text-gray-400">Your role:</span>
           <UserRoleBadge />
-        </div>
+        </div> */}
       </div>
     </div>
   );
