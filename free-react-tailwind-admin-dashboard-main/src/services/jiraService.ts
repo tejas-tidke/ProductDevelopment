@@ -153,6 +153,16 @@ export interface IssueTransition {
   };
 }
 
+// Define the project metadata type
+export interface ProjectMeta {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  projectTypeKey: string;
+  issuetypes: JiraIssueType[];
+}
+
 // Jira API functions
 export const jiraService = {
   // Get recent projects
@@ -270,6 +280,58 @@ export const jiraService = {
       body: JSON.stringify({ transitionId }),
     });
   },
+
+  // Fetch metadata dynamically for Create Issue
+  getCreateMeta: async (projectKey?: string) => {
+    const endpoint = projectKey
+      ? `/api/jira/issue/createmeta?projectKeys=${projectKey}&expand=projects.issuetypes.fields`
+      : `/api/jira/issue/createmeta?expand=projects.issuetypes.fields`;
+      
+    const response = await jiraApiCall(endpoint);
+    return response.projects || [];
+  },
+
+  // Create new issue with Jira's expected payload structure
+  createIssueJira: async (data: IssueData) => {
+    const payload = {
+      fields: {
+        project: { key: data.project },
+        summary: data.summary,
+        description: data.description || "",
+        issuetype: { name: data.issueType },
+        duedate: data.dueDate || null,
+        ...(data.assignee ? { assignee: { name: data.assignee } } : {}),
+      },
+    };
+    const response = await jiraApiCall("/api/jira/issues/create", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return response;
+  },
+
+  // Upload attachment with required header
+  addAttachmentToIssueJira: async (issueKey: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await jiraApiCall(`/api/jira/issues/${issueKey}/attachments`, {
+      method: "POST",
+      body: formData,
+      // Override default headers for multipart/form-data
+      headers: {
+        "X-Atlassian-Token": "no-check", // required for Jira Cloud
+        // Don't set Content-Type, let the browser set it with the boundary
+      },
+    });
+    return response;
+  },
+
+  // Get current user information
+  getCurrentUser: async () => {
+    const response = await jiraApiCall("/api/jira/myself");
+    return response;
+  },
+
 };
 
 export default { jiraService };

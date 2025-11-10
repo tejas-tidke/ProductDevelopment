@@ -292,14 +292,6 @@ const AppSidebar: React.FC = () => {
     path: "#",
   },
   {
-    name: "Procurement Request",
-    icon: <DocsIcon />,
-    subItems: [
-      { name: "Renewal", path: "/procurement/renewal", pro: false, new: true },
-      { name: "New Request", path: "/procurement/new", pro: false, new: true },
-    ],
-  },
-  {
     icon: <FolderIcon />,
     name: "Project",
     subItems: [
@@ -314,43 +306,56 @@ const AppSidebar: React.FC = () => {
     ],
   },
   {
+    name: "Procurement Request",
+    icon: <DocsIcon />,
+    subItems: [
+      { name: "Renewal", path: "/procurement/renewal", pro: false, new: true },
+      { name: "New Request", path: "/procurement/new", pro: false, new: true },
+    ],
+  },
+  {
+    name: "Request Management",
+    icon: <ListIcon />,
+    subItems: [
+      { name: "All Open", path: "/request-management/all-open" },
+      { name: "Assigned to Me", path: "/request-management/assigned-to-me" },
+      { name: "Unassigned", path: "/request-management/unassigned" },
+      { name: "Resolved", path: "/request-management/resolved" },
+    ],
+  },
+  // Vendor Management dropdown - Added as requested
+  {
+    name: "Vendor Management",
+    icon: <FolderIcon />,
+    subItems: [
+      { name: "Vendor List", path: "/vendor-management/list" },
+      { name: "Vendor Contracts", path: "/vendor-management/contracts" },
+      { name: "Vendor Performance", path: "/vendor-management/performance" },
+    ],
+  },
+  {
     icon: <GridIcon />,
     name: "Dashboard",
     subItems: [{ name: "Ecommerce", path: "/dashboard", pro: false }],
   },
+];
 
-// maine new addd kiya(Anurag)
-
+const othersItems: NavItem[] = [
   {
-  name: "Request",
-  icon: <TaskIcon />,
-  path: "/requests",
-},
-{
-  name: "Request Management",
-  icon: <ListIcon />,
-  subItems: [
-    { name: "All Open", path: "/request-management/all-open" },
-    { name: "Assigned to Me", path: "/request-management/assigned-to-me" },
-    { name: "Unassigned", path: "/request-management/unassigned" },
-    { name: "Resolved", path: "/request-management/resolved" },
-  ],
-},
-{
-  name: "Reports",
-  icon: <PieChartIcon />,
-  path: "/reports",
-},
-
-
-//these
-
+    name: "Request",
+    icon: <TaskIcon />,
+    path: "/requests",
+  },
+  {
+    name: "Reports",
+    icon: <PieChartIcon />,
+    path: "/reports",
+  },
   {
     icon: <CalenderIcon />,
     name: "Calendar",
     path: "/calendar",
   },
-
   {
     name: "Pages",
     icon: <FileIcon />,
@@ -360,38 +365,35 @@ const AppSidebar: React.FC = () => {
       { name: "404 Error", path: "/error-404", pro: false },
     ],
   },
+  // {
+  //   icon: <PieChartIcon />,
+  //   name: "Charts",
+  //   subItems: [
+  //     { name: "Line Chart", path: "/line-chart", pro: false },
+  //     { name: "Bar Chart", path: "/bar-chart", pro: false },
+  //   ],
+  // },
+  // {
+  //   icon: <BoxCubeIcon />,
+  //   name: "UI Elements",
+  //   subItems: [
+  //     { name: "Alerts", path: "/alerts", pro: false },
+  //     { name: "Avatar", path: "/avatars", pro: false },
+  //     { name: "Badge", path: "/badge", pro: false },
+  //     { name: "Buttons", path: "/buttons", pro: false },
+  //     { name: "Images", path: "/images", pro: false },
+  //     { name: "Videos", path: "/videos", pro: false },
+  //   ],
+  // },
+  // {
+  //   icon: <PlugInIcon />,
+  //   name: "Authentication",
+  //   subItems: [
+  //     { name: "Sign In", path: "/signin", pro: false },
+  //     { name: "Sign Up", path: "/signup", pro: false },
+  //   ],
+  // },
 ];
-
-  const othersItems: NavItem[] = [
-    // {
-    //   icon: <PieChartIcon />,
-    //   name: "Charts",
-    //   subItems: [
-    //     { name: "Line Chart", path: "/line-chart", pro: false },
-    //     { name: "Bar Chart", path: "/bar-chart", pro: false },
-    //   ],
-    // },
-    // {
-    //   icon: <BoxCubeIcon />,
-    //   name: "UI Elements",
-    //   subItems: [
-    //     { name: "Alerts", path: "/alerts", pro: false },
-    //     { name: "Avatar", path: "/avatars", pro: false },
-    //     { name: "Badge", path: "/badge", pro: false },
-    //     { name: "Buttons", path: "/buttons", pro: false },
-    //     { name: "Images", path: "/images", pro: false },
-    //     { name: "Videos", path: "/videos", pro: false },
-    //   ],
-    // },
-    // {
-    //   icon: <PlugInIcon />,
-    //   name: "Authentication",
-    //   subItems: [
-    //     { name: "Sign In", path: "/signin", pro: false },
-    //     { name: "Sign Up", path: "/signup", pro: false },
-    //   ],
-    // },
-  ];
 
   // Project dropdown menu component
   const ProjectDropdownMenu: React.FC<{ project: Project }> = ({ project }) => {
@@ -846,12 +848,28 @@ const AppSidebar: React.FC = () => {
               </h2>
               {renderMenuItems(navItems, "main")}
             </div>
+            <div>
+              <h2
+                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                  !isExpanded && !isHovered
+                    ? "lg:justify-center"
+                    : "justify-start"
+                }`}
+              >
+                {isExpanded || isHovered || isMobileOpen ? (
+                  "Others"
+                ) : (
+                  <HorizontaLDots className="size-6" />
+                )}
+              </h2>
+              {renderMenuItems(othersItems, "others")}
+            </div>
           </div>
         </nav>
         {/* Account section now part of the scrollable content */}
-        <div className="px-5 pb-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
+        <div className="px-5 pb-2 border-t border-gray-200 dark:border-gray-700 mt-auto">
           <h2
-            className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+            className={`mb-2 text-xs uppercase flex leading-[20px] text-gray-400 ${
               !isExpanded && !isHovered
                 ? "lg:justify-center"
                 : "justify-start"
@@ -863,7 +881,7 @@ const AppSidebar: React.FC = () => {
               <HorizontaLDots className="size-6" />
             )}
           </h2>
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
             {/* Notification */}
             <div className="menu-item group relative">
               <div className="flex items-center">

@@ -36,6 +36,9 @@ import Unassigned from "./pages/request-management/Unassigned";
 import Resolved from "./pages/request-management/Resolved";
 import IssueDetail from "./pages/IssueDetail";
 import IssuesSplitView from "./pages/IssueSplitView";
+import VendorList from "./pages/VendorManagement/VendorList";
+import VendorContracts from "./pages/VendorManagement/VendorContracts";
+import VendorPerformance from "./pages/VendorManagement/VendorPerformance";
 
 export default function App() {
   return (
@@ -337,6 +340,34 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Resolved />  
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Vendor Management Routes */}
+            <Route 
+              path="/vendor-management/list" 
+              element={
+                <ProtectedRoute>
+                  <VendorList />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/vendor-management/contracts" 
+              element={
+                <ProtectedRoute>
+                  <VendorContracts />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/vendor-management/performance" 
+              element={
+                <ProtectedRoute>
+                  <VendorPerformance />
                 </ProtectedRoute>
               } 
             />
