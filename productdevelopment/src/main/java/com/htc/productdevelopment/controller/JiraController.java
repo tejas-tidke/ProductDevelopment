@@ -185,6 +185,8 @@ public class JiraController {
     public ResponseEntity<?> testJiraConnectivity() {
         try {
             logger.info("Received request to test Jira connectivity");
+            logger.info("Jira config - Base URL: {}, Email: {}", jiraService.getJiraConfig().getBaseUrl(), jiraService.getJiraConfig().getEmail());
+            
             boolean success = jiraService.testJiraConnectivity();
             if (success) {
                 logger.info("Jira connectivity test successful");
@@ -390,7 +392,7 @@ public class JiraController {
     }
     
     /**
-     * Add an attachment to a Jira issue
+     * Add an attachment to a Jira issue (using Jira Cloud-compliant API)
      * @param issueIdOrKey The issue ID or key
      * @param file The file to attach
      * @return Success or error response
@@ -401,7 +403,10 @@ public class JiraController {
             logger.info("Received request to add attachment to Jira issue: {}", issueIdOrKey);
             byte[] fileContent = file.getBytes();
             String fileName = file.getOriginalFilename();
-            JsonNode response = jiraService.addAttachmentToIssue(issueIdOrKey, fileContent, fileName);
+            
+            // ✅ Use Jira Cloud version that includes X-Atlassian-Token
+            JsonNode response = jiraService.addAttachmentToIssueJira(issueIdOrKey, fileContent, fileName);
+            
             logger.info("Attachment added successfully to issue: {}", issueIdOrKey);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -409,6 +414,7 @@ public class JiraController {
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to add attachment: " + e.getMessage()));
         }
     }
+
     
     /**
      * Get attachments for a Jira issue
@@ -497,5 +503,88 @@ public class JiraController {
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to transition issue: " + e.getMessage()));
         }
     }
-
+    
+    /**
+     * Get current user information
+     * @return The current user information
+     */
+    @GetMapping("/myself")
+    public ResponseEntity<?> getCurrentUser() {
+        try {
+            logger.info("Received request for current user information");
+            JsonNode currentUser = jiraService.getCurrentUser();
+            logger.info("Returning current user information");
+            return ResponseEntity.ok(currentUser);
+        } catch (Exception e) {
+            logger.error("Error fetching current user information", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch current user information: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Get metadata for creating issues in Jira
+     * @param projectKeys Optional project keys to filter issue types
+     * @return The create metadata
+     */
+    @GetMapping("/issue/createmeta")
+    public ResponseEntity<?> getCreateMeta(@RequestParam(required = false) String projectKeys) {
+        try {
+            logger.info("Received request for create metadata with project keys: {}", projectKeys);
+            JsonNode createMeta = jiraService.getCreateMeta(projectKeys);
+            logger.info("Create metadata response type: {}", createMeta != null ? createMeta.getClass().getName() : "null");
+            if (createMeta != null && createMeta.isArray()) {
+                logger.info("Create metadata array size: {}", createMeta.size());
+            } else if (createMeta != null && createMeta.isObject()) {
+                logger.info("Create metadata object keys: {}", createMeta.fieldNames().toString());
+            }
+            logger.info("Returning create metadata");
+            return ResponseEntity.ok(createMeta);
+        } catch (Exception e) {
+            logger.error("Error fetching create metadata", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch create metadata: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Create a new Jira issue with the proper Jira API structure
+     * @param issueData The issue data to create
+     * @return The created issue
+     */
+    @PostMapping("/issues/create")
+    public ResponseEntity<?> createIssueJira(@RequestBody Map<String, Object> issueData) {
+        try {
+            logger.info("Received request to create new Jira issue with Jira API structure");
+            JsonNode createdIssue = jiraService.createIssueJira(issueData);
+            logger.info("Issue created successfully with Jira API structure");
+            return ResponseEntity.ok(createdIssue);
+        } catch (Exception e) {
+            logger.error("Error creating Jira issue with Jira API structure", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to create issue: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Add a comment to a Jira issue
+     * @param issueIdOrKey The issue ID or key
+     * @param commentData The comment data containing the comment body
+     * @return The created comment
+     */
+    @PostMapping("/issues/{issueIdOrKey}/comments")
+    public ResponseEntity<?> addCommentToIssue(@PathVariable String issueIdOrKey, @RequestBody Map<String, Object> commentData) {
+        try {
+            logger.info("Received request to add comment to Jira issue: {} with data: {}", issueIdOrKey, commentData);
+            
+            String commentBody = (String) commentData.get("body");
+            if (commentBody == null || commentBody.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Comment body is required"));
+            }
+            
+            JsonNode response = jiraService.addComment(issueIdOrKey, commentBody);
+            logger.info("Comment added successfully to issue: {}", issueIdOrKey);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error adding comment to issue: {}", issueIdOrKey, e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to add comment: " + e.getMessage()));
+        }
+    }
 }

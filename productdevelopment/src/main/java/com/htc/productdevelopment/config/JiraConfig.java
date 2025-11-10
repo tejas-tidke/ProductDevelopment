@@ -28,6 +28,10 @@ public class JiraConfig {
     }
 
     public String getApiToken() {
+        // Log a warning if the API token looks too short (might be invalid)
+        if (apiToken != null && apiToken.length() < 20) {
+            System.out.println("WARNING: Jira API token appears to be too short: " + apiToken);
+        }
         return apiToken;
     }
     

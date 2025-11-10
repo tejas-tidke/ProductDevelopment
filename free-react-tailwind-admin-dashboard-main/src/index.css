@@ -776,3 +776,98 @@ span.flatpickr-weekday,
 .simplebar-scrollbar.simplebar-visible:before {
   @apply opacity-100;
 }
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.animate-scaleIn {
+  animation: scaleIn 0.2s ease-out;
+}
+
+
+/* Highlight State / Clickable State / Hover State */
+ 
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  transition: background-color 150ms ease, transform 120ms ease,
+    box-shadow 150ms ease, color 120ms ease;
+  color: #374151; /* gray-700 */
+}
+ 
+ 
+.menu-item .menu-item-text,
+.menu-item .menu-item-icon-size,
+.menu-item a,
+.menu-item button {
+  color: inherit ;
+}
+ 
+ 
+.menu-item-inactive {
+  background : transparent ;
+}
+ 
+/* if you want to change  of Hover Background */
+.menu-item.group:hover,
+.menu-item-inactive:hover,
+.menu-item:hover {
+  background-color: #eff6ff; /* very light blue */
+  color: #1d4ed8; /* blue-700 */
+  transform: translateX(4px);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.08);
+}
+ 
+/* Focus Keyboard */
+.menu-item:focus-within,
+.menu-item.group:focus-within {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12); /* BlueFocus Ring Around every button*/
+  background-color: #eff6ff;
+  color: #1d4ed8;
+}
+ 
+/* Color  For Clickable state*/
+.menu-item-active {
+  background-color: #e6ffe7; /* Blue  Light */
+  color: #1d4ed8; /* blue-700 */
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.06);
+}
+ 
+/* Icon Color Active and  inactive */
+.menu-item-icon-inactive {
+  color: #6b7280 ;
+}
+/* Grey Color Background Shades */
+.menu-item-icon-active {
+  color: #1d4ed8;
+} /* blue-700 */
+ 
+/* Small Badges for Spacing detail */
+.menu-item .ml-2,
+.menu-item .text-xs {
+  font-size: 0.72rem;
+}
+ 
+ 
+.menu-item.is-disabled,
+.menu-item[aria-disabled="true"],
+.menu-item.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: not-allowed;
+  color: #9ca3af; /* gray-400 */
+  background: transparent;
+  transform: none;
+  box-shadow: none;
+}

@@ -40,6 +40,11 @@ public class JiraService {
     // JSON parser for handling API responses
     private final ObjectMapper objectMapper;
 
+    // Add getter for jiraConfig
+    public JiraConfig getJiraConfig() {
+        return jiraConfig;
+    }
+    
     /**
      * Constructor to initialize dependencies
      * @param jiraConfig Configuration for Jira API connection
@@ -217,7 +222,8 @@ public class JiraService {
                     "priority", 
                     "created", 
                     "updated", 
-                    "reporter", 
+                    "reporter",
+                    "description",
                     "customfield_10200", 
                     "customfield_10201",
                     "labels",
@@ -269,7 +275,8 @@ public class JiraService {
                     "priority", 
                     "created", 
                     "updated", 
-                    "reporter", 
+                    "reporter",
+                    "description",
                     "customfield_10200", 
                     "customfield_10201",
                     "labels",
@@ -319,7 +326,8 @@ public class JiraService {
                     "priority", 
                     "created", 
                     "updated", 
-                    "reporter", 
+                    "reporter",
+                    "description",
                     "customfield_10200", 
                     "customfield_10201",
                     "labels",
@@ -375,6 +383,8 @@ public class JiraService {
     public boolean testJiraConnectivity() throws Exception {
         try {
             logger.info("Testing connectivity to Jira API at: {}", jiraConfig.getBaseUrl());
+            logger.info("Using email: {}", jiraConfig.getEmail());
+            logger.info("API token length: {}", jiraConfig.getApiToken() != null ? jiraConfig.getApiToken().length() : 0);
             
             // Build the API URL for testing connectivity
             String url = jiraConfig.getBaseUrl() + "/rest/api/3/serverInfo";
@@ -671,6 +681,7 @@ public class JiraService {
         String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
         
         logger.info("Making {} request to Jira API: {}", method, url);
+        logger.info("Using credentials email: {}, token length: {}", jiraConfig.getEmail(), jiraConfig.getApiToken().length());
         if (body != null) {
             logger.info("Request body: {}", body);
         }
@@ -723,6 +734,7 @@ public class JiraService {
             
             // Handle empty responses (204 No Content, etc.)
             String responseBody = response.getBody();
+            logger.info("Response body length: {}", responseBody != null ? responseBody.length() : 0);
             if (responseBody == null || responseBody.isEmpty()) {
                 logger.info("Response body is empty");
                 // Return an empty JSON object for empty responses
@@ -842,7 +854,7 @@ public class JiraService {
             logger.info("Fetching comments for Jira issue: {}", issueIdOrKey);
             
             // Build the API URL for getting comments
-            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueIdOrKey + "/comment";
+            String url = jiraConfig.getBaseUrl() + "/rest/api/2/issue/" + issueIdOrKey + "/comment";
             
             // Make the API call
             JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
@@ -880,68 +892,63 @@ public class JiraService {
     }
 
     /**
-     * Add an attachment to a Jira issue
-     * @param issueIdOrKey The issue ID or key
-     * @param fileContent The file content as bytes
-     * @param fileName The name of the file
-     * @return JsonNode containing the response
-     * @throws Exception if the API call fails
-     */
-    public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, String fileName) throws Exception {
-        try {
-            logger.info("Adding attachment to Jira issue: {}", issueIdOrKey);
-            
-            // Build the API URL for adding an attachment
-            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueIdOrKey + "/attachments";
-            
-            // Create authorization header using email and API token
-            String credentials = jiraConfig.getEmail() + ":" + jiraConfig.getApiToken();
-            String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-            
-            // Build the URI
-            URI uri = UriComponentsBuilder.fromUriString(url).build().toUri();
-            
-            // Create headers for the request (different from regular API calls)
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.set("Authorization", "Basic " + encodedCredentials);
-            headers.set("X-Atlassian-Token", "no-check");
-            // Do not set Content-Type manually for multipart requests - let Spring handle it
-            // headers.set("Content-Type", "multipart/form-data");
-            
-            // Create multipart request
-            org.springframework.util.LinkedMultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
-            
-            // Create a ByteArrayResource for the file content
-            org.springframework.core.io.ByteArrayResource fileResource = new org.springframework.core.io.ByteArrayResource(fileContent) {
-                @Override
-                public String getFilename() {
-                    return fileName;
-                }
-            };
-            
-            body.add("file", fileResource);
-            
-            // Create request entity
-            RequestEntity<org.springframework.util.MultiValueMap<String, Object>> requestEntity = 
-                RequestEntity.post(uri).headers(headers).body(body);
-            
-            // Make the API call
-            ResponseEntity<String> response = restTemplate.exchange(requestEntity, String.class);
-            
-            // Handle empty responses
-            String responseBody = response.getBody();
-            if (responseBody == null || responseBody.isEmpty()) {
-                // Return an empty JSON array for empty responses (Jira returns an array of attachment objects)
-                return objectMapper.readTree("[]");
+ * Add an attachment to a Jira issue
+ * @param issueIdOrKey The issue ID or key
+ * @param fileContent The file content as bytes
+ * @param fileName The name of the file
+ * @return JsonNode containing the response
+ * @throws Exception if the API call fails
+ */
+public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, String fileName) throws Exception {
+    try {
+        logger.info("Adding attachment to Jira issue: {}", issueIdOrKey);
+
+        // Build the API URL for adding an attachment
+        String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueIdOrKey + "/attachments";
+
+        // Authorization header
+        String credentials = jiraConfig.getEmail() + ":" + jiraConfig.getApiToken();
+        String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+
+        // Build URI
+        URI uri = UriComponentsBuilder.fromUriString(url).build().toUri();
+
+        // Headers
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.set("Authorization", "Basic " + encodedCredentials);
+        headers.set("X-Atlassian-Token", "no-check");
+        headers.setContentType(org.springframework.http.MediaType.MULTIPART_FORM_DATA);
+
+        // File body
+        org.springframework.util.LinkedMultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+        org.springframework.core.io.ByteArrayResource fileResource = new org.springframework.core.io.ByteArrayResource(fileContent) {
+            @Override
+            public String getFilename() {
+                return fileName;
             }
-            
-            // Parse and return the response
-            return objectMapper.readTree(responseBody);
-        } catch (Exception e) {
-            logger.error("Error adding attachment to Jira issue: {}", issueIdOrKey, e);
-            throw new Exception("Failed to add attachment to issue " + issueIdOrKey + ": " + e.getMessage(), e);
-        }
+        };
+        body.add("file", fileResource);
+
+        // Request
+        RequestEntity<org.springframework.util.MultiValueMap<String, Object>> requestEntity =
+                RequestEntity.post(uri).headers(headers).body(body);
+
+        // Execute
+        ResponseEntity<String> response = restTemplate.exchange(requestEntity, String.class);
+        logger.info("Response from Jira: {}", response.getBody());
+
+        // Parse JSON
+        String responseBody = response.getBody();
+        return responseBody != null && !responseBody.isEmpty()
+                ? objectMapper.readTree(responseBody)
+                : objectMapper.readTree("[]");
+
+    } catch (Exception e) {
+        logger.error("Error adding attachment to Jira issue: {}", issueIdOrKey, e);
+        throw new Exception("Failed to add attachment to issue " + issueIdOrKey + ": " + e.getMessage(), e);
     }
+}
+
     
     /**
      * Get attachments for a Jira issue
@@ -1057,26 +1064,256 @@ public class JiraService {
      */
     public JsonNode transitionIssue(String issueIdOrKey, String transitionId) throws Exception {
         try {
-            logger.info("Transitioning Jira issue: {} to transition ID: {}", issueIdOrKey, transitionId);
-            
+            logger.info("Transitioning Jira issue: {} with transition ID: {}", issueIdOrKey, transitionId);
+
             // Build the API URL for transitioning an issue
             String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueIdOrKey + "/transitions";
-            
-            // Create the request body
+
+            // ✅ Jira expects this exact payload structure
             Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("transition", Map.of("id", transitionId));
-            
-            // Convert request body to JSON
-            String jsonBody = objectMapper.writeValueAsString(requestBody);
-            
-            // Make the API call
-            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, jsonBody);
-            logger.info("Issue transitioned successfully: {}", issueIdOrKey);
-            
+            Map<String, Object> transitionMap = new HashMap<>();
+            transitionMap.put("id", transitionId);
+            requestBody.put("transition", transitionMap);
+
+            logger.info("Transition request payload: {}", requestBody);
+
+            // Make the API call directly (no need to stringify manually)
+            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, requestBody);
+            logger.info("Transition successful for issue {} to transition ID {}", issueIdOrKey, transitionId);
+
             return response;
         } catch (Exception e) {
             logger.error("Error transitioning issue: {} with transition ID: {}", issueIdOrKey, transitionId, e);
-            throw e;
+            throw new Exception("Failed to transition issue: " + e.getMessage(), e);
         }
     }
+
+
+    /**
+     * Get current user information
+     * @return JsonNode containing the current user information
+     * @throws Exception if the API call fails
+     */
+    public JsonNode getCurrentUser() throws Exception {
+        try {
+            logger.info("Fetching current user information");
+            
+            // Build the API URL for getting current user info
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/myself";
+            
+            // Make the API call
+            JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
+            logger.info("Current user information fetched successfully");
+            
+            return response;
+        } catch (Exception e) {
+            logger.error("Error fetching current user information", e);
+            throw new Exception("Failed to fetch current user information: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get metadata for creating issues in Jira
+     * @param projectKey Optional project key to filter issue types
+     * @return JsonNode containing the create metadata
+     * @throws Exception if the API call fails
+     */
+    public JsonNode getCreateMeta(String projectKey) throws Exception {
+        try {
+            logger.info("Fetching create metadata for project: {}", projectKey);
+            
+            // Build the API URL for getting create metadata
+            StringBuilder urlBuilder = new StringBuilder(jiraConfig.getBaseUrl() + "/rest/api/3/issue/createmeta");
+            
+            // Add query parameters
+            List<String> queryParams = new ArrayList<>();
+            if (projectKey != null && !projectKey.isEmpty()) {
+                queryParams.add("projectKeys=" + projectKey);
+            }
+            queryParams.add("expand=projects.issuetypes.fields");
+            
+            if (!queryParams.isEmpty()) {
+                urlBuilder.append("?").append(String.join("&", queryParams));
+            }
+            
+            String url = urlBuilder.toString();
+            logger.info("Making API call to Jira with URL: {}", url);
+            
+            // Make the API call
+            JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
+            logger.info("Create metadata fetched successfully for project: {}", projectKey);
+            logger.info("Raw response from Jira: {}", response != null ? response.toString() : "null");
+            
+            // Extract projects from response
+            JsonNode projectsNode = response.get("projects");
+            if (projectsNode != null) {
+                logger.info("Found projects node with {} projects", projectsNode.isArray() ? projectsNode.size() : "not an array");
+                return projectsNode;
+            }
+            
+            // Return empty array if no projects found
+            logger.warn("No projects node found in response, returning empty array");
+            return objectMapper.readTree("[]");
+        } catch (Exception e) {
+            logger.error("Error fetching create metadata for project: {}", projectKey, e);
+            throw new Exception("Failed to fetch create metadata: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Create a new Jira issue with the proper Jira API structure
+     * @param issueData The issue data to create
+     * @return JsonNode containing the response
+     * @throws Exception if the API call fails
+     */
+    public JsonNode createIssueJira(Map<String, Object> issueData) throws Exception {
+        try {
+            logger.info("Creating new Jira issue with Jira API structure");
+            
+            // Build the API URL for creating an issue
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue";
+            
+            // Prepare the request body for Jira API with fields structure
+            Map<String, Object> fields = (Map<String, Object>) issueData.get("fields");
+            
+            // Create a new map for the fields with proper formatting
+            Map<String, Object> formattedFields = new HashMap<>();
+            
+            // Copy all fields
+            if (fields != null) {
+                formattedFields.putAll(fields);
+                
+                // Format description as Atlassian Document if it exists
+                if (fields.containsKey("description") && fields.get("description") != null) {
+                    Object description = fields.get("description");
+                    if (description instanceof String) {
+                        formattedFields.put("description", createAtlassianDocumentFormat((String) description));
+                    }
+                }
+            }
+            
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("fields", formattedFields);
+            
+            logger.info("Prepared request body for Jira API: {}", requestBody);
+            
+            // Make the API call to create the issue
+            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, requestBody);
+            logger.info("Issue created successfully with Jira API structure");
+            
+            return response;
+        } catch (Exception e) {
+            logger.error("Error creating Jira issue with Jira API structure", e);
+            throw new Exception("Failed to create Jira issue: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Add an attachment to a Jira issue with the required X-Atlassian-Token header
+     * @param issueKey The issue key
+     * @param fileContent The file content as bytes
+     * @param fileName The name of the file
+     * @return JsonNode containing the response
+     * @throws Exception if the API call fails
+     */
+    public JsonNode addAttachmentToIssueJira(String issueKey, byte[] fileContent, String fileName) throws Exception {
+        try {
+            logger.info("Adding attachment to Jira issue with X-Atlassian-Token header: {}", issueKey);
+            
+            // Build the API URL for adding an attachment
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueKey + "/attachments";
+            
+            // Create authorization header using email and API token
+            String credentials = jiraConfig.getEmail() + ":" + jiraConfig.getApiToken();
+            String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+            
+            // Build the URI
+            URI uri = UriComponentsBuilder.fromUriString(url).build().toUri();
+            
+            // Create headers for the request (different from regular API calls)
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("Authorization", "Basic " + encodedCredentials);
+            headers.set("X-Atlassian-Token", "no-check"); // Required for Jira Cloud
+            // Do not set Content-Type manually for multipart requests - let Spring handle it
+            
+            // Create multipart request
+            org.springframework.util.LinkedMultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+            
+            // Create a ByteArrayResource for the file content
+            org.springframework.core.io.ByteArrayResource fileResource = new org.springframework.core.io.ByteArrayResource(fileContent) {
+                @Override
+                public String getFilename() {
+                    return fileName;
+                }
+            };
+            
+            body.add("file", fileResource);
+            
+            // Create request entity
+            RequestEntity<org.springframework.util.MultiValueMap<String, Object>> requestEntity = 
+                RequestEntity.post(uri).headers(headers).body(body);
+            
+            // Make the API call
+            ResponseEntity<String> response = restTemplate.exchange(requestEntity, String.class);
+            
+            // Handle empty responses
+            String responseBody = response.getBody();
+            if (responseBody == null || responseBody.isEmpty()) {
+                // Return an empty JSON array for empty responses (Jira returns an array of attachment objects)
+                return objectMapper.readTree("[]");
+            }
+            
+            // Parse and return the response
+            return objectMapper.readTree(responseBody);
+        } catch (Exception e) {
+            logger.error("Error adding attachment to Jira issue: {}", issueKey, e);
+            throw new Exception("Failed to add attachment to issue " + issueKey + ": " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Add a comment to a Jira issue
+     * @param issueIdOrKey The issue ID or key
+     * @param commentBody The comment body text
+     * @return JsonNode containing the created comment
+     * @throws Exception if the API call fails
+     */
+    public JsonNode addComment(String issueIdOrKey, String commentBody) throws Exception {
+        try {
+            logger.info("Adding comment to Jira issue: {}", issueIdOrKey);
+
+            // Use Jira Cloud ADF (Atlassian Document Format)
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueIdOrKey + "/comment";
+
+            // Construct Atlassian Document Format (ADF) payload
+            Map<String, Object> textContent = Map.of(
+                "type", "text",
+                "text", commentBody
+            );
+
+            Map<String, Object> paragraph = Map.of(
+                "type", "paragraph",
+                "content", List.of(textContent)
+            );
+
+            Map<String, Object> body = Map.of(
+                "type", "doc",
+                "version", 1,
+                "content", List.of(paragraph)
+            );
+
+            Map<String, Object> requestBody = Map.of("body", body);
+
+            logger.info("Comment request payload: {}", requestBody);
+
+            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, requestBody);
+            logger.info("Comment added successfully to issue: {}", issueIdOrKey);
+
+            return response;
+        } catch (Exception e) {
+            logger.error("Error adding comment to issue: {}", issueIdOrKey, e);
+            throw new Exception("Failed to add comment: " + e.getMessage(), e);
+        }
+    }
+
 }

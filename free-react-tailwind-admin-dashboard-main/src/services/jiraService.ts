@@ -180,6 +180,9 @@ export const jiraService = {
   // Get a specific project by ID or key
   getProjectByIdOrKey: (projectIdOrKey: string) => jiraApiCall(`/api/jira/projects/${projectIdOrKey}`),
   
+  // Get a specific issue by ID or key
+  getIssueByIdOrKey: (issueIdOrKey: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}`),
+  
   // Get issues for a specific project
   getIssuesForProject: (projectKey: string) => jiraApiCall(`/api/jira/projects/${projectKey}/issues`),
   
@@ -192,35 +195,6 @@ export const jiraService = {
   // Get all fields from Jira
   getFields: () => jiraApiCall("/api/jira/fields"),
   
-  // Test Jira API connectivity
-  testJiraConnectivity: () => jiraApiCall("/api/jira/test-connectivity"),
-  
-  // Get all issue types from Jira
-  getIssueTypes: (): Promise<JiraIssueType[]> => jiraApiCall("/api/jira/issuetypes"),
-  
-  // Get assignable users for a project
-  getAssignableUsers: (projectKey: string): Promise<Assignee[]> => jiraApiCall(`/api/jira/projects/${projectKey}/assignable`),
-  
-  // Create a new issue
-  createIssue: (issueData: IssueData) => jiraApiCall("/api/jira/issues", {
-    method: "POST",
-    body: JSON.stringify(issueData),
-  }),
-  
-  // Update an existing issue
-  updateIssue: (issueIdOrKey: string, issueData: IssueUpdateData) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}`, {
-    method: "PUT",
-    body: JSON.stringify(issueData),
-  }),
-  
-  // Delete an issue by ID or key
-  deleteIssue: (issueIdOrKey: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}`, {
-    method: "DELETE",
-  }),
-  
-  // Get a specific issue by ID or key
-  getIssueByIdOrKey: (issueIdOrKey: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}`),
-  
   // Get comments for a specific issue
   getIssueComments: (issueIdOrKey: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}/comments`),
   
@@ -229,28 +203,6 @@ export const jiraService = {
   
   // Get attachments for a specific issue
   getIssueAttachments: (issueIdOrKey: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}/attachments`),
-  
-  // Get attachment content by ID
-  getAttachmentContent: (attachmentId: string) => jiraApiCall(`/api/jira/attachment/content/${attachmentId}`, {
-    headers: {
-      "Accept": "*/*"
-    }
-  }),
-  
-  // Add an attachment to an issue
-  addAttachmentToIssue: (issueIdOrKey: string, file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    return jiraApiCall(`/api/jira/issues/${issueIdOrKey}/attachments`, {
-      method: "POST",
-      body: formData,
-      // Override default headers for multipart/form-data
-      headers: {
-        // Don't set Content-Type, let the browser set it with the boundary
-      }
-    });
-  },
   
   // Get transitions for a specific issue
   getIssueTransitions: async (issueIdOrKey: string): Promise<IssueTransition[]> => {
@@ -281,16 +233,73 @@ export const jiraService = {
     });
   },
 
+  // Add an attachment to an issue
+  addAttachmentToIssue: (issueIdOrKey: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    return jiraApiCall(`/api/jira/issues/${issueIdOrKey}/attachments`, {
+      method: "POST",
+      body: formData,
+      // Override default headers for multipart/form-data
+      headers: {
+        // Don't set Content-Type, let the browser set it with the boundary
+      }
+    });
+  },
+  
+  // Test Jira API connectivity
+  testJiraConnectivity: () => jiraApiCall("/api/jira/test-connectivity"),
+  
+  // Get all issue types from Jira
+  getIssueTypes: (): Promise<JiraIssueType[]> => jiraApiCall("/api/jira/issuetypes"),
+  
   // Fetch metadata dynamically for Create Issue
   getCreateMeta: async (projectKey?: string) => {
-    const endpoint = projectKey
-      ? `/api/jira/issue/createmeta?projectKeys=${projectKey}&expand=projects.issuetypes.fields`
-      : `/api/jira/issue/createmeta?expand=projects.issuetypes.fields`;
+    try {
+      const endpoint = projectKey
+        ? `/api/jira/issue/createmeta?projectKeys=${projectKey}&expand=projects.issuetypes.fields`
+        : `/api/jira/issue/createmeta?expand=projects.issuetypes.fields`;
       
-    const response = await jiraApiCall(endpoint);
-    return response.projects || [];
+      console.log("Calling getCreateMeta with endpoint:", endpoint);
+      const response = await jiraApiCall(endpoint);
+      console.log("Received response from getCreateMeta:", response);
+      
+      // Check if response has projects property and return it, otherwise return empty array
+      if (response && typeof response === 'object' && 'projects' in response && Array.isArray(response.projects)) {
+        return response.projects;
+      }
+      
+      // If response is already an array, return it directly
+      if (Array.isArray(response)) {
+        return response;
+      }
+      
+      // Return empty array as fallback
+      return [];
+    } catch (error) {
+      console.error("Error in getCreateMeta:", error);
+      throw error;
+    }
   },
 
+  // Create a new issue
+  createIssue: (issueData: IssueData) => jiraApiCall("/api/jira/issues", {
+    method: "POST",
+    body: JSON.stringify(issueData),
+  }),
+  
+  // Update an existing issue
+  updateIssue: (issueIdOrKey: string, issueData: IssueUpdateData) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}`, {
+    method: "PUT",
+    body: JSON.stringify(issueData),
+  }),
+  
+  // Delete an issue by ID or key
+  deleteIssue: (issueIdOrKey: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}`, {
+    method: "DELETE",
+  }),
+  
   // Create new issue with Jira's expected payload structure
   createIssueJira: async (data: IssueData) => {
     const payload = {
@@ -331,6 +340,12 @@ export const jiraService = {
     const response = await jiraApiCall("/api/jira/myself");
     return response;
   },
+
+  // Add a comment to a specific issue
+  addCommentToIssue: (issueIdOrKey: string, commentBody: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body: commentBody }),
+  }),
 
 };
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { jiraService, IssueData } from '../../services/jiraService';
+import { jiraService, IssueData, ProjectMeta } from '../../services/jiraService';
 import IssueTypeIcon from '../tables/IssueTypeIcon';
 
 // Define types
@@ -9,13 +9,7 @@ interface Project {
   name: string;
   description: string;
   projectTypeKey: string;
-}
-
-interface JiraIssueType {
-  id: string;
-  name: string;
-  description: string;
-  iconUrl: string;
+  issuetypes?: ProjectMeta['issuetypes']; // For storing issue types when fetched with project
 }
 
 interface IssueType {
@@ -46,11 +40,10 @@ interface CreatedIssue {
 interface CreateIssueModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (issueData: IssueData) => Promise<CreatedIssue>;
   onIssueCreated?: (issue: CreatedIssue, attachments: File[]) => void;
 }
 
-const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onSubmit, onIssueCreated }) => {
+const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onIssueCreated }) => {
   const [issueType, setIssueType] = useState('');
   const [summary, setSummary] = useState('');
   const [project, setProject] = useState('');
@@ -63,15 +56,34 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   const [issueTypes, setIssueTypes] = useState<IssueType[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [loadingIssueTypes, setLoadingIssueTypes] = useState(false);
+  const [attachmentUploadStatus, setAttachmentUploadStatus] = useState<{[key: string]: 'uploading' | 'success' | 'error'}>({});
   const dateInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Reset form when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIssueType('');
+      setSummary('');
+      setProject('');
+      setDescription('');
+      setDueDate('');
+      setAssigneeCustom('');
+      setAttachments([]);
+      setErrors({});
+      setAttachmentUploadStatus({});
+    }
+  }, [isOpen]);
+
   // Fetch projects and issue types from Jira when modal opens
   useEffect(() => {
+    console.log("Modal isOpen changed to:", isOpen);
     if (isOpen) {
+      console.log("Fetching Jira projects because modal is open");
+      // Test connectivity first
+      testJiraConnectivity();
       fetchJiraProjects();
-      fetchIssueTypes();
       // Reset dropdown when modal opens
       if (dropdownRef.current) {
         dropdownRef.current.classList.add('hidden');
@@ -79,45 +91,68 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
     }
   }, [isOpen]);
 
+  const testJiraConnectivity = async () => {
+    try {
+      console.log("Testing Jira connectivity...");
+      const result = await jiraService.testJiraConnectivity();
+      console.log("Jira connectivity test result:", result);
+      
+      // Also test getting all projects directly
+      console.log("Testing getAllProjects...");
+      const allProjects = await jiraService.getAllProjects();
+      console.log("getAllProjects result:", allProjects);
+      
+      // Test getCreateMeta as well
+      console.log("Testing getCreateMeta...");
+      const createMeta = await jiraService.getCreateMeta();
+      console.log("getCreateMeta result:", createMeta);
+    } catch (error) {
+      console.error("Jira connectivity test failed:", error);
+      alert("Failed to connect to Jira. Please check your network connection and Jira configuration.");
+    }
+  };
+
   const fetchJiraProjects = async () => {
     try {
       setLoadingProjects(true);
-      const projectsData = await jiraService.getAllProjects();
-      setJiraProjects(projectsData);
-    } catch (error) {
-      console.error('Error fetching Jira projects:', error);
+      console.log("Fetching Jira projects...");
+      const data: ProjectMeta[] = await jiraService.getCreateMeta();
+      console.log("Received project data:", data);
+      console.log("Data type:", typeof data);
+      console.log("Is array:", Array.isArray(data));
+      console.log("Data length:", Array.isArray(data) ? data.length : 'N/A');
+      
+      if (Array.isArray(data) && data.length > 0) {
+        setJiraProjects(data.map((p) => ({
+          id: p.id,
+          key: p.key,
+          name: p.name,
+          description: p.description,
+          projectTypeKey: p.projectTypeKey,
+          issuetypes: p.issuetypes,
+        })));
+        console.log("Set jiraProjects state with", data.length, "projects");
+      } else {
+        console.warn("No projects received or empty array");
+        setJiraProjects([]);
+      }
+    } catch (err) {
+      console.error("Error fetching projects:", err);
+      // Show error to user
+      alert("Failed to fetch projects. Please check the console for details.");
     } finally {
       setLoadingProjects(false);
     }
   };
 
-  const fetchIssueTypes = async () => {
+  const fetchIssueTypesForProject = async (projectKey: string) => {
     try {
       setLoadingIssueTypes(true);
-      const issueTypesData: JiraIssueType[] = await jiraService.getIssueTypes();
-      // Filter to only include specific issue types
-      const filteredIssueTypes = issueTypesData.filter(type => 
-        ['Epic', 'Story', 'Sub-task', 'Bug', 'Task'].includes(type.name)
-      );
-      // Convert the response to our IssueType format
-      const formattedIssueTypes: IssueType[] = filteredIssueTypes.map((type) => ({
-        id: type.id,
-        name: type.name,
-        description: type.description || '',
-        iconUrl: type.iconUrl || ''
-      }));
-      setIssueTypes(formattedIssueTypes);
-    } catch (error) {
-      console.error('Error fetching issue types:', error);
-      // Fallback to static issue types if API call fails
-      const staticIssueTypes: IssueType[] = [
-        { id: '1', name: 'Task', description: 'A task that needs to be done', iconUrl: '' },
-        { id: '2', name: 'Bug', description: 'A problem or error', iconUrl: '' },
-        { id: '3', name: 'Story', description: 'A user story', iconUrl: '' },
-        { id: '4', name: 'Epic', description: 'A large user story', iconUrl: '' },
-        { id: '5', name: 'Sub-task', description: 'A sub-task of a story or task', iconUrl: '' }
-      ];
-      setIssueTypes(staticIssueTypes);
+      const data: ProjectMeta[] = await jiraService.getCreateMeta(projectKey);
+      const projectData = data.find((p) => p.key === projectKey);
+      setIssueTypes(projectData?.issuetypes || []);
+    } catch (err) {
+      console.error("Error fetching issue types:", err);
     } finally {
       setLoadingIssueTypes(false);
     }
@@ -164,59 +199,47 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
         
         console.log('Creating issue with data:', issueData);
         
-        // Call the onSubmit handler
-        const createdIssue = await onSubmit(issueData);
+        // Call the onSubmit handler with Jira's expected payload structure
+        const createdIssue = await jiraService.createIssueJira(issueData);
         console.log('Issue created successfully:', createdIssue);
         
         // Upload attachments if any
         if (attachments.length > 0 && createdIssue && createdIssue.key) {
           try {
-            let successCount = 0;
-            let failCount = 0;
-            
-            // Create an array of promises for all attachment uploads
-            const attachmentPromises = attachments.map(async (attachment) => {
+            // Upload each attachment and track status
+            const uploadPromises = attachments.map(async (attachment) => {
               try {
+                setAttachmentUploadStatus(prev => ({ ...prev, [attachment.name]: 'uploading' }));
                 console.log(`Uploading attachment: ${attachment.name}`);
-                const response = await jiraService.addAttachmentToIssue(createdIssue.key, attachment);
+                const response = await jiraService.addAttachmentToIssueJira(createdIssue.key, attachment);
                 console.log(`Successfully uploaded attachment: ${attachment.name}`, response);
-                // Check if response indicates success
-                if (response && Array.isArray(response) && response.length > 0) {
-                  return { success: true, fileName: attachment.name };
-                } else {
-                  return { success: false, fileName: attachment.name, error: "Empty response" };
-                }
+                setAttachmentUploadStatus(prev => ({ ...prev, [attachment.name]: 'success' }));
+                return { success: true, fileName: attachment.name };
               } catch (error) {
                 console.error('Error uploading attachment:', attachment.name, error);
+                setAttachmentUploadStatus(prev => ({ ...prev, [attachment.name]: 'error' }));
                 return { success: false, fileName: attachment.name, error };
               }
             });
             
             // Wait for all attachment uploads to complete
-            const results = await Promise.all(attachmentPromises);
+            const results = await Promise.all(uploadPromises);
             
             // Count successes and failures
-            results.forEach(result => {
-              if (result.success) {
-                successCount++;
-              } else {
-                failCount++;
-              }
-            });
+            const successCount = results.filter(r => r.success).length;
+            const failCount = results.filter(r => !r.success).length;
             
             if (failCount === 0) {
-              alert(`Issue created successfully with ${successCount} attachment(s)`);
+              // All attachments uploaded successfully
+              console.log(`All ${successCount} attachments uploaded successfully`);
             } else if (successCount === 0) {
-              alert('Issue created successfully, but all attachments failed to upload. Please check your network connection and try again.');
+              console.warn('All attachments failed to upload');
             } else {
-              alert(`Issue created successfully with ${successCount} attachment(s) uploaded, ${failCount} failed. Please check your network connection and try again for failed attachments.`);
+              console.warn(`${successCount} attachments uploaded, ${failCount} failed`);
             }
           } catch (error) {
             console.error('Error uploading attachments:', error);
-            alert('Issue created successfully, but some attachments failed to upload. Please check your network connection and try again.');
           }
-        } else {
-          alert('Issue created successfully');
         }
         
         // Notify parent component if callback is provided
@@ -233,6 +256,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
         setAssigneeCustom('');
         setAttachments([]);
         setErrors({});
+        setAttachmentUploadStatus({});
         
         // Close the modal
         onClose();
@@ -304,29 +328,57 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Project *
                 </label>
-                <select
-                  value={project}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                    setProject(e.target.value);
-                    if (errors.project) {
-                      setErrors(prev => {
-                        const newErrors = { ...prev };
-                        delete newErrors.project;
-                        return newErrors;
-                      });
-                    }
-                  }}
-                  className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  aria-label="Project"
-                  disabled={loadingProjects}
-                >
-                  <option value="">{loadingProjects ? 'Loading projects...' : 'Select project'}</option>
-                  {jiraProjects.map((proj) => (
-                    <option key={proj.key} value={proj.key}>
-                      {proj.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex space-x-2">
+                  <select
+                    value={project}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                      const selectedProject = e.target.value;
+                      setProject(selectedProject);
+                      fetchIssueTypesForProject(selectedProject);
+                      if (errors.project) {
+                        setErrors(prev => {
+                          const newErrors = { ...prev };
+                          delete newErrors.project;
+                          return newErrors;
+                        });
+                      }
+                    }}
+                    className="flex-1 rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    aria-label="Project"
+                    disabled={loadingProjects}
+                  >
+                    <option value="">{loadingProjects ? 'Loading projects...' : 'Select project'}</option>
+                    {jiraProjects.map((proj) => (
+                      <option key={proj.key} value={proj.key}>
+                        {proj.name} ({proj.key})
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={fetchJiraProjects}
+                    disabled={loadingProjects}
+                    className="px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    title="Refresh projects"
+                  >
+                    <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+                {loadingProjects && <p className="mt-1 text-sm text-gray-500">Loading projects...</p>}
+                {jiraProjects.length === 0 && !loadingProjects && (
+                  <div className="mt-1">
+                    <p className="text-sm text-gray-500">No projects available. Please check your Jira connection.</p>
+                    <button 
+                      type="button" 
+                      onClick={testJiraConnectivity}
+                      className="mt-1 text-sm text-blue-600 hover:text-blue-800"
+                    >
+                      Test Connection
+                    </button>
+                  </div>
+                )}
                 {errors.project && (
                   <p className="mt-1 text-sm text-red-600">{errors.project}</p>
                 )}
@@ -348,6 +400,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                   {issueType ? (
                     <div className="flex items-center">
                       <IssueTypeIcon type={issueType} size="sm" />
+                      <span className="ml-2">{issueType}</span>
                     </div>
                   ) : (
                     <span className="text-gray-500 dark:text-gray-400">Select issue type</span>
@@ -383,6 +436,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                       title={`Select ${type.name} issue type`}
                     >
                       <IssueTypeIcon type={type.name} size="sm" />
+                      <span className="ml-2">{type.name}</span>
                     </button>
                   ))}
                 </div>
@@ -493,7 +547,25 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                       <ul className="space-y-1">
                         {attachments.map((file, index) => (
                           <li key={`${file.name}-${file.size}`} className="flex items-center justify-between text-sm bg-gray-100 rounded p-2 dark:bg-gray-700">
-                            <span className="truncate max-w-xs">{file.name}</span>
+                            <div className="flex items-center">
+                              <span className="truncate max-w-xs">{file.name}</span>
+                              {attachmentUploadStatus && attachmentUploadStatus[file.name] === 'uploading' && (
+                                <svg className="ml-2 h-4 w-4 text-blue-500 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                              )}
+                              {attachmentUploadStatus && attachmentUploadStatus[file.name] === 'success' && (
+                                <svg className="ml-2 h-4 w-4 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                              {attachmentUploadStatus && attachmentUploadStatus[file.name] === 'error' && (
+                                <svg className="ml-2 h-4 w-4 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </div>
                             <button
                               type="button"
                               onClick={() => handleRemoveAttachment(index)}

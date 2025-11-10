@@ -1,8 +1,74 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import PageMeta from "../components/common/PageMeta";
-import { jiraService } from "../services/jiraService";
+// import { useEffect, useState } from "react-router";
+import { jiraService, IssueTransition} from "../services/jiraService";
 import { CustomFilterDropdown } from "../components/filters/CustomFilterDropdown";
+
+// Define minimal ADF interfaces (enough for description rendering)
+interface AdfNode {
+  type: string;
+  text?: string;
+  attrs?: {
+    level?: number;
+  };
+  content?: AdfNode[];
+}
+
+interface AdfDocument {
+  type: string;
+  version?: number;
+  content?: AdfNode[];
+}
+
+// Utility to safely render Jira ADF (Atlassian Document Format)
+const renderAdfContent = (adf: AdfDocument): string => {
+  if (!adf || adf.type !== 'doc' || !Array.isArray(adf.content)) return '';
+
+  const renderNode = (node: AdfNode): string => {
+    if (!node) return '';
+
+    switch (node.type) {
+      case 'text':
+        return node.text || '';
+
+      case 'paragraph':
+        return (node.content?.map(renderNode).join('') || '') + '\n\n';
+
+      case 'heading': {
+        const level = node.attrs?.level || 1;
+        const headingText = node.content?.map(renderNode).join('') || '';
+        return `${'#'.repeat(level)} ${headingText}\n\n`;
+      }
+
+      case 'bulletList':
+      case 'orderedList':
+        return node.content?.map(renderNode).join('') || '';
+
+      case 'listItem':
+        return `• ${node.content?.map(renderNode).join('')}\n`;
+
+      case 'hardBreak':
+        return '\n';
+
+      case 'blockquote':
+        return '> ' + (node.content?.map(renderNode).join('') || '') + '\n\n';
+
+      case 'codeBlock':
+        return `\`\`\`
+${node.content?.map(renderNode).join('')}
+\`\`\`
+
+`;
+
+      default:
+        return node.content ? node.content.map(renderNode).join('') : '';
+    }
+  };
+
+  return adf.content.map(renderNode).join('');
+};
+
 
 // Define types
 interface Project {
@@ -119,6 +185,21 @@ interface Transition {
   created: string;
 }
 
+interface Attachment {
+  id: string;
+  filename: string;
+  content: string; // URL to the attachment
+  size: number;
+  mimeType?: string;
+  author?: {
+    displayName: string;
+    avatarUrls?: {
+      "48x48": string;
+    };
+  };
+  created?: string;
+}
+
 // Activity interface for combined timeline
 interface Activity {
   id: string;
@@ -227,7 +308,13 @@ const IssuesSplitView: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isAddingComment, setIsAddingComment] = useState(false);
-  const [selectedStatusDetail, setSelectedStatusDetail] = useState<string>('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  
+  // Jira transitions (for dynamic statuses)
+const [jiraTransitions, setJiraTransitions] = useState<IssueTransition[]>([]);
+const [selectedTransition, setSelectedTransition] = useState<string>("");
+
 
   // State for resizable split view
   const [leftPanelWidth, setLeftPanelWidth] = useState(30); // Percentage width of left panel (30% for issuesplitviewlist)
@@ -287,48 +374,53 @@ const IssuesSplitView: React.FC = () => {
       const commentsData = await jiraService.getIssueComments(issueKey);
       setComments(commentsData.comments || []);
 
+          // Fetch attachments
+    const attachmentsData = await jiraService.getIssueAttachments(issueKey);
+    setAttachments(attachmentsData?.attachments || attachmentsData || []);
+
+
       // For now, we'll use mock data for history and transitions
       // In a real implementation, you would fetch this from the Jira API
-      const mockHistory: HistoryItem[] = [
-        {
-          id: '1',
-          author: {
-            displayName: 'John Doe',
-            avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
-          },
-          field: 'Status',
-          oldValue: 'To Do',
-          newValue: 'In Progress',
-          created: new Date().toISOString()
-        },
-        {
-          id: '2',
-          author: {
-            displayName: 'Jane Smith',
-            avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
-          },
-          field: 'Assignee',
-          oldValue: 'Unassigned',
-          newValue: 'John Doe',
-          created: new Date(Date.now() - 86400000).toISOString() // 1 day ago
-        }
-      ];
+      // const mockHistory: HistoryItem[] = [
+      //   {
+      //     id: '1',
+      //     author: {
+      //       displayName: 'John Doe',
+      //       avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
+      //     },
+      //     field: 'Status',
+      //     oldValue: 'To Do',
+      //     newValue: 'In Progress',
+      //     created: new Date().toISOString()
+      //   },
+      //   {
+      //     id: '2',
+      //     author: {
+      //       displayName: 'Jane Smith',
+      //       avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
+      //     },
+      //     field: 'Assignee',
+      //     oldValue: 'Unassigned',
+      //     newValue: 'John Doe',
+      //     created: new Date(Date.now() - 86400000).toISOString() // 1 day ago
+      //   }
+      // ];
 
-      const mockTransitions: Transition[] = [
-        {
-          id: '3',
-          author: {
-            displayName: 'System',
-            avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
-          },
-          action: 'Start Progress',
-          details: 'Issue moved from To Do to In Progress',
-          created: new Date().toISOString()
-        }
-      ];
+      // const mockTransitions: Transition[] = [
+      //   {
+      //     id: '3',
+      //     author: {
+      //       displayName: 'System',
+      //       avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
+      //     },
+      //     action: 'Start Progress',
+      //     details: 'Issue moved from To Do to In Progress',
+      //     created: new Date().toISOString()
+      //   }
+      // ];
 
-      setHistory(mockHistory);
-      setTransitions(mockTransitions);
+      // setHistory(mockHistory);
+      // setTransitions(mockTransitions);
 
       // Combine all activities into a single timeline sorted by date
       const allActivities: Activity[] = [
@@ -339,20 +431,20 @@ const IssuesSplitView: React.FC = () => {
           created: comment.created,
           data: comment
         })),
-        ...mockHistory.map((historyItem: HistoryItem) => ({
-          id: `history-${historyItem.id}`,
-          type: 'history' as const,
-          author: historyItem.author,
-          created: historyItem.created,
-          data: historyItem
-        })),
-        ...mockTransitions.map((transition: Transition) => ({
-          id: `transition-${transition.id}`,
-          type: 'transition' as const,
-          author: transition.author,
-          created: transition.created,
-          data: transition
-        }))
+        // ...mockHistory.map((historyItem: HistoryItem) => ({
+        //   id: `history-${historyItem.id}`,
+        //   type: 'history' as const,
+        //   author: historyItem.author,
+        //   created: historyItem.created,
+        //   data: historyItem
+        // })),
+        // ...mockTransitions.map((transition: Transition) => ({
+        //   id: `transition-${transition.id}`,
+        //   type: 'transition' as const,
+        //   author: transition.author,
+        //   created: transition.created,
+        //   data: transition
+        // }))
       ].sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
 
       setActivities(allActivities);
@@ -387,6 +479,18 @@ const IssuesSplitView: React.FC = () => {
     }
   }, [selectedIssue]);
 
+  // Fetch Jira transitions dynamically when issue changes
+useEffect(() => {
+  if (selectedIssue?.key) {
+    jiraService
+      .getIssueTransitions(selectedIssue.key)
+      .then((data) => {
+        console.log("Fetched transitions:", data);
+        setJiraTransitions(data);
+      })
+      .catch((err) => console.error("Error fetching transitions:", err));
+  }
+}, [selectedIssue]);
 
 
   // Fetch all issues and dropdown data
@@ -460,8 +564,11 @@ const IssuesSplitView: React.FC = () => {
           const foundIssue = allIssues.find(issue => issue.key === issueKey) || null;
           setSelectedIssue(foundIssue);
           if (foundIssue) {
-            setSelectedStatusDetail(foundIssue.fields.status?.name || '');
-          }
+      setSelectedStatus(foundIssue.fields.status?.name || '');
+    }
+        } else {
+          setSelectedIssue(null);
+
         }
       } catch (err) {
         console.error("Error fetching data:", err);
@@ -523,11 +630,10 @@ const IssuesSplitView: React.FC = () => {
 
   // Handle issue click
   const handleIssueClick = (issue: Issue) => {
-    setSelectedIssue(issue);
-    setSelectedStatusDetail(issue.fields.status?.name || '');
-    // Update URL without navigating away from the split view
-    navigate(`/issues-split/${issue.key}`, { replace: true });
-  };
+  setSelectedIssue(issue);
+  setSelectedStatus(issue.fields.status?.name || '');
+  navigate(`/issues-split/${issue.key}`, { replace: true });
+};
 
   // Format dates
   const formatDate = (dateString?: string) => {
@@ -542,22 +648,37 @@ const IssuesSplitView: React.FC = () => {
   };
 
   // Get status color
-  const getStatusColorClass = (statusName: string) => {
-    switch (statusName.toLowerCase()) {
-      case "to do":
-      case "open":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
-      case "in progress":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
-      case "done":
-      case "closed":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
-      case "blocked":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
-    }
+  const getStatusColorClass = (statusCategoryColor?: string) => {
+  if (!statusCategoryColor) return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
+
+  // Jira Cloud standard color names → map to Tailwind classes
+  const colorMap: Record<string, string> = {
+    "blue-gray": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+    "medium-gray": "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+    "yellow": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+    "green": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+    "blue": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+    "brown": "bg-amber-200 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+    "warm-red": "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+    "purple": "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   };
+
+  return colorMap[statusCategoryColor] || "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
+};
+
+const getStatusColor = (colorName?: string) => {
+  const colorMap: Record<string, string> = {
+    "blue-gray": "#42526E",
+    "medium-gray": "#97A0AF",
+    "yellow": "#FFC400",
+    "green": "#36B37E",
+    "blue": "#0052CC",
+    "brown": "#B06500",
+    "warm-red": "#DE350B",
+    "purple": "#6554C0",
+  };
+  return colorMap[colorName || ""] || "#A5ADBA"; // default gray
+};
 
   // Handle delete issue
   const handleDeleteIssue = () => {
@@ -575,28 +696,49 @@ const IssuesSplitView: React.FC = () => {
   };
 
   // Handle status change
-  const handleStatusChange = (newStatus: string) => {
-    setSelectedStatusDetail(newStatus);
-    // In a real implementation, this would call the API to update the status
-    console.log(`Changing status to: ${newStatus}`);
-  };
+  
 
   // Handle add comment
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      const comment: Comment = {
-        id: Date.now().toString(),
-        author: {
-          displayName: 'Current User', // In a real app, this would be the logged-in user
-          avatarUrls: { '48x48': 'https://via.placeholder.com/48' }
-        },
-        body: newComment,
-        created: new Date().toISOString(),
-        updated: new Date().toISOString()
-      };
-      setComments(prev => [comment, ...prev]);
-      setNewComment('');
-      setIsAddingComment(false);
+  const handleAddComment = async () => {
+    if (newComment.trim() && selectedIssue) {
+      try {
+        setIsAddingComment(true);
+        // Add comment to Jira
+        const response = await jiraService.addCommentToIssue(selectedIssue.key, newComment);
+        
+        // Create comment object from response
+        const comment: Comment = {
+          id: response.id,
+          author: {
+            displayName: response.author?.displayName || 'Current User',
+            avatarUrls: { '48x48': response.author?.avatarUrls?.['48x48'] || 'https://via.placeholder.com/48' }
+          },
+          body: response.body || newComment,
+          created: response.created || new Date().toISOString(),
+          updated: response.updated || new Date().toISOString()
+        };
+        
+        // Update the comments state
+        setComments(prev => [comment, ...prev]);
+        
+        // Also update the activities state
+        const activity: Activity = {
+          id: `comment-${comment.id}`,
+          type: 'comment',
+          author: comment.author,
+          created: comment.created,
+          data: comment
+        };
+        setActivities(prev => [activity, ...prev]);
+        
+        // Clear the comment input
+        setNewComment('');
+        setIsAddingComment(false);
+      } catch (err) {
+        console.error('Error adding comment:', err);
+        alert('Failed to add comment. Please try again.');
+        setIsAddingComment(false);
+      }
     }
   };
 
@@ -637,7 +779,7 @@ const IssuesSplitView: React.FC = () => {
   return (
     <>
       <PageMeta title={selectedIssue ? `${selectedIssue.key} - Issues` : "Issues"} description="View all issues" />
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-screen overflow-hidden">
         {/* Header with Filters */}
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Issues</h1>
@@ -905,17 +1047,98 @@ const IssuesSplitView: React.FC = () => {
                     {/* Status Dropdown */}
                     <div className="flex items-center gap-2">
                       <div className="relative">
-                        <select
-                          value={selectedStatusDetail}
-                          onChange={(e) => handleStatusChange(e.target.value)}
-                          className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-full appearance-none pr-8 ${getStatusColorClass(selectedStatusDetail || selectedIssue.fields.status?.name || '')}`}
+                        {/* <select
+                          value={selectedTransition || selectedIssue?.fields?.status?.name || ""}
+                          onChange={(e) => {
+                            const transitionId = e.target.value;
+                            setSelectedTransition(transitionId);
+
+                            // Trigger Jira transition API
+                            jiraService
+                              .transitionIssue(selectedIssue.key, transitionId)
+                              .then(() => {
+                                alert("Status updated successfully!");
+                                // Refresh issue and transitions
+                                jiraService.getIssueByIdOrKey(selectedIssue.key).then(setSelectedIssue);
+                                jiraService.getIssueTransitions(selectedIssue.key).then(setJiraTransitions);
+                              })
+                              .catch((err) => {
+                                console.error("Error updating status:", err);
+                                alert("Failed to update status. Check logs for details.");
+                              });
+                          }}
+                          className={`inline-flex items-center px-3 py-2 text-sm font-medium rounded-full appearance-none pr-8 ${getStatusColorClass(selectedIssue.fields.status?.name || '')}`}
                           aria-label="Change issue status"
                         >
-                          <option value="To Do">To Do</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Done">Done</option>
-                          <option value="Blocked">Blocked</option>
-                        </select>
+                          <option value="">
+                            {selectedIssue?.fields?.status?.name || "Select status"}
+                          </option>
+                          {jiraTransitions.map((transition) => (
+                            <option key={transition.id} value={transition.id}>
+                              {transition.name}
+                            </option>
+                          ))}
+                        </select> */}
+
+                        <div className="relative inline-block text-left">
+  <button
+    onClick={() => setIsMoreDropdownOpen((prev) => !prev)}
+    className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full shadow-sm focus:outline-none"
+    style={{
+      backgroundColor: getStatusColor(selectedIssue.fields.status?.statusCategory?.colorName),
+      color: "white",
+    }}
+  >
+    <span>{selectedIssue?.fields?.status?.name || "Select Status"}</span>
+    <svg
+      className="w-4 h-4 ml-2 opacity-80"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+    </svg>
+  </button>
+
+  {isMoreDropdownOpen && (
+    <div
+      className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50"
+    >
+      <div className="py-1 max-h-60 overflow-auto">
+        {jiraTransitions.map((transition) => (
+          <button
+            key={transition.id}
+            onClick={() => {
+              setSelectedTransition(transition.id);
+              setIsMoreDropdownOpen(false);
+
+              jiraService
+                .transitionIssue(selectedIssue.key, transition.id)
+                .then(() => {
+                  // Refresh after transition
+                  jiraService.getIssueByIdOrKey(selectedIssue.key).then(setSelectedIssue);
+                  jiraService.getIssueTransitions(selectedIssue.key).then(setJiraTransitions);
+                })
+                .catch((err) => {
+                  console.error("Error updating status:", err);
+                  alert("Failed to update status");
+                });
+            }}
+            className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+          >
+            <span
+              className="w-2.5 h-2.5 rounded-full mr-2"
+              style={{ backgroundColor: getStatusColor(transition.to?.statusCategory?.colorName) }}
+            ></span>
+            {transition.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+</div>
+
+
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
@@ -985,7 +1208,7 @@ const IssuesSplitView: React.FC = () => {
                         {selectedIssue.fields.description ? (
                           <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                             {typeof selectedIssue.fields.description === 'object' 
-                              ? JSON.stringify(selectedIssue.fields.description)
+                              ? renderAdfContent(selectedIssue.fields.description as AdfDocument)
                               : selectedIssue.fields.description}
                           </div>
                         ) : (
@@ -994,7 +1217,7 @@ const IssuesSplitView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Attachments Section */}
+                    {/* Attachments Section
                     <div className="mb-6">
                       <div className="border-b border-gray-200 dark:border-gray-700 pb-2 mb-4">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
@@ -1043,7 +1266,92 @@ const IssuesSplitView: React.FC = () => {
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </div> */}
+                    <div className="border-b border-gray-200 dark:border-gray-700 pb-2 mb-4">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                          <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path>
+                          </svg>
+                          Attachments
+                        </h2>
+                      </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+  {attachments && attachments.length > 0 ? (
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {attachments.map((attachment) => (
+        <div
+          key={attachment.id}
+          className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => {
+            if (attachment.mimeType?.startsWith("image/")) {
+              setPreviewAttachment(attachment); // open image modal
+            } else {
+              window.open(attachment.content, "_blank"); // open file in new tab
+            }
+          }}
+        >
+          {attachment.mimeType?.startsWith("image/") ? (
+            <img
+              src={attachment.content}
+              alt={attachment.filename}
+              className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-32 bg-gray-100 dark:bg-gray-700">
+              <svg
+                className="w-8 h-8 text-gray-500 dark:text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 11V3m0 0L8 7m4-4l4 4m0 4v6a2 2 0 01-2 2H8a2 2 0 01-2-2v-6m8 0H8"
+                />
+              </svg>
+              <span className="text-xs mt-2 text-gray-600 dark:text-gray-300 truncate w-24 text-center">
+                {attachment.filename}
+              </span>
+            </div>
+          )}
+          <div className="p-2 text-center border-t border-gray-200 dark:border-gray-600">
+            <a
+              href={attachment.content}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View / Download
+            </a>
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div className="text-center text-gray-500 dark:text-gray-400 py-4">
+      <svg
+        className="w-12 h-12 mx-auto text-gray-400"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+        ></path>
+      </svg>
+      <p className="mt-2">No attachments yet</p>
+    </div>
+  )}
+</div>
+
+
+
 
                     {/* Activity/Comments Section */}
                     <div id="activity-section">
@@ -1096,6 +1404,8 @@ const IssuesSplitView: React.FC = () => {
                           </button>
                         </nav>
                       </div>
+
+                      
 
                       {/* Tab Content */}
                       <div className="bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -1170,39 +1480,37 @@ const IssuesSplitView: React.FC = () => {
 
                         {activeTab === 'comments' && (
                           <div className="p-4">
-                            {/* Add Comment Form */}
-                            {isAddingComment && (
-                              <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
-                                <div className="mb-3">
+                            {/* Comment Input Box */}
+                            <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                              <div className="flex items-start space-x-3">
+                                <img
+                                  className="w-8 h-8 rounded-full"
+                                  src="https://via.placeholder.com/48"
+                                  alt="Current User"
+                                />
+                                <div className="flex-1">
                                   <textarea
                                     value={newComment}
                                     onChange={(e) => setNewComment(e.target.value)}
                                     placeholder="Add a comment..."
                                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white resize-none"
                                     rows={3}
+                                    disabled={isAddingComment}
                                   />
-                                </div>
-                                <div className="flex justify-end space-x-2">
-                                  <button
-                                    onClick={() => {
-                                      setIsAddingComment(false);
-                                      setNewComment('');
-                                    }}
-                                    className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    onClick={handleAddComment}
-                                    disabled={!newComment.trim()}
-                                    className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    Save
-                                  </button>
+                                  <div className="flex justify-end mt-2">
+                                    <button
+                                      onClick={handleAddComment}
+                                      disabled={!newComment.trim() || isAddingComment}
+                                      className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      {isAddingComment ? 'Sending...' : 'Send'}
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                            )}
+                            </div>
 
+                            {/* Comments List */}
                             {comments.length > 0 ? (
                               <div className="space-y-4">
                                 {comments.map((comment) => (
@@ -1224,8 +1532,8 @@ const IssuesSplitView: React.FC = () => {
                                         </span>
                                       </div>
                                       <div className="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                        {typeof comment.body === 'object' 
-                                          ? JSON.stringify(comment.body)
+                                        {typeof comment.body === 'object'
+                                          ? renderAdfContent(comment.body as AdfDocument)
                                           : comment.body}
                                       </div>
                                     </div>
@@ -1239,47 +1547,59 @@ const IssuesSplitView: React.FC = () => {
                             )}
                           </div>
                         )}
+                                       
+{activeTab === 'history' && (
+  <div className="p-4">
+    {history.length > 0 ? (
+      <div className="space-y-4">
+        {history.map((historyItem: HistoryItem) => (
+          <div key={`history-${historyItem.id}`} className="flex space-x-3">
+            <div className="flex-shrink-0">
+              <img
+                className="w-8 h-8 rounded-full"
+                src={historyItem.author.avatarUrls['48x48']}
+                alt={historyItem.author.displayName}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  {historyItem.author.displayName}
+                </span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {formatDate(historyItem.created)}
+                </span>
+              </div>
+              <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                Changed <strong>{historyItem.field}</strong> from "
+                {historyItem.oldValue}" to "{historyItem.newValue}"
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    ) : (
+      <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+        <svg
+          className="w-12 h-12 mx-auto text-gray-400 mb-4"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          ></path>
+        </svg>
+        <p>No history available</p>
+        <p className="text-sm mt-1">Issue history will be shown here</p>
+      </div>
+    )}
+  </div>
+)}
 
-                        {activeTab === 'history' && (
-                          <div className="p-4">
-                            {history.length > 0 ? (
-                              <div className="space-y-4">
-                                {history.map((historyItem: HistoryItem) => (
-                                  <div key={`history-${historyItem.id}`} className="flex space-x-3">
-                                    <div className="flex-shrink-0">
-                                      <img
-                                        className="w-8 h-8 rounded-full"
-                                        src={historyItem.author.avatarUrls['48x48']}
-                                        alt={historyItem.author.displayName}
-                                      />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center space-x-2">
-                                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                          {historyItem.author.displayName}
-                                        </span>
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                                          {formatDate(historyItem.created)}
-                                        </span>
-                                      </div>
-                                      <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                                        Changed <strong>{historyItem.field}</strong> from "{historyItem.oldValue}" to "{historyItem.newValue}"
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                </svg>
-                                <p>No history available</p>
-                                <p className="text-sm mt-1">Issue history will be shown here</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
 
                         {activeTab === 'transitions' && (
                           <div className="p-4">
@@ -1426,6 +1746,49 @@ const IssuesSplitView: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* ✅ Preview Modal - Add this before closing fragment */}
+      {previewAttachment && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+          onClick={() => setPreviewAttachment(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] w-full mx-4 animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setPreviewAttachment(null)}
+              className="absolute top-3 right-3 bg-gray-800 text-white rounded-full p-2 hover:bg-gray-700 z-50"
+            >
+              ✕
+            </button>
+
+            {/* File Preview */}
+            {previewAttachment.mimeType?.startsWith("image/") ? (
+              <img
+                src={previewAttachment.content}
+                alt={previewAttachment.filename}
+                className="w-full h-auto max-h-[85vh] object-contain rounded-lg shadow-lg"
+              />
+            ) : (
+              <iframe
+                src={previewAttachment.content}
+                title={previewAttachment.filename}
+                className="w-full h-[85vh] rounded-lg bg-white"
+              />
+            )}
+
+            {/* File Info */}
+            <div className="text-center text-white mt-3 text-sm">
+              <span className="font-medium">{previewAttachment.filename}</span>
+              <span className="opacity-80 ml-2">
+                ({(previewAttachment.size / 1024).toFixed(1)} KB)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
