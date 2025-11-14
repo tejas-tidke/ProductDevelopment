@@ -9,7 +9,7 @@ export default function WelcomeBanner() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90 sm:text-2xl">
-            Welcome back, {currentUser?.displayName || "User"}!
+            Welcome back, Anurag 
           </h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Here's what's happening with your account today.

@@ -333,6 +333,16 @@ const AppSidebar: React.FC = () => {
   icon: <PageIcon />,
   path: "/reports",
 },
+{
+  name: "DEMO_REQUEST",
+  icon: <PageIcon />,
+  path: "/demo-request",
+},
+{
+  name: "ADMIN_Approver",
+  icon: <PageIcon />,
+  path: "/admin-approver",
+},
 
 
 //these
