@@ -6,6 +6,7 @@ import com.htc.productdevelopment.service.UserService;
 import com.htc.productdevelopment.service.FirebaseSyncService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
 
 import java.util.HashMap;
 import java.util.List;

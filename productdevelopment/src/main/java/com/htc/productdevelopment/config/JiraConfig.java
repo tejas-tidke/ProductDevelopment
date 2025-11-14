@@ -18,6 +18,14 @@ public class JiraConfig {
     
     @Value("${jira.api-token}")
     private String apiToken;
+    
+    @Value("${jira.contract.project-key}")
+    private String contractProjectKey;
+
+    public String getContractProjectKey() {
+        return contractProjectKey;
+    }
+
 
     public String getBaseUrl() {
         return baseUrl;

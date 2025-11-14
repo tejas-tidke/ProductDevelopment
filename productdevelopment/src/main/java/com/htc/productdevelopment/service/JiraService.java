@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.htc.productdevelopment.config.JiraConfig;
 import com.htc.productdevelopment.model.JiraProject;
+import com.htc.productdevelopment.repository.ContractDetailsRepository;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
@@ -12,6 +14,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import com.htc.productdevelopment.config.JiraFieldConfig;
+import com.htc.productdevelopment.dto.ContractDTO;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +46,13 @@ public class JiraService {
     
     // HTTP client for making API calls
     private final RestTemplate restTemplate;
+    	
+    @Autowired
+    private ContractDetailsRepository contractDetailsRepository;
+    
+    @Autowired
+    private JiraFieldConfig jiraFieldConfig;
+
     
     // JSON parser for handling API responses
     private final ObjectMapper objectMapper;
@@ -152,6 +169,39 @@ public class JiraService {
             return List.of();
         }
     }
+    
+    public JsonNode getRequestManagementProject() {
+        String projectKey = jiraConfig.getContractProjectKey(); // We’ll create getter
+        String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/" + projectKey;
+
+        HttpHeaders headers = createAuthHeaders();
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<String> response = restTemplate.exchange(
+            url, HttpMethod.GET, entity, String.class
+        );
+
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            return mapper.readTree(response.getBody());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Request Management project details", e);
+        }
+    }
+
+    
+    private HttpHeaders createAuthHeaders() {
+        String auth = jiraConfig.getEmail() + ":" + jiraConfig.getApiToken();
+        String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Basic " + encodedAuth);
+        headers.set("Accept", "application/json");
+        headers.set("Content-Type", "application/json");
+
+        return headers;
+    }
+    
 
     /**
      * Get a specific Jira project by ID or key
@@ -214,26 +264,44 @@ public class JiraService {
                 "jql", "project is not EMPTY ORDER BY key",
                 "maxResults", 1000,
                 "fields", List.of(
-                    "summary", 
-                    "project", 
-                    "assignee", 
-                    "issuetype", 
-                    "status", 
-                    "priority", 
-                    "created", 
-                    "updated", 
-                    "reporter",
-                    "description",
-                    "customfield_10200", 
-                    "customfield_10201",
-                    "labels",
-                    "components",
-                    "versions",
-                    "fixVersions",
-                    "environment",
-                    "duedate",
-                    "timetracking"
-                )
+                	    "*all",
+
+                	    "summary",
+                	    "project",
+                	    "assignee",
+                	    "issuetype",
+                	    "status",
+                	    "priority",
+                	    "created",
+                	    "updated",
+                	    "reporter",
+                	    "description",
+                	    "duedate",
+
+                	    // --- Contract custom fields ---
+                	    jiraFieldConfig.getVendorName(),
+                	    jiraFieldConfig.getProductName(),
+                	    jiraFieldConfig.getBillingType(),
+                	    jiraFieldConfig.getContractType(),
+                	    jiraFieldConfig.getRequesterName(),
+                	    jiraFieldConfig.getRequesterEmail(),
+                	    jiraFieldConfig.getDepartment(),
+                	    jiraFieldConfig.getAdditionalComment(),
+                	    jiraFieldConfig.getDueDate(),
+                	    jiraFieldConfig.getRenewalDate(),
+
+                	    jiraFieldConfig.getCurrentLicenseCount(),
+                	    jiraFieldConfig.getCurrentUsageCount(),
+                	    jiraFieldConfig.getCurrentUnit(),
+
+                	    jiraFieldConfig.getNewLicenseCount(),
+                	    jiraFieldConfig.getNewUsageCount(),
+                	    jiraFieldConfig.getNewUnit(),
+
+                	    jiraFieldConfig.getLicenseUpdateType(),
+                	    jiraFieldConfig.getExistingContractId()
+                	)
+
             );
             
             // Make the API call with POST method
@@ -318,26 +386,44 @@ public class JiraService {
                 "jql", "project = \"" + projectKey + "\"",
                 "maxResults", 1000,
                 "fields", List.of(
-                    "summary", 
-                    "project", 
-                    "assignee", 
-                    "issuetype", 
-                    "status", 
-                    "priority", 
-                    "created", 
-                    "updated", 
-                    "reporter",
-                    "description",
-                    "customfield_10200", 
-                    "customfield_10201",
-                    "labels",
-                    "components",
-                    "versions",
-                    "fixVersions",
-                    "environment",
-                    "duedate",
-                    "timetracking"
-                )
+                	    "*all",
+
+                	    "summary",
+                	    "project",
+                	    "assignee",
+                	    "issuetype",
+                	    "status",
+                	    "priority",
+                	    "created",
+                	    "updated",
+                	    "reporter",
+                	    "description",
+                	    "duedate",
+
+                	    // --- Contract custom fields ---
+                	    jiraFieldConfig.getVendorName(),
+                	    jiraFieldConfig.getProductName(),
+                	    jiraFieldConfig.getBillingType(),
+                	    jiraFieldConfig.getContractType(),
+                	    jiraFieldConfig.getRequesterName(),
+                	    jiraFieldConfig.getRequesterEmail(),
+                	    jiraFieldConfig.getDepartment(),
+                	    jiraFieldConfig.getAdditionalComment(),
+                	    jiraFieldConfig.getDueDate(),
+                	    jiraFieldConfig.getRenewalDate(),
+
+                	    jiraFieldConfig.getCurrentLicenseCount(),
+                	    jiraFieldConfig.getCurrentUsageCount(),
+                	    jiraFieldConfig.getCurrentUnit(),
+
+                	    jiraFieldConfig.getNewLicenseCount(),
+                	    jiraFieldConfig.getNewUsageCount(),
+                	    jiraFieldConfig.getNewUnit(),
+
+                	    jiraFieldConfig.getLicenseUpdateType(),
+                	    jiraFieldConfig.getExistingContractId()
+                	)
+
             );
             
             // Make the API call with POST method
@@ -583,8 +669,19 @@ public class JiraService {
             
             // Handle description
             if (fields.containsKey("description") && fields.get("description") != null) {
-                jiraFields.put("description", createAtlassianDocumentFormat((String) fields.get("description")));
+                Object descObj = fields.get("description");
+                String descriptionText;
+
+                if (descObj instanceof Map) {
+                    // Convert LinkedHashMap to JSON string (if frontend sends structured ADF)
+                    descriptionText = objectMapper.writeValueAsString(descObj);
+                } else {
+                    descriptionText = descObj.toString();
+                }
+
+                jiraFields.put("description", createAtlassianDocumentFormat(descriptionText));
             }
+
             
             // Handle due date - only send if not empty
             if (fields.containsKey("dueDate") && fields.get("dueDate") != null && !fields.get("dueDate").toString().isEmpty()) {
@@ -619,29 +716,36 @@ public class JiraService {
      * @return Map representing the ADF structure
      */
     private Map<String, Object> createAtlassianDocumentFormat(String text) {
+        try {
+            // If text is already a valid JSON ADF string, return it parsed
+            if (text != null && text.trim().startsWith("{")) {
+                JsonNode node = objectMapper.readTree(text);
+                if (node.has("type") && "doc".equals(node.get("type").asText())) {
+                    return objectMapper.convertValue(node, Map.class);
+                }
+            }
+        } catch (Exception ignored) {}
+
         Map<String, Object> content = new HashMap<>();
         content.put("type", "doc");
         content.put("version", 1);
-        
+
         Map<String, Object> paragraph = new HashMap<>();
         paragraph.put("type", "paragraph");
-        
-        // Only add text content if text is not null or empty
+
         if (text != null && !text.isEmpty()) {
             Map<String, Object> textContent = new HashMap<>();
             textContent.put("type", "text");
             textContent.put("text", text);
-            
             paragraph.put("content", List.of(textContent));
         } else {
-            // Add an empty content array if no text
-            paragraph.put("content", new java.util.ArrayList<>());
+            paragraph.put("content", new ArrayList<>());
         }
-        
+
         content.put("content", List.of(paragraph));
-        
         return content;
     }
+
 
     /**
      * Create a new Jira project
@@ -1167,46 +1271,103 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
      * @throws Exception if the API call fails
      */
     public JsonNode createIssueJira(Map<String, Object> issueData) throws Exception {
-        try {
-            logger.info("Creating new Jira issue with Jira API structure");
-            
-            // Build the API URL for creating an issue
-            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue";
-            
-            // Prepare the request body for Jira API with fields structure
-            Map<String, Object> fields = (Map<String, Object>) issueData.get("fields");
-            
-            // Create a new map for the fields with proper formatting
-            Map<String, Object> formattedFields = new HashMap<>();
-            
-            // Copy all fields
-            if (fields != null) {
-                formattedFields.putAll(fields);
-                
-                // Format description as Atlassian Document if it exists
-                if (fields.containsKey("description") && fields.get("description") != null) {
-                    Object description = fields.get("description");
-                    if (description instanceof String) {
-                        formattedFields.put("description", createAtlassianDocumentFormat((String) description));
-                    }
-                }
-            }
-            
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("fields", formattedFields);
-            
-            logger.info("Prepared request body for Jira API: {}", requestBody);
-            
-            // Make the API call to create the issue
-            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, requestBody);
-            logger.info("Issue created successfully with Jira API structure");
-            
-            return response;
-        } catch (Exception e) {
-            logger.error("Error creating Jira issue with Jira API structure", e);
-            throw new Exception("Failed to create Jira issue: " + e.getMessage(), e);
+
+        logger.info("📥 Received payload: {}", issueData);
+
+        Map<String, Object> vendorDetails = (Map<String, Object>) issueData.get("vendorDetails");
+        if (vendorDetails == null) {
+            throw new IllegalArgumentException("vendorDetails is required");
+        }
+
+        Map<String, Object> fields = new HashMap<>();
+
+        // Required
+        String vendorName = clean(vendorDetails.get("vendorName"));
+        fields.put("summary", "Contract: " + (vendorName == null ? "Unknown" : vendorName));
+        fields.put("issuetype", Map.of("id", "10232"));
+        fields.put("project", Map.of("key", jiraConfig.getContractProjectKey()));
+
+        // Custom fields – convert "" → null
+        put(fields, jiraFieldConfig.getContractType(), vendorDetails.get("contractMode"));
+        put(fields, jiraFieldConfig.getVendorName(), vendorDetails.get("vendorName"));
+        put(fields, jiraFieldConfig.getProductName(), vendorDetails.get("productName"));
+        put(fields, jiraFieldConfig.getBillingType(), vendorDetails.get("vendorContractType"));
+
+        put(fields, jiraFieldConfig.getRequesterName(), vendorDetails.get("requesterName"));
+        put(fields, jiraFieldConfig.getRequesterEmail(), vendorDetails.get("requesterMail"));
+        put(fields, jiraFieldConfig.getDepartment(), vendorDetails.get("department"));
+        put(fields, jiraFieldConfig.getAdditionalComment(), vendorDetails.get("additionalComment"));
+
+        put(fields, jiraFieldConfig.getDueDate(), vendorDetails.get("dueDate"));
+        put(fields, jiraFieldConfig.getRenewalDate(), vendorDetails.get("renewalDate"));
+
+        put(fields, jiraFieldConfig.getCurrentLicenseCount(), vendorDetails.get("currentLicenseCount"));
+        put(fields, jiraFieldConfig.getCurrentUsageCount(), vendorDetails.get("currentUsageCount"));
+        put(fields, jiraFieldConfig.getCurrentUnit(), vendorDetails.get("currentUnits"));
+
+        put(fields, jiraFieldConfig.getNewLicenseCount(), vendorDetails.get("newLicenseCount"));
+        put(fields, jiraFieldConfig.getNewUsageCount(), vendorDetails.get("newUsageCount"));
+        put(fields, jiraFieldConfig.getNewUnit(), vendorDetails.get("newUnits"));
+
+        put(fields, jiraFieldConfig.getLicenseUpdateType(), vendorDetails.get("licenseUpdateType"));
+        put(fields, jiraFieldConfig.getExistingContractId(), vendorDetails.get("selectedExistingContractId"));
+
+        Map<String, Object> payload = Map.of("fields", fields);
+
+        logger.info("🚀 JIRA PAYLOAD (cleaned) => {}", payload);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBasicAuth(jiraConfig.getEmail(), jiraConfig.getApiToken());
+        headers.set("Content-Type", "application/json");
+
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
+
+        String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue";
+        ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
+
+        int status = response.getStatusCodeValue();
+        String body = response.getBody();
+
+        logger.info("Jira status: {} body={}", status, body);
+
+        if (status < 200 || status >= 300) {
+            logger.error("❌ JIRA ERROR BODY => {}", body);
+            throw new Exception("Jira error " + status + ": " + body);
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        return (body == null || body.isBlank()) ? mapper.readTree("{}") : mapper.readTree(body);
+    }
+
+    /**
+     * Removes empty or blank values → returns null
+     */
+    private String clean(Object v) {
+        if (v == null) return null;
+        String s = v.toString().trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    /**
+     * Only put field if value is not null or not empty
+     */
+    private void put(Map<String, Object> map, String key, Object value) {
+        String cleaned = clean(value);
+        if (cleaned != null) {
+            map.put(key, cleaned);
         }
     }
+
+    /**
+     * Converts ANY value to text safely — including null, number, date, boolean.
+     */
+    private Object safeValue(Object value) {
+        if (value == null) return null;
+        String v = String.valueOf(value).trim();
+        return v.isEmpty() ? null : v;
+    }
+
+
 
     /**
      * Add an attachment to a Jira issue with the required X-Atlassian-Token header
@@ -1315,5 +1476,64 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
             throw new Exception("Failed to add comment: " + e.getMessage(), e);
         }
     }
+    
+    public JsonNode getIssueStatuses(String issueIdOrKey) throws Exception {
+        try {
+            logger.info("Fetching statuses for issue: {}", issueIdOrKey);
+
+            String url = jiraConfig.getBaseUrl()
+                    + "/rest/api/3/issue/" + issueIdOrKey + "?expand=editmeta";
+
+            JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
+
+            JsonNode editMeta = response.path("editmeta");
+            JsonNode fields = editMeta.path("fields");
+            JsonNode statusField = fields.path("status");
+            JsonNode allowedValues = statusField.path("allowedValues");
+
+            if (allowedValues.isArray()) {
+                logger.info("Found {} statuses", allowedValues.size());
+                return allowedValues;
+            }
+
+            logger.warn("No allowedValues found for status field, returning empty array");
+            return objectMapper.readTree("[]");
+
+        } catch (Exception e) {
+            logger.error("Error fetching statuses", e);
+            throw new Exception("Failed to fetch statuses: " + e.getMessage(), e);
+        }
+    }
+    
+    public List<ContractDTO> getAllContractsDTO() {
+        return contractDetailsRepository.findAll().stream().map(c -> {
+            ContractDTO dto = new ContractDTO();
+
+            dto.setId(c.getId());
+            dto.setNameOfVendor(c.getNameOfVendor());
+            dto.setProductName(c.getProductName());
+            dto.setRequesterName(c.getRequesterName());
+            dto.setRequesterEmail(c.getRequesterMail());
+            dto.setRequesterDepartment(c.getRequesterDepartment());
+            dto.setVendorContractType(c.getVendorContractType());
+            dto.setAdditionalComment(c.getAdditionalComment());
+            
+            dto.setCurrentLicenseCount(c.getCurrentLicenseCount());
+            dto.setCurrentUsageCount(c.getCurrentUsageCount());
+            dto.setCurrentUnits(c.getCurrentUnits());
+
+            dto.setNewLicenseCount(c.getNewLicenseCount());
+            dto.setNewUsageCount(c.getNewUsageCount());
+            dto.setNewUnits(c.getNewUnits());
+
+            dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
+            dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
+
+
+            return dto;
+        }).collect(java.util.stream.Collectors.toList());
+    }
+
+
 
 }

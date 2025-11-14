@@ -3,9 +3,13 @@ package com.htc.productdevelopment.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.htc.productdevelopment.model.JiraProject;
 import com.htc.productdevelopment.service.JiraService;
+import com.htc.productdevelopment.service.ContractDetailsService;
+import com.htc.productdevelopment.service.VendorDetailsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.beans.factory.annotation.Autowired;
+
 
 import java.util.List;
 import java.util.Map;
@@ -27,14 +31,17 @@ public class JiraController {
     
     // Service for handling Jira operations
     private final JiraService jiraService;
+    private final ContractDetailsService contractDetailsService;
+    private final VendorDetailsService vendorDetailsService;
 
-    /**
-     * Constructor to initialize dependencies
-     * @param jiraService Service for Jira operations
-     */
-    public JiraController(JiraService jiraService) {
+    public JiraController(JiraService jiraService,
+                          ContractDetailsService contractDetailsService,
+                          VendorDetailsService vendorDetailsService) {
         this.jiraService = jiraService;
+        this.contractDetailsService = contractDetailsService;
+        this.vendorDetailsService = vendorDetailsService;
     }
+
 
     /**
      * Get recent Jira projects (max 3)
@@ -461,18 +468,18 @@ public class JiraController {
     public ResponseEntity<?> getIssueTransitions(@PathVariable String issueIdOrKey) {
         try {
             logger.info("Received request for transitions of Jira issue: {}", issueIdOrKey);
-            JsonNode transitions = jiraService.getIssueTransitions(issueIdOrKey);
-            logger.info("Returning transitions for issue: {}", issueIdOrKey);
-            logger.info("Transitions response type: {}", transitions.getClass().getName());
-            logger.info("Transitions response: {}", transitions.toString());
-            // Check if the response has a "transitions" field
-            if (transitions.has("transitions")) {
-                logger.info("Response has transitions field with {} transitions", transitions.get("transitions").size());
-            } else {
-                logger.info("Response does not have transitions field");
-                logger.info("Response keys (if object): {}", transitions.isObject() ? transitions.fieldNames() : "Not an object");
+            JsonNode raw = jiraService.getIssueTransitions(issueIdOrKey);
+
+            JsonNode array = raw != null && raw.has("transitions") ? raw.get("transitions") : raw;
+            if (array == null || !array.isArray()) {
+                logger.info("No transitions array present, returning empty array");
+                return ResponseEntity.ok(new com.fasterxml.jackson.databind.node.ArrayNode(
+                        new com.fasterxml.jackson.databind.node.JsonNodeFactory(false)
+                ));
             }
-            return ResponseEntity.ok(transitions);
+
+            logger.info("Returning {} transitions", array.size());
+            return ResponseEntity.ok(array);
         } catch (Exception e) {
             logger.error("Error fetching transitions for issue: {}", issueIdOrKey, e);
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch transitions: " + e.getMessage()));
@@ -486,23 +493,43 @@ public class JiraController {
      * @return Success or error response
      */
     @PostMapping("/issues/{issueIdOrKey}/transitions")
-    public ResponseEntity<?> transitionIssue(@PathVariable String issueIdOrKey, @RequestBody Map<String, Object> transitionData) {
+    public ResponseEntity<?> transitionIssue(
+            @PathVariable String issueIdOrKey,
+            @RequestBody Map<String, Object> transitionData
+    ) {
         try {
             logger.info("Received request to transition Jira issue: {} with data: {}", issueIdOrKey, transitionData);
-            
-            String transitionId = (String) transitionData.get("transitionId");
-            if (transitionId == null || transitionId.isEmpty()) {
+
+            // Accept BOTH:
+            // 1) { "transition": { "id": "123" } }  (Jira standard)
+            // 2) { "transitionId": "123" }          (old FE shape)
+            String transitionId = null;
+
+            Object transitionObj = transitionData.get("transition");
+            if (transitionObj instanceof Map<?, ?> transitionMap) {
+                Object idObj = transitionMap.get("id");
+                if (idObj != null) transitionId = String.valueOf(idObj);
+            }
+            if (transitionId == null) {
+                Object flatId = transitionData.get("transitionId");
+                if (flatId != null) transitionId = String.valueOf(flatId);
+            }
+
+            if (transitionId == null || transitionId.isBlank()) {
                 return ResponseEntity.badRequest().body(Map.of("message", "Transition ID is required"));
             }
-            
-            JsonNode response = jiraService.transitionIssue(issueIdOrKey, transitionId);
-            logger.info("Issue transitioned successfully: {}", issueIdOrKey);
-            return ResponseEntity.ok(response);
+
+            jiraService.transitionIssue(issueIdOrKey, transitionId);
+            logger.info("Issue transitioned successfully: {} -> {}", issueIdOrKey, transitionId);
+
+            // Mirror Jira's 204 No Content for success
+            return ResponseEntity.noContent().build();
         } catch (Exception e) {
             logger.error("Error transitioning issue: {}", issueIdOrKey, e);
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to transition issue: " + e.getMessage()));
         }
     }
+
     
     /**
      * Get current user information
@@ -587,4 +614,105 @@ public class JiraController {
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to add comment: " + e.getMessage()));
         }
     }
+    
+ // -------------------------------------------------------------------------
+ // 📦 Vendor Details Endpoints
+ // -------------------------------------------------------------------------
+
+ // 1️⃣ Fetch all vendors for dropdown
+ @GetMapping("/vendors")
+ public ResponseEntity<?> getAllVendors() {
+     try {
+    	 logger.info("Fetching all vendors for dropdown");
+         return ResponseEntity.ok(vendorDetailsService.getAllVendors());
+     } catch (Exception e) {
+         return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch vendors: " + e.getMessage()));
+     }
+ }
+
+ // 2️⃣ Fetch all products for a given vendor
+ @GetMapping("/vendors/{vendorName}/products")
+ public ResponseEntity<?> getVendorProducts(@PathVariable String vendorName) {
+     try {
+    	 logger.info("Fetching all products for vendor: {}", vendorName);
+         return ResponseEntity.ok(vendorDetailsService.getProductsByVendor(vendorName));
+     } catch (Exception e) {
+         return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch products: " + e.getMessage()));
+     }
+ }
+
+ // -------------------------------------------------------------------------
+ // 📄 Contract Details Endpoints
+ // -------------------------------------------------------------------------
+
+ // 3️⃣ Fetch contract details for a given vendor
+ @GetMapping("/contracts/vendor/{vendorName}")
+ public ResponseEntity<?> getContractsByVendor(@PathVariable String vendorName) {
+     try {
+         return ResponseEntity.ok(contractDetailsService.getContractsByVendor(vendorName));
+     } catch (Exception e) {
+         return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch contract details: " + e.getMessage()));
+     }
+ }
+ 
+ @GetMapping("/contracts")
+ public ResponseEntity<?> getAllContracts() {
+     try {
+         logger.info("Received request to fetch all contracts");
+         return ResponseEntity.ok(contractDetailsService.getAllContractsDTO());
+     } catch (Exception e) {
+         logger.error("Error fetching all contracts", e);
+         return ResponseEntity.internalServerError()
+                 .body(Map.of("message", "Failed to fetch contracts: " + e.getMessage()));
+     }
+ }
+
+ @PostMapping("/contracts/create")
+ public ResponseEntity<?> createContractIssue(@RequestBody Map<String,Object> issueData) {
+     try {
+         JsonNode result = jiraService.createIssueJira(issueData);
+         return ResponseEntity.ok(result);
+     } catch (Exception ex) {
+         return ResponseEntity.status(500).body(Map.of("error", ex.getMessage()));
+     }
+ }
+
+ // 4️⃣ Fetch existing license count (for upgrade/downgrade/flat renewal logic)
+ @GetMapping("/contracts/vendor/{vendorName}/licenses")
+ public ResponseEntity<?> getLicenseCount(@PathVariable String vendorName,
+                                          @RequestParam(required = false) String productName) {
+     try {
+         Integer count = contractDetailsService.getExistingLicenseCount(vendorName, productName);
+         return ResponseEntity.ok(Map.of("existingLicenseCount", count != null ? count : 0));
+     } catch (Exception e) {
+         return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch license count: " + e.getMessage()));
+     }
+ }
+
+    
+ @GetMapping("/projects/request-management")
+ public ResponseEntity<?> getRequestManagementProject() {
+     try {
+         JsonNode project = jiraService.getRequestManagementProject();
+         return ResponseEntity.ok(project);
+     } catch (Exception e) {
+         return ResponseEntity.internalServerError()
+             .body(Map.of("message", "Failed to fetch Request Management project: " + e.getMessage()));
+     }
+ }
+ 
+ @GetMapping("/issues/{issueIdOrKey}/statuses")
+ public ResponseEntity<?> getIssueStatuses(@PathVariable String issueIdOrKey) {
+     try {
+         logger.info("Received request for statuses of issue: {}", issueIdOrKey);
+         JsonNode statuses = jiraService.getIssueStatuses(issueIdOrKey);
+         return ResponseEntity.ok(statuses);
+     } catch (Exception e) {
+         logger.error("Error fetching statuses for issue {}", issueIdOrKey, e);
+         return ResponseEntity.internalServerError()
+                 .body(Map.of("message", "Failed to fetch statuses: " + e.getMessage()));
+     }
+ }
+
+
 }

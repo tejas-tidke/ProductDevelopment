@@ -74,6 +74,7 @@ const AppSidebar: React.FC = () => {
 
 
 
+const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false);
 
 
 
@@ -792,8 +793,16 @@ const othersItems: NavItem[] = [
       }
       ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
       lg:translate-x-0`}
-      onMouseEnter={() => !isExpanded && setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => {
+  if (!isExpanded && !isInteractingWithDropdown) {
+    setIsHovered(true);
+  }
+}}
+onMouseLeave={() => {
+  if (!isInteractingWithDropdown) {
+    setIsHovered(false);
+  }
+}}
     >
       <div
         className={`py-8 px-5 flex ${
@@ -867,66 +876,64 @@ const othersItems: NavItem[] = [
           </div>
         </nav>
         {/* Account section now part of the scrollable content */}
-        <div className="px-5 pb-2 border-t border-gray-200 dark:border-gray-700 mt-auto">
-          <h2
-            className={`mb-2 text-xs uppercase flex leading-[20px] text-gray-400 ${
-              !isExpanded && !isHovered
-                ? "lg:justify-center"
-                : "justify-start"
-            }`}
-          >
-            {isExpanded || isHovered || isMobileOpen ? (
-              "Account"
-            ) : (
-              <HorizontaLDots className="size-6" />
-            )}
-          </h2>
-          <div className="flex flex-col gap-2">
-            {/* Notification */}
-            <div className="menu-item group relative">
-              <div className="flex items-center">
-                <div className="relative">
-                  <NotificationDropdown
-                    isOpen={openBottomDropdown === 'notifications'}
-                    onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'notifications' ? null : 'notifications')}
-                  />
-                </div>
-                {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Notifications</span>
-                )}
-              </div>
-            </div>
-            {/* Settings */}
-            <div className="menu-item group relative">
-              <div className="flex items-center">
-                <div className="relative">
-                  <SettingsDropdown
-                    isOpen={openBottomDropdown === 'settings'}
-                    onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'settings' ? null : 'settings')}
-                  />
-                </div>
-                {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Settings</span>
-                )}
-              </div>
-            </div>
-            {/* Profile */}
-            <div className="menu-item group relative">
-              <div className="flex items-center">
-                <div className="relative">
-                  <UserDropdown
-                    isOpen={openBottomDropdown === 'profile'}
-                    onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'profile' ? null : 'profile')}
-                  />
-                </div>
-                {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Profile</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <div className="flex flex-col gap-2">
+  {/* Notification */}
+  <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
+    <div className="flex items-center">
+      <div className="relative">
+        <NotificationDropdown
+          isOpen={openBottomDropdown === 'notifications'}
+          onToggle={() => {
+           
+            setOpenBottomDropdown(openBottomDropdown === 'notifications' ? null : 'notifications');
+          }}
+        />
       </div>
+      {(isExpanded || isHovered || isMobileOpen) && (
+        <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Notifications</span>
+      )}
+    </div>
+  </div>
+
+  {/* Settings */}
+  <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
+    <div className="flex items-center">
+      <div className="relative">
+        <SettingsDropdown
+  isOpen={openBottomDropdown === 'settings'}
+  onToggle={() => {
+    setIsInteractingWithDropdown(true);
+    setOpenBottomDropdown(openBottomDropdown === 'settings' ? null : 'settings');
+  }}
+/>
+      </div>
+      {(isExpanded || isHovered || isMobileOpen) && (
+        <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Settings</span>
+      )}
+    </div>
+  </div>
+
+  {/* Profile */}
+  <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
+    <div className="flex items-center">
+      <div className="relative">
+        <UserDropdown
+          isOpen={openBottomDropdown === 'profile'}
+          onToggle={() => {
+            
+            setOpenBottomDropdown(openBottomDropdown === 'profile' ? null : 'profile');
+          }}
+        />
+      </div>
+      {(isExpanded || isHovered || isMobileOpen) && (
+        <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Profile</span>
+      )}
+    </div>
+  </div>
+</div>
+
+        </div>
+      {/* </div> */}
     </aside>
   );
 };

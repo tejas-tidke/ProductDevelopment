@@ -4,63 +4,64 @@ import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ClassPathResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 
 /**
  * Configuration class for Firebase integration.
- * This class initializes the Firebase Admin SDK using the service account credentials.
+ * Loads credentials from environment variable (Base64 encoded JSON)
+ * instead of a local file.
  */
 @Configuration
 public class FirebaseConfig {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(FirebaseConfig.class);
-    
-    /**
-     * Initializes the Firebase configuration after the bean is constructed.
-     * Loads the service account key from the classpath and initializes the Firebase app.
-     */
+
+    // Read Base64 encoded credentials from environment (.env)
+    @Value("${FIREBASE_CREDENTIALS_B64:}")
+    private String firebaseCredentialsB64;
+
     @PostConstruct
     public void initializeFirebase() {
-        logger.info("Initializing Firebase configuration");
-        
+        logger.info("Initializing Firebase configuration...");
+
         try {
-            // This will look for the service account key file in the resources folder
-            ClassPathResource serviceAccount = new ClassPathResource("firebase-service-account.json");
-            
-            logger.info("Looking for Firebase service account file: firebase-service-account.json");
-            logger.info("Service account file exists: {}", serviceAccount.exists());
-            
-            if (serviceAccount.exists()) {
-                logger.info("Firebase service account file found, initializing Firebase app");
-                
-                FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount.getInputStream()))
-                    .build();
-                    
-                logger.info("Firebase options created successfully");
-                
-                if (FirebaseApp.getApps().isEmpty()) {
-                    FirebaseApp.initializeApp(options);
-                    logger.info("Firebase app initialized successfully");
-                } else {
-                    logger.info("Firebase app already initialized");
-                }
-            } else {
-                logger.error("Firebase service account file not found!");
-                logger.error("Current working directory: {}", System.getProperty("user.dir"));
-                logger.error("Make sure firebase-service-account.json is in src/main/resources/");
-                logger.error("The file should NOT be named @firebase-service-account.json");
+            // Check if Firebase app already exists
+            if (!FirebaseApp.getApps().isEmpty()) {
+                logger.info("Firebase app already initialized.");
+                return;
             }
-        } catch (IOException e) {
-            logger.error("Error reading Firebase service account file: {}", e.getMessage(), e);
+
+            if (firebaseCredentialsB64 == null || firebaseCredentialsB64.isEmpty()) {
+                logger.error("Firebase credentials not found! Please set FIREBASE_CREDENTIALS_B64 in your .env file.");
+                return;
+            }
+
+            // Decode Base64 -> JSON string
+            byte[] decodedBytes = Base64.getDecoder().decode(firebaseCredentialsB64);
+            String jsonCredentials = new String(decodedBytes, StandardCharsets.UTF_8);
+
+            // Create credentials from JSON string
+            GoogleCredentials credentials = GoogleCredentials.fromStream(
+                    new ByteArrayInputStream(jsonCredentials.getBytes(StandardCharsets.UTF_8))
+            );
+
+            FirebaseOptions options = FirebaseOptions.builder()
+                    .setCredentials(credentials)
+                    .build();
+
+            FirebaseApp.initializeApp(options);
+            logger.info("✅ Firebase initialized successfully from environment variable.");
+
         } catch (Exception e) {
-            logger.error("Unexpected error during Firebase initialization: {}", e.getMessage(), e);
-            logger.error("This typically happens when the service account file is invalid or missing");
+            logger.error("❌ Failed to initialize Firebase: {}", e.getMessage(), e);
         }
     }
 }

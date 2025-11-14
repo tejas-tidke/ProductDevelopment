@@ -213,7 +213,9 @@ const AppHeader: React.FC = () => {
       <CreateIssueModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={handleCreateIssue}
+        onIssueCreated={(issue) => {
+          console.log("Created issue:", issue);
+        }}
       />
     </header>
   );

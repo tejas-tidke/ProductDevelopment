@@ -22,3 +22,15 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# === FIREBASE / SECRETS ===
+firebase-service-account.json
+*.service-account.json
+*.secret.json
+*.key.json
+
+# Environment files (for local-only use)
+.env
+.env.local
+.env.*.local
+

@@ -46,7 +46,7 @@
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<version>${lombok.version}</version>
+			<version>${lombok.version}</version><!--$NO-MVN-MAN-VER$-->
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
@@ -59,6 +59,16 @@
 			<groupId>com.google.firebase</groupId>
 			<artifactId>firebase-admin</artifactId>
 			<version>9.3.0</version>
+		</dependency>
+		<dependency>
+		    <groupId>me.paulschwarz</groupId>
+		    <artifactId>spring-dotenv</artifactId>
+		    <version>3.0.0</version>
+		</dependency>
+		<dependency>
+			<groupId>com.htc</groupId>
+			<artifactId>backend</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 	</dependencies>
 

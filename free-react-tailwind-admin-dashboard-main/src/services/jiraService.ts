@@ -1,5 +1,6 @@
 // src/services/jiraService.ts
 // Service for handling Jira API calls
+import { auth } from "../firebase";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 // Generic API call function for Jira endpoints
@@ -7,10 +8,10 @@ async function jiraApiCall(endpoint: string, options: RequestInit = {}) {
   // Configure request headers
   const config: RequestInit = {
     headers: {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
-      ...options.headers,
-    },
+  "Accept": "application/json",
+  ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+  ...options.headers,
+  },
     // Add timeout to prevent hanging requests
     signal: AbortSignal.timeout(30000), // 30 second timeout
     ...options,
@@ -163,8 +164,119 @@ export interface ProjectMeta {
   issuetypes: JiraIssueType[];
 }
 
+export interface ContractIssuePayload {
+  vendorDetails: {
+    vendorName: string;
+    productName: string;
+    vendorContractType: string;
+    currentUsageCount: string;
+    currentUnits: string;
+    currentLicenseCount: string;
+    newUsageCount: string;
+    newUnits: string;
+    newLicenseCount: string;
+
+    dueDate: string;
+    renewalDate: string;
+
+    requesterName: string;
+    requesterMail: string;
+    department: string;
+    additionalComment: string;
+
+    contractMode: string; // "new" | "existing"
+    selectedExistingContractId: string;
+
+    licenseUpdateType: string;
+  };
+}
+
+
 // Jira API functions
 export const jiraService = {
+
+   // 1️⃣ Get Request Management Project (only one project is allowed)
+  getRequestManagementProject: () =>
+    jiraApiCall("/api/jira/projects/request-management"),
+
+  // 2️⃣ Get all Vendors for dropdown
+  getVendors: () => jiraApiCall("/api/jira/vendors"),
+
+  // 3️⃣ Get all Products for a Vendor
+  getProductsByVendor: (vendorName: string) =>
+    jiraApiCall(`/api/jira/vendors/${vendorName}/products`),
+
+  // 4️⃣ Get ALL existing contracts for dropdown
+  getContracts: () => jiraApiCall("/api/jira/contracts"),
+
+  // 5️⃣ Get one contract by ID (used when selecting existing contract)
+  getContractById: (id: string) =>
+    jiraApiCall(`/api/jira/contracts/${id}`),
+
+  // 6️⃣ Get existing license count (upgrade/downgrade)
+  getLicenseCount: (vendorName: string, productName: string) =>
+    jiraApiCall(
+      `/api/jira/contracts/license-count?vendor=${vendorName}&product=${productName}`
+    ),
+
+  // 7️⃣ Create Contract Issue (NEW API)
+  createContractIssue: async (payload: ContractIssuePayload) => {
+  const user = auth.currentUser;
+
+  // Auto-fill requester fields from logged-in Firebase user
+  const requesterName = user?.displayName || "Unknown User";
+  const requesterMail = user?.email || "";
+
+  console.log("📡 Sending Contract Issue to backend with auto-filled user:", {
+    requesterName,
+    requesterMail,
+  });
+
+  const vd = payload.vendorDetails;
+
+  const toText = (v: unknown): string =>
+    v === null || v === undefined ? "" : String(v);
+
+  const finalPayload: ContractIssuePayload = {
+    vendorDetails: {
+      vendorName: toText(vd.vendorName),
+      productName: toText(vd.productName),
+      vendorContractType: toText(vd.vendorContractType),
+      currentUsageCount: toText(vd.currentUsageCount),
+      currentUnits: toText(vd.currentUnits),
+      currentLicenseCount: toText(vd.currentLicenseCount),
+
+      newUsageCount: toText(vd.newUsageCount),
+      newUnits: toText(vd.newUnits),
+      newLicenseCount: toText(vd.newLicenseCount),
+
+      dueDate: toText(vd.dueDate),
+      renewalDate: toText(vd.renewalDate),
+
+      // 🔥 Auto-filled
+      requesterName: requesterName,
+      requesterMail: requesterMail,
+
+      department: toText(vd.department),
+      additionalComment: toText(vd.additionalComment),
+
+      contractMode: toText(vd.contractMode),
+      selectedExistingContractId: toText(vd.selectedExistingContractId),
+
+      licenseUpdateType: toText(vd.licenseUpdateType),
+    },
+  };
+
+  return jiraApiCall("/api/jira/contracts/create", {
+    method: "POST",
+    body: JSON.stringify(finalPayload),
+  });
+},
+
+
+
+
+
   // Get recent projects
   getRecentProjects: () => jiraApiCall("/api/jira/projects/recent"),
   
@@ -181,7 +293,11 @@ export const jiraService = {
   getProjectByIdOrKey: (projectIdOrKey: string) => jiraApiCall(`/api/jira/projects/${projectIdOrKey}`),
   
   // Get a specific issue by ID or key
-  getIssueByIdOrKey: (issueIdOrKey: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}`),
+  getIssueByIdOrKey: (issueIdOrKey: string) =>
+  jiraApiCall(`/api/jira/issues/${issueIdOrKey}?expand=names,fields,renderedFields`),
+
+  getIssue: (issueKey: string) =>
+  jiraApiCall(`/api/jira/issues/${issueKey}?expand=names,fields,renderedFields`),
   
   // Get issues for a specific project
   getIssuesForProject: (projectKey: string) => jiraApiCall(`/api/jira/projects/${projectKey}/issues`),
@@ -225,57 +341,46 @@ export const jiraService = {
   },
 
   // Transition an issue to a new status
+    // Transition an issue to a new status
   transitionIssue: async (issueIdOrKey: string, transitionId: string) => {
     console.log(`Transitioning issue: ${issueIdOrKey} with transition ID: ${transitionId}`);
     return jiraApiCall(`/api/jira/issues/${issueIdOrKey}/transitions`, {
       method: "POST",
-      body: JSON.stringify({ transitionId }),
+      body: JSON.stringify({
+        transitionId: transitionId,
+      }),
     });
   },
 
   // Add an attachment to an issue
   addAttachmentToIssue: (issueIdOrKey: string, file: File) => {
     const formData = new FormData();
-    formData.append('file', file);
-    
+    formData.append("file", file);
+
     return jiraApiCall(`/api/jira/issues/${issueIdOrKey}/attachments`, {
       method: "POST",
       body: formData,
-      // Override default headers for multipart/form-data
-      headers: {
-        // Don't set Content-Type, let the browser set it with the boundary
-      }
+      headers: {},
     });
   },
-  
+
   // Test Jira API connectivity
   testJiraConnectivity: () => jiraApiCall("/api/jira/test-connectivity"),
-  
+
   // Get all issue types from Jira
-  getIssueTypes: (): Promise<JiraIssueType[]> => jiraApiCall("/api/jira/issuetypes"),
-  
-  // Fetch metadata dynamically for Create Issue
+  getIssueTypes: (): Promise<JiraIssueType[]> =>
+    jiraApiCall("/api/jira/issuetypes"),
+
   getCreateMeta: async (projectKey?: string) => {
     try {
       const endpoint = projectKey
         ? `/api/jira/issue/createmeta?projectKeys=${projectKey}&expand=projects.issuetypes.fields`
         : `/api/jira/issue/createmeta?expand=projects.issuetypes.fields`;
-      
-      console.log("Calling getCreateMeta with endpoint:", endpoint);
+
       const response = await jiraApiCall(endpoint);
-      console.log("Received response from getCreateMeta:", response);
-      
-      // Check if response has projects property and return it, otherwise return empty array
-      if (response && typeof response === 'object' && 'projects' in response && Array.isArray(response.projects)) {
-        return response.projects;
-      }
-      
-      // If response is already an array, return it directly
-      if (Array.isArray(response)) {
-        return response;
-      }
-      
-      // Return empty array as fallback
+
+      if (response && response.projects) return response.projects;
+      if (Array.isArray(response)) return response;
       return [];
     } catch (error) {
       console.error("Error in getCreateMeta:", error);
@@ -283,70 +388,92 @@ export const jiraService = {
     }
   },
 
-  // Create a new issue
-  createIssue: (issueData: IssueData) => jiraApiCall("/api/jira/issues", {
-    method: "POST",
-    body: JSON.stringify(issueData),
-  }),
-  
-  // Update an existing issue
-  updateIssue: (issueIdOrKey: string, issueData: IssueUpdateData) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}`, {
-    method: "PUT",
-    body: JSON.stringify(issueData),
-  }),
-  
-  // Delete an issue by ID or key
-  deleteIssue: (issueIdOrKey: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}`, {
-    method: "DELETE",
-  }),
-  
-  // Create new issue with Jira's expected payload structure
-  createIssueJira: async (data: IssueData) => {
-    const payload = {
-      fields: {
-        project: { key: data.project },
-        summary: data.summary,
-        description: data.description || "",
-        issuetype: { name: data.issueType },
-        duedate: data.dueDate || null,
-        ...(data.assignee ? { assignee: { name: data.assignee } } : {}),
-      },
-    };
-    const response = await jiraApiCall("/api/jira/issues/create", {
+  createIssue: (issueData: IssueData) =>
+    jiraApiCall("/api/jira/issues", {
       method: "POST",
-      body: JSON.stringify(payload),
-    });
-    return response;
-  },
+      body: JSON.stringify(issueData),
+    }),
 
-  // Upload attachment with required header
+  updateIssue: (issueIdOrKey: string, issueData: IssueUpdateData) =>
+    jiraApiCall(`/api/jira/issues/${issueIdOrKey}`, {
+      method: "PUT",
+      body: JSON.stringify(issueData),
+    }),
+
+  deleteIssue: (issueIdOrKey: string) =>
+    jiraApiCall(`/api/jira/issues/${issueIdOrKey}`, {
+      method: "DELETE",
+    }),
+
+ // Replace old createIssueJira completely
+
+createIssueJira: async (payload: ContractIssuePayload) => {
+
+  console.log("📡 Sending to backend /api/jira/contracts/create:", payload);
+
+  const vd = payload.vendorDetails;
+
+  const toText = (v: unknown): string =>
+    v === null || v === undefined ? "" : String(v);
+
+  const finalPayload: ContractIssuePayload = {
+    vendorDetails: {
+      vendorName:               toText(vd.vendorName),
+      productName:              toText(vd.productName),
+      vendorContractType:       toText(vd.vendorContractType),
+      currentUsageCount:        toText(vd.currentUsageCount),
+      currentUnits:             toText(vd.currentUnits),
+      currentLicenseCount:      toText(vd.currentLicenseCount),
+
+      newUsageCount:            toText(vd.newUsageCount),
+      newUnits:                 toText(vd.newUnits),
+      newLicenseCount:          toText(vd.newLicenseCount),
+
+      dueDate:                  toText(vd.dueDate),
+      renewalDate:              toText(vd.renewalDate),
+
+      requesterName:            toText(vd.requesterName),
+      requesterMail:            toText(vd.requesterMail),
+      department:               toText(vd.department),
+      additionalComment:        toText(vd.additionalComment),
+
+      contractMode:             toText(vd.contractMode),
+      selectedExistingContractId: toText(vd.selectedExistingContractId),
+
+      licenseUpdateType:        toText(vd.licenseUpdateType),
+    },
+  };
+
+  return jiraApiCall("/api/jira/contracts/create", {
+    method: "POST",
+    body: JSON.stringify(finalPayload),
+  });
+},
+
+
+
+
   addAttachmentToIssueJira: async (issueKey: string, file: File) => {
     const formData = new FormData();
     formData.append("file", file);
-    const response = await jiraApiCall(`/api/jira/issues/${issueKey}/attachments`, {
+
+    return jiraApiCall(`/api/jira/issues/${issueKey}/attachments`, {
       method: "POST",
       body: formData,
-      // Override default headers for multipart/form-data
       headers: {
-        "X-Atlassian-Token": "no-check", // required for Jira Cloud
-        // Don't set Content-Type, let the browser set it with the boundary
+        "X-Atlassian-Token": "no-check",
       },
     });
-    return response;
   },
 
-  // Get current user information
-  getCurrentUser: async () => {
-    const response = await jiraApiCall("/api/jira/myself");
-    return response;
-  },
+  getCurrentUser: () => jiraApiCall("/api/jira/myself"),
 
-  // Add a comment to a specific issue
-  addCommentToIssue: (issueIdOrKey: string, commentBody: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}/comments`, {
-    method: "POST",
-    body: JSON.stringify({ body: commentBody }),
-  }),
+  addCommentToIssue: (issueIdOrKey: string, commentBody: string) =>
+    jiraApiCall(`/api/jira/issues/${issueIdOrKey}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ body: commentBody }),
+    }),
 
-};
+}; // END OF OBJECT
 
-export default { jiraService };
+export default jiraService;

@@ -30,7 +30,7 @@ import ProcurementNew from "./pages/procurement-new.tsx";
 import ProcurementRenewal from "./pages/procurement-renewal.tsx";
 import Request from "./pages/Request";
 import Reports from "./pages/Reports";
-import AllOpen from "./pages/request-management/AllOpen";
+import AllOpen from "./pages/request-management/AllOpen.tsx";
 import AssignedToMe from "./pages/request-management/AssignedToMe";
 import Unassigned from "./pages/request-management/Unassigned";
 import Resolved from "./pages/request-management/Resolved";
@@ -39,6 +39,7 @@ import IssuesSplitView from "./pages/IssueSplitView";
 import VendorList from "./pages/VendorManagement/VendorList";
 import VendorContracts from "./pages/VendorManagement/VendorContracts";
 import VendorPerformance from "./pages/VendorManagement/VendorPerformance";
+import RequestSplitView from "./pages/RequestSplitView";
 
 export default function App() {
   return (
@@ -335,13 +336,23 @@ export default function App() {
               } 
             />
             
-            <Route 
-              path="/request-management/resolved" 
+            <Route
+              path="/request-management/resolved"
               element={
                 <ProtectedRoute>
-                  <Resolved />  
+                  <Resolved />
                 </ProtectedRoute>
-              } 
+              }
+            />
+
+            {/* Request Management Detail View */}
+            <Route
+              path="/request-management/:issueKey"
+              element={
+                <ProtectedRoute>
+                  <RequestSplitView />
+                </ProtectedRoute>
+              }
             />
             
             {/* Vendor Management Routes */}

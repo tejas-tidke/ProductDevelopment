@@ -2,8 +2,12 @@ import { useState } from "react";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import { userApi } from "../services/api";
+import { useNavigate } from "react-router";
+
 
 export default function Blank() {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -35,7 +39,12 @@ export default function Blank() {
       };
       
       await userApi.createFirebaseUser(userData);
-      setMessage({type: "success", text: "User created successfully!"});
+      setMessage({ type: "success", text: "User created successfully!" });
+
+      // Redirect to user management after a short delay
+      setTimeout(() => {
+        navigate("/users"); // <-- change this path to match your actual route
+      }, 1500);
       
       // Reset form
       setFormData({

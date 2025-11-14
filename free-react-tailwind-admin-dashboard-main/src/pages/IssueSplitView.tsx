@@ -4,6 +4,7 @@ import PageMeta from "../components/common/PageMeta";
 // import { useEffect, useState } from "react-router";
 import { jiraService, IssueTransition} from "../services/jiraService";
 import { CustomFilterDropdown } from "../components/filters/CustomFilterDropdown";
+import EditIssueModal from "../components/modals/EditIssueModal";
 
 // Define minimal ADF interfaces (enough for description rendering)
 interface AdfNode {
@@ -299,6 +300,9 @@ const IssuesSplitView: React.FC = () => {
   const [statuses, setStatuses] = useState<{ id: string; name: string }[]>([]);
   const [customFields, setCustomFields] = useState<JiraField[]>([]);
 
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
   // State for UI elements
   const [isMoreDropdownOpen, setIsMoreDropdownOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'comments' | 'history' | 'transitions'>('all');
@@ -313,7 +317,11 @@ const IssuesSplitView: React.FC = () => {
   
   // Jira transitions (for dynamic statuses)
 const [jiraTransitions, setJiraTransitions] = useState<IssueTransition[]>([]);
-const [selectedTransition, setSelectedTransition] = useState<string>("");
+const [loadingTransition, setLoadingTransition] = useState(false);
+const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+
+// const [availableTransitions, setAvailableTransitions] = useState<IssueTransition[]>([]);
+// const [selectedTransition, setSelectedTransition] = useState<string>("");
 
 
   // State for resizable split view
@@ -482,13 +490,15 @@ const [selectedTransition, setSelectedTransition] = useState<string>("");
   // Fetch Jira transitions dynamically when issue changes
 useEffect(() => {
   if (selectedIssue?.key) {
+    setLoadingTransition(true);
     jiraService
       .getIssueTransitions(selectedIssue.key)
       .then((data) => {
-        console.log("Fetched transitions:", data);
+        console.log("✅ Transitions fetched:", data);
         setJiraTransitions(data);
       })
-      .catch((err) => console.error("Error fetching transitions:", err));
+      .catch((err) => console.error("❌ Error fetching transitions:", err))
+      .finally(() => setLoadingTransition(false));
   }
 }, [selectedIssue]);
 
@@ -983,9 +993,17 @@ const getStatusColor = (colorName?: string) => {
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
                   <div className="flex flex-wrap gap-2">
                     {/* Edit Button */}
-                    <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                    <button
+                      onClick={() => setIsEditModalOpen(true)}
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
+                    >
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
                       </svg>
                       Edit
                     </button>
@@ -1082,7 +1100,8 @@ const getStatusColor = (colorName?: string) => {
 
                         <div className="relative inline-block text-left">
   <button
-    onClick={() => setIsMoreDropdownOpen((prev) => !prev)}
+    onClick={() => setIsStatusDropdownOpen((prev) => !prev)}
+
     className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full shadow-sm focus:outline-none"
     style={{
       backgroundColor: getStatusColor(selectedIssue.fields.status?.statusCategory?.colorName),
@@ -1100,38 +1119,64 @@ const getStatusColor = (colorName?: string) => {
     </svg>
   </button>
 
-  {isMoreDropdownOpen && (
+  {isStatusDropdownOpen && (
     <div
       className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50"
     >
       <div className="py-1 max-h-60 overflow-auto">
         {jiraTransitions.map((transition) => (
           <button
-            key={transition.id}
-            onClick={() => {
-              setSelectedTransition(transition.id);
-              setIsMoreDropdownOpen(false);
+  key={transition.id}
+  onClick={async () => {
+    try {
+      setIsStatusDropdownOpen(false);
+      console.log("🟡 Attempting transition:", transition.id);
 
-              jiraService
-                .transitionIssue(selectedIssue.key, transition.id)
-                .then(() => {
-                  // Refresh after transition
-                  jiraService.getIssueByIdOrKey(selectedIssue.key).then(setSelectedIssue);
-                  jiraService.getIssueTransitions(selectedIssue.key).then(setJiraTransitions);
-                })
-                .catch((err) => {
-                  console.error("Error updating status:", err);
-                  alert("Failed to update status");
-                });
-            }}
-            className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
-          >
-            <span
-              className="w-2.5 h-2.5 rounded-full mr-2"
-              style={{ backgroundColor: getStatusColor(transition.to?.statusCategory?.colorName) }}
-            ></span>
-            {transition.name}
-          </button>
+      // Start loading indicator (optional)
+      setLoadingTransition(true);
+
+      // 1️⃣ Perform transition
+      const response = await jiraService.transitionIssue(selectedIssue.key, transition.id);
+      console.log("✅ Transition API response:", response);
+
+      // 2️⃣ Refresh issue from Jira
+      const updatedIssue = await jiraService.getIssueByIdOrKey(selectedIssue.key);
+      console.log("🔄 Updated issue fetched:", updatedIssue.fields.status?.name);
+
+      // 3️⃣ Update UI
+      setSelectedIssue(updatedIssue);
+      setSelectedStatus(updatedIssue?.fields?.status?.name || "");
+
+      setIssues(prev =>
+        prev.map(issue =>
+          issue.key === updatedIssue.key
+            ? { ...issue, fields: { ...issue.fields, status: updatedIssue.fields.status } }
+            : issue
+        )
+      );
+
+      // 4️⃣ Refresh available transitions
+      const updatedTransitions = await jiraService.getIssueTransitions(selectedIssue.key);
+      setJiraTransitions(updatedTransitions);
+
+      // ✅ Show success message
+      alert(`✅ Status updated to "${updatedIssue.fields.status?.name}"`);
+    } catch (error) {
+      console.error("❌ Error updating status:", error);
+      alert("Failed to update status. Please check Jira permissions or workflow.");
+    } finally {
+      setLoadingTransition(false);
+    }
+  }}
+  className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+>
+
+  <span
+    className="w-2.5 h-2.5 rounded-full mr-2"
+    style={{ backgroundColor: getStatusColor(transition.to?.statusCategory?.colorName) }}
+  ></span>
+  {transition.name}
+</button>
         ))}
       </div>
     </div>
@@ -1746,6 +1791,42 @@ const getStatusColor = (colorName?: string) => {
           </div>
         </div>
       </div>
+
+      {/* ✅ Edit Issue Modal */}
+{isEditModalOpen && selectedIssue && (
+  <EditIssueModal
+    isOpen={isEditModalOpen}
+    onClose={() => setIsEditModalOpen(false)}
+    issue={selectedIssue}
+    onSubmit={async (issueKey, issueData) => {
+      try {
+        // 1️⃣ Call backend to update issue
+        await jiraService.updateIssue(issueKey, issueData);
+
+        // 2️⃣ Refresh issue after update
+        const updated = await jiraService.getIssueByIdOrKey(issueKey);
+        setSelectedIssue(updated);
+
+        // 3️⃣ Update issues list
+        setIssues((prev) =>
+          prev.map((issue) =>
+            issue.key === updated.key
+              ? { ...issue, fields: { ...issue.fields, ...updated.fields } }
+              : issue
+          )
+        );
+
+        alert("✅ Issue updated successfully!");
+        setIsEditModalOpen(false);
+      } catch (error) {
+        console.error("❌ Error updating issue:", error);
+        alert("Failed to update issue. Check console for details.");
+      }
+    }}
+  />
+)}
+
+
       {/* ✅ Preview Modal - Add this before closing fragment */}
       {previewAttachment && (
         <div
