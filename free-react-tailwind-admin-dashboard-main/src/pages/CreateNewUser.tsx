@@ -42,7 +42,7 @@ export default function Blank() {
         name: "",
         email: "",
         password: "",
-        role: "USER"
+        role: ""
       });
     } catch (error) {
       console.error("Error creating user:", error);

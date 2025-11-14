@@ -311,9 +311,8 @@ const IssuesSplitView: React.FC = () => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   
-  // Jira transitions (for dynamic statuses)
+// Jira transitions (for dynamic statuses)
 const [jiraTransitions, setJiraTransitions] = useState<IssueTransition[]>([]);
-const [selectedTransition, setSelectedTransition] = useState<string>("");
 
 
   // State for resizable split view
@@ -796,7 +795,7 @@ const getStatusColor = (colorName?: string) => {
             </div>
            
             <select
-              className="rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="rounded-md border border-gray-300 bg-gray-50 hover:bg-indigo-200 py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
               aria-label="Filter by project"
@@ -808,7 +807,7 @@ const getStatusColor = (colorName?: string) => {
             </select>
            
             <select
-              className="rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="rounded-md border border-gray-300  bg-gray-50 hover:bg-indigo-200 py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               value={selectedAssignee}
               onChange={(e) => setSelectedAssignee(e.target.value)}
               aria-label="Filter by assignee"
@@ -820,7 +819,7 @@ const getStatusColor = (colorName?: string) => {
             </select>
            
             <select
-              className="rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="rounded-md border border-gray-300  bg-gray-50 hover:bg-indigo-200 py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               value={selectedIssueType}
               onChange={(e) => setSelectedIssueType(e.target.value)}
               aria-label="Filter by issue type"
@@ -832,7 +831,7 @@ const getStatusColor = (colorName?: string) => {
             </select>
            
             <select
-              className="rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              className="rounded-md border border-gray-300 bg-gray-50 hover:bg-indigo-200 py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
               aria-label="Filter by status"
@@ -871,8 +870,10 @@ const getStatusColor = (colorName?: string) => {
                       onClick={() => handleIssueClick(issue)}
                       className={`p-3 rounded-lg cursor-pointer transition-colors ${
                         selectedIssue?.key === issue.key
-                          ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500'
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                        
+                        // To change color on hover when selected or hover
+                          ? 'bg-blue-100 dark:bg-blue-900/20 border-l-4 border-green-900'
+                          : 'hover:bg-indigo-200 dark:hover:bg-indigo-700' // Changed hover color to indigo-200 for light mode and indigo-700 for dark mode
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -983,7 +984,7 @@ const getStatusColor = (colorName?: string) => {
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
                   <div className="flex flex-wrap gap-2">
                     {/* Edit Button */}
-                    <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                    <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray hover:bg-indigo-300 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                       </svg>
@@ -1003,7 +1004,7 @@ const getStatusColor = (colorName?: string) => {
                           }
                         }, 100);
                       }}
-                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700  bg-gray-50 hover:bg-indigo-200 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
                     >
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9 8s9 3.582 9 8z"></path>
@@ -1012,7 +1013,7 @@ const getStatusColor = (colorName?: string) => {
                     </button>
 
                     {/* Assign Button */}
-                    <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                    <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700  bg-gray-50 hover:bg-indigo-200 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                       </svg>
@@ -1022,7 +1023,7 @@ const getStatusColor = (colorName?: string) => {
                     {/* More Dropdown */}
                     <div className="relative more-dropdown">
                       <button
-                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-indigo-200 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-00 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
                         onClick={() => setIsMoreDropdownOpen(!isMoreDropdownOpen)}
                       >
                         More
@@ -1102,14 +1103,13 @@ const getStatusColor = (colorName?: string) => {
 
   {isMoreDropdownOpen && (
     <div
-      className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50"
+      className="absolute right-0 mt-2 w-56 rounded-md shadow-lg  dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50"
     >
-      <div className="py-1 max-h-60 overflow-auto">
+      <div className="py-1 max-h-60 overflow-auto ">
         {jiraTransitions.map((transition) => (
           <button
             key={transition.id}
             onClick={() => {
-              setSelectedTransition(transition.id);
               setIsMoreDropdownOpen(false);
 
               jiraService
@@ -1139,7 +1139,7 @@ const getStatusColor = (colorName?: string) => {
 </div>
 
 
-                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2">
+                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
                           </svg>

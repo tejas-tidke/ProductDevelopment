@@ -867,7 +867,7 @@ const othersItems: NavItem[] = [
           </div>
         </nav>
         {/* Account section now part of the scrollable content */}
-        <div className="px-5 pb-2 border-t border-gray-200 dark:border-gray-700 mt-auto">
+        <div className="px-5 pb-2 border-t border-gray-200 bg-indigo-200 hover:bg-red-00 dark:border-gray-700 mt-auto">
           <h2
             className={`mb-2 text-xs uppercase flex leading-[20px] text-gray-400 ${
               !isExpanded && !isHovered
@@ -883,9 +883,9 @@ const othersItems: NavItem[] = [
           </h2>
           <div className="flex flex-col gap-2">
             {/* Notification */}
-            <div className="menu-item group relative">
+            <div className="menu-item group relative overflow-visible">
               <div className="flex items-center">
-                <div className="relative">
+                <div className="relative z-[70]">
                   <NotificationDropdown
                     isOpen={openBottomDropdown === 'notifications'}
                     onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'notifications' ? null : 'notifications')}
@@ -897,9 +897,9 @@ const othersItems: NavItem[] = [
               </div>
             </div>
             {/* Settings */}
-            <div className="menu-item group relative">
+            <div className="menu-item group relative overflow-visible">
               <div className="flex items-center">
-                <div className="relative">
+                <div className="relative z-[70]">
                   <SettingsDropdown
                     isOpen={openBottomDropdown === 'settings'}
                     onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'settings' ? null : 'settings')}
@@ -911,9 +911,9 @@ const othersItems: NavItem[] = [
               </div>
             </div>
             {/* Profile */}
-            <div className="menu-item group relative">
+            <div className="menu-item group relative overflow-visible">
               <div className="flex items-center">
-                <div className="relative">
+                <div className="relative z-[70]">
                   <UserDropdown
                     isOpen={openBottomDropdown === 'profile'}
                     onToggle={() => setOpenBottomDropdown(openBottomDropdown === 'profile' ? null : 'profile')}
