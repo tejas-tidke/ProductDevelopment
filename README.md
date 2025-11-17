@@ -78,19 +78,23 @@ src/
 
 ### Backend Setup
 
-1. **Database Configuration**
+1. **Environment Setup**
+   - Follow the detailed [Setup Guide](SETUP.md) to configure Java, Maven, and Lombok correctly
+   - This is crucial to avoid compilation issues
+
+2. **Database Configuration**
    - Create a MySQL database named `product_development_db`
    - Update database credentials in `src/main/resources/application.properties`
 
-2. **Firebase Configuration**
+3. **Firebase Configuration**
    - Download your Firebase service account key
    - Place it in `src/main/resources/firebase-service-account.json`
 
-3. **Jira Configuration**
+4. **Jira Configuration**
    - Update Jira credentials in `src/main/resources/application.properties`
    - Set your Jira base URL, email, and API token
 
-4. **Run the Backend**
+5. **Run the Backend**
    ```bash
    cd productdevelopment
    ./mvnw spring-boot:run
@@ -184,7 +188,7 @@ Frontend (React) ↔ Backend API (Spring Boot) ↔ Database (MySQL)
 | email | VARCHAR | User email (unique) |
 | name | VARCHAR | User full name |
 | avatar | LONGTEXT | User profile image |
-| role | ENUM | User role (ADMIN/USER) |
+| role | ENUM | User role (SUPER_ADMIN/ADMIN/APPROVER/REQUESTER) |
 | active | BOOLEAN | User active status |
 | created_at | TIMESTAMP | Record creation time |
 | updated_at | TIMESTAMP | Record last update time |
@@ -229,6 +233,9 @@ VITE_API_URL=http://localhost:8080
 
 # Run tests
 ./mvnw test
+
+# Clean build artifacts
+./mvnw clean
 ```
 
 ### Frontend
@@ -293,6 +300,16 @@ npm run lint
    - Check CorsConfig.java settings
    - Ensure frontend URL is allowed in CORS configuration
 
+5. **Lombok Compilation Errors**
+   - Follow the detailed setup instructions in [SETUP.md](SETUP.md)
+   - Refer to the comprehensive [Lombok Troubleshooting Guide](LOMBOK_TROUBLESHOOTING.md) for detailed solutions
+   - Ensure annotation processing is enabled in your IDE
+   - Use the Maven Wrapper for building (`./mvnw` or `mvnw.cmd`)
+
+6. **ClassNotFoundException**
+   - Check that you're using the correct main class name: `com.htc.productdevelopment.ProductdevelopmentApplication`
+   - Clean and rebuild using Maven Wrapper
+
 ### Logs and Debugging
 - Backend logs are available in console when running
 - Frontend logs can be viewed in browser developer tools
@@ -316,3 +333,7 @@ This project is designed to be beginner-friendly with:
 - Consistent naming conventions
 - Simple data flow patterns
 - Comprehensive error handling
+
+### Standardized Environment
+
+All team members should follow the [Standardized Environment Guide](STANDARDIZED_ENVIRONMENT.md) to ensure consistency and prevent common issues like Lombok compilation errors.

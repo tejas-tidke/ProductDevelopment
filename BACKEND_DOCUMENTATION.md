@@ -49,7 +49,7 @@ The backend follows a layered architecture pattern:
 - **JiraService** - Integrates with the Jira REST API
 
 ### Models
-- **User** - Represents a user in the system with roles (ADMIN/USER)
+- **User** - Represents a user in the system with roles (SUPER_ADMIN/ADMIN/APPROVER/REQUESTER)
 - **JiraProject** - Represents a Jira project with its properties
 
 ### Configuration
