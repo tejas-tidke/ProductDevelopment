@@ -36,6 +36,8 @@ import Unassigned from "./pages/request-management/Unassigned";
 import Resolved from "./pages/request-management/Resolved";
 import IssueDetail from "./pages/IssueDetail";
 import IssuesSplitView from "./pages/IssueSplitView";
+import DEMO_REQUEST from "./pages/DEMO_REQUEST";
+import ADMIN_Approver from "./pages/ADMIN_Approver";
 import VendorList from "./pages/VendorManagement/VendorList";
 import VendorContracts from "./pages/VendorManagement/VendorContracts";
 import VendorPerformance from "./pages/VendorManagement/VendorPerformance";
@@ -305,6 +307,26 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <Reports />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Demo Request route */}
+            <Route 
+              path="/demo-request" 
+              element={
+                <ProtectedRoute>
+                  <DEMO_REQUEST />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Admin Approver route */}
+            <Route 
+              path="/admin-approver" 
+              element={
+                <ProtectedRoute>
+                  <ADMIN_Approver />
                 </ProtectedRoute>
               } 
             />
