@@ -1,9 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
-import { userApi } from "../services/api";
+import { userApi, departmentApi } from "../services/api";
 import { useNavigate } from "react-router";
 
+// Define Department type
+interface Department {
+  id: number;
+  name: string;
+}
 
 export default function Blank() {
   const navigate = useNavigate();
@@ -12,10 +17,28 @@ export default function Blank() {
     name: "",
     email: "",
     password: "",
-    role: "USER"
+    role: "REQUESTER",
+    departmentId: "" // Add departmentId to form data
   });
+  
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: string, text: string} | null>(null);
+
+  // Fetch departments when component mounts
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const deptData = await departmentApi.getAllDepartments();
+        setDepartments(deptData);
+      } catch (error) {
+        console.error("Error fetching departments:", error);
+        setMessage({type: "error", text: "Failed to load departments: " + (error as Error).message});
+      }
+    };
+
+    fetchDepartments();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -31,11 +54,13 @@ export default function Blank() {
     setMessage(null);
     
     try {
+      // Prepare user data with department
       const userData = {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        role: formData.role
+        role: formData.role,
+        department: formData.departmentId ? { id: parseInt(formData.departmentId) } : null
       };
       
       await userApi.createFirebaseUser(userData);
@@ -51,7 +76,8 @@ export default function Blank() {
         name: "",
         email: "",
         password: "",
-        role: "USER"
+        role: "REQUESTER",
+        departmentId: ""
       });
     } catch (error) {
       console.error("Error creating user:", error);
@@ -145,8 +171,31 @@ export default function Blank() {
                 onChange={handleInputChange}
                 className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
               >
-                <option value="USER">User</option>
+                <option value="REQUESTER">Requester</option>
+                <option value="APPROVER">Approver</option>
                 <option value="ADMIN">Admin</option>
+                <option value="SUPER_ADMIN">Super Admin</option>
+              </select>
+            </div>
+            
+            {/* Department Selection */}
+            <div>
+              <label htmlFor="departmentId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Department
+              </label>
+              <select
+                id="departmentId"
+                name="departmentId"
+                value={formData.departmentId}
+                onChange={handleInputChange}
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
+              >
+                <option value="">Select Department</option>
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </option>
+                ))}
               </select>
             </div>
             

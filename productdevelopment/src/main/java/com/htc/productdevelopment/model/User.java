@@ -6,6 +6,8 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.util.Date;
 
+import com.htc.productdevelopment.model.Department;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -43,8 +45,10 @@ public class User {
     private Role role;
 
     public enum Role {
+        SUPER_ADMIN,
         ADMIN,
-        USER
+        APPROVER,
+        REQUESTER
     }
 
     @Column(nullable = false)

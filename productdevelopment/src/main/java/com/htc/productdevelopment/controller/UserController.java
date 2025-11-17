@@ -2,10 +2,12 @@ package com.htc.productdevelopment.controller;
 
 import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.model.Department;
+import com.htc.productdevelopment.repository.DepartmentRepository;
 import com.htc.productdevelopment.service.UserService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.*;
 
@@ -20,6 +22,9 @@ public class UserController {
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     private final UserService userService;
+    
+    @Autowired
+    private DepartmentRepository departmentRepository;
 
     public UserController(UserService userService) {
         this.userService = userService;
@@ -35,6 +40,38 @@ public class UserController {
             return ResponseEntity.ok(users);
         } catch (Exception e) {
             logger.error("Error fetching users", e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ----------------------------------------------------
+    // GET ALL DEPARTMENTS
+    // ----------------------------------------------------
+    @GetMapping("/departments")
+    public ResponseEntity<?> getAllDepartments() {
+        try {
+            logger.info("Fetching all departments");
+            List<Department> departments = departmentRepository.findAll();
+            logger.info("Fetched {} departments", departments.size());
+            return ResponseEntity.ok(departments);
+        } catch (Exception e) {
+            logger.error("Error fetching departments", e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+    
+    // ----------------------------------------------------
+    // GET DEPARTMENT BY ID
+    // ----------------------------------------------------
+    @GetMapping("/departments/{id}")
+    public ResponseEntity<?> getDepartmentById(@PathVariable Integer id) {
+        try {
+            logger.info("Fetching department with id: {}", id);
+            return departmentRepository.findById(id)
+                    .map(department -> ResponseEntity.ok(department))
+                    .orElseGet(() -> ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            logger.error("Error fetching department", e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }

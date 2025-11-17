@@ -6,8 +6,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import java.time.Duration;
+import org.springframework.context.annotation.Profile;
+
 
 @Configuration
+@Profile("!test")
 public class JiraConfig {
     
     @Value("${jira.base-url}")

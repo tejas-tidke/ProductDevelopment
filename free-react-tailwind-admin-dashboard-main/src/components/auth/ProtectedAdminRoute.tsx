@@ -16,10 +16,10 @@ export default function ProtectedAdminRoute({ children }: { children: React.Reac
         try {
           // Get user data to check if they are admin
           const userData = await userService.getUserData(currentUser.uid);
-          if (userData && userData.role === "ADMIN") {
+          if (userData && (userData.role === "ADMIN" || userData.role === "SUPER_ADMIN")) {
             setIsAdmin(true);
           } else {
-            // Redirect to home page if user is not admin
+            // Redirect to home page if user is not admin or super admin
             navigate("/");
           }
         } catch (error) {
@@ -52,6 +52,6 @@ export default function ProtectedAdminRoute({ children }: { children: React.Reac
     return null;
   }
 
-  // If user is authenticated and is admin, render children
+  // If user is authenticated and is admin or super admin, render children
   return <>{children}</>;
 }

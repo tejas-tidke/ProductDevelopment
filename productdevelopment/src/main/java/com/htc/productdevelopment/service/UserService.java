@@ -54,7 +54,7 @@ public class UserService {
         user.setUid(uid);
         user.setEmail(email != null ? email : "");
         user.setName(name != null ? name : "");
-        user.setRole(User.Role.USER); // default role
+        user.setRole(User.Role.REQUESTER); // default role
 
         return userRepository.save(user);
     }
@@ -151,15 +151,27 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    public boolean isSuperAdmin(String uid) {
+        return userRepository.findByUid(uid)
+                .map(u -> u.getRole() == User.Role.SUPER_ADMIN)
+                .orElse(false);
+    }
+
     public boolean isAdmin(String uid) {
         return userRepository.findByUid(uid)
                 .map(u -> u.getRole() == User.Role.ADMIN)
                 .orElse(false);
     }
 
-    public boolean isUser(String uid) {
+    public boolean isApprover(String uid) {
         return userRepository.findByUid(uid)
-                .map(u -> u.getRole() == User.Role.USER)
+                .map(u -> u.getRole() == User.Role.APPROVER)
+                .orElse(false);
+    }
+
+    public boolean isRequester(String uid) {
+        return userRepository.findByUid(uid)
+                .map(u -> u.getRole() == User.Role.REQUESTER)
                 .orElse(false);
     }
 

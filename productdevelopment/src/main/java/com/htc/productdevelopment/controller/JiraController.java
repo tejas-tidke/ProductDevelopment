@@ -659,10 +659,10 @@ public class JiraController {
  public ResponseEntity<?> getAllContracts() {
      try {
          logger.info("Received request to fetch all contracts");
-         return ResponseEntity.ok(contractDetailsService.getAllContractsDTO());
+         return ResponseEntity.ok(contractDetailsService.getAllContracts());
      } catch (Exception e) {
          logger.error("Error fetching all contracts", e);
-         return ResponseEntity.internalServerError()
+         return (ResponseEntity<?>) ResponseEntity.internalServerError()
                  .body(Map.of("message", "Failed to fetch contracts: " + e.getMessage()));
      }
  }

@@ -818,7 +818,7 @@ span.flatpickr-weekday,
   background : transparent ;
 }
  
-/* if you want to change  of Hover Background */
+/* if you want to change the background when hover*/
 .menu-item.group:hover,
 .menu-item-inactive:hover,
 .menu-item:hover {
@@ -837,7 +837,7 @@ span.flatpickr-weekday,
   color: #1d4ed8;
 }
  
-/* Color  For Clickable state*/
+/* Color for clickable state*/
 .menu-item-active {
   background-color: #e6ffe7; /* Blue  Light */
   color: #1d4ed8; /* blue-700 */
@@ -870,4 +870,12 @@ span.flatpickr-weekday,
   background: transparent;
   transform: none;
   box-shadow: none;
+}
+
+
+/* for Star Pattern to be Mandatory RED */ 
+label.required::after {
+  content: " *";
+  color: red;
+  font-weight: bold;
 }

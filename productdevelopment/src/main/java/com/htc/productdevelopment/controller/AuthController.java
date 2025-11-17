@@ -1,5 +1,6 @@
 package com.htc.productdevelopment.controller;
 
+import com.htc.productdevelopment.dto.CreateUserRequest;
 import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.repository.UserRepository;
 import com.htc.productdevelopment.service.UserService;
@@ -51,15 +52,17 @@ public class AuthController {
      * @return The created user
      */
     @PostMapping("/create-user")
-    public ResponseEntity<?> createFirebaseUser(@RequestBody Map<String, String> userData) {
+    public ResponseEntity<?> createFirebaseUser(@RequestBody CreateUserRequest userData)
+ {
         logger.info("Received request to create Firebase user");
         
         try {
             // Extract user data from request
-            String email = userData.get("email");
-            String password = userData.get("password");
-            String name = userData.get("name");
-            String roleStr = userData.get("role");
+        	String email = userData.email;
+        	String password = userData.password;
+        	String name = userData.name;
+        	String roleStr = userData.role;
+
             
             // Validate required fields
             if (email == null || email.isEmpty() || password == null || password.isEmpty()) {
@@ -69,13 +72,13 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(errorResponse);
             }
             
-            // Set default role to USER if not provided
-            User.Role role = User.Role.USER;
+            // Set default role to REQUESTER if not provided
+            User.Role role = User.Role.REQUESTER;
             if (roleStr != null && !roleStr.isEmpty()) {
                 try {
                     role = User.Role.valueOf(roleStr.toUpperCase());
                 } catch (IllegalArgumentException e) {
-                    logger.warn("Invalid role value: {}, using default USER role", roleStr);
+                    logger.warn("Invalid role value: {}, using default REQUESTER role", roleStr);
                 }
             }
             
@@ -252,13 +255,18 @@ public class AuthController {
     public ResponseEntity<?> isUser(@PathVariable String uid) {
         logger.info("Received request to check if user is regular user: {}", uid);
         
-        // Check if user is regular user
-        boolean isUser = userService.isUser(uid);
+        // ❌ Wrong
+        // boolean isUser = userService.isUser(uid);
+
+        // ✅ Correct — normal users in your system = REQUESTER
+        boolean isUser = userService.isRequester(uid);
+
         Map<String, Boolean> response = new HashMap<>();
         response.put("isUser", isUser);
         logger.info("User {} isUser: {}", uid, isUser);
         return ResponseEntity.ok(response);
     }
+
     
     /**
      * Get users by role

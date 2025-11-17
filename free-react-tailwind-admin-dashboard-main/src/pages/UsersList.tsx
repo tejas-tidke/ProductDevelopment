@@ -13,6 +13,10 @@ interface User {
   role: string;
   active: boolean;
   avatar?: string;
+  department?: {
+    id: number;
+    name: string;
+  };
 }
 
 interface UserData {
@@ -23,6 +27,10 @@ interface UserData {
   role?: string;
   active?: boolean;
   avatar?: string;
+  department?: {
+    id: number;
+    name: string;
+  };
 }
 
 export default function UsersList() {
@@ -47,9 +55,10 @@ export default function UsersList() {
         uid: user.uid || "",
         name: user.name || "Unknown",
         email: user.email || "No email",
-        role: user.role || "USER",
+        role: user.role || "REQUESTER",
         active: user.active !== undefined ? user.active : true,
-        avatar: user.avatar || "/images/user/user-01.jpg"
+        avatar: user.avatar || "/images/user/user-01.jpg",
+        department: user.department
       }));
       
       setUsers(transformedUsers);
@@ -150,6 +159,9 @@ export default function UsersList() {
                     Role
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                    Department
+                  </th>
+                  <th className="px-6 py-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
                     Status
                   </th>
                   <th className="px-6 py-3 text-right text-sm font-medium text-gray-500 dark:text-gray-400">
@@ -181,12 +193,19 @@ export default function UsersList() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
-                        user.role === "ADMIN"
+                        user.role === "SUPER_ADMIN"
+                          ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100"
+                          : user.role === "ADMIN"
                           ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                          : user.role === "APPROVER"
+                          ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
                           : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
                       }`}>
                         {user.role}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
+                      {user.department ? user.department.name : "No Department"}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${

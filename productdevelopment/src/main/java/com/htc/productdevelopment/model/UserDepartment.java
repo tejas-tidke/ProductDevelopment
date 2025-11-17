@@ -3,6 +3,9 @@ package com.htc.productdevelopment.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import com.htc.productdevelopment.model.Department;
+import com.htc.productdevelopment.model.User;
+
 @Entity
 @Table(name = "user_departments")
 @Data

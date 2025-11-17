@@ -34,42 +34,67 @@ interface ProductItem {
   productLink?: string;
 }
 
-  const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onIssueCreated }) => {
+const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onIssueCreated }) => {
+  // requester
   const [requesterName, setRequesterName] = useState('');
   const [requesterMail, setRequesterMail] = useState('');
+
+  // contract mode
   const [contractType, setContractType] = useState<'new' | 'existing' | ''>('');
+
+  // vendors/products (from lighter file)
   const [vendors, setVendors] = useState<string[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<ProductItem[]>([]);
   const [loadingVendors, setLoadingVendors] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
 
-
+  // core fields (detailed)
   const [vendorName, setVendorName] = useState('');
   const [productName, setProductName] = useState('');
   const [vendorContractType, setVendorContractType] = useState<'usage' | 'license' | ''>('');
 
   const [currentUsageCount, setCurrentUsageCount] = useState<number | ''>('');
   const [currentUnits, setCurrentUnits] = useState<'credits' | 'minutes' | 'others' | ''>('');
+  const [currentUnitsOther, setCurrentUnitsOther] = useState('');
   const [currentLicenseCount, setCurrentLicenseCount] = useState<number | ''>('');
+  const [currentLicenseUnit, setCurrentLicenseUnit] = useState<'agents' | 'users' | ''>('');
 
   const [newUsageCount, setNewUsageCount] = useState<number | ''>('');
   const [newUnits, setNewUnits] = useState<'credits' | 'minutes' | 'others' | ''>('');
+  const [newUnitsOther, setNewUnitsOther] = useState('');
   const [newLicenseCount, setNewLicenseCount] = useState<number | ''>('');
+  const [newLicenseUnit, setNewLicenseUnit] = useState<'agents' | 'users' | ''>('');
 
+  // existing contracts
+  const [existingContracts, setExistingContracts] = useState<ExistingContract[]>([]);
+  const [selectedExistingContractId, setSelectedExistingContractId] = useState('');
+  const [loadingExistingContracts, setLoadingExistingContracts] = useState(false);
+
+  // dates/comments
   const [dueDate, setDueDate] = useState('');
   const [renewalDate, setRenewalDate] = useState('');
   const [additionalComment, setAdditionalComment] = useState('');
 
-  const [existingContracts, setExistingContracts] = useState<ExistingContract[]>([]);
-  const [selectedExistingContractId, setSelectedExistingContractId] = useState('');
-  const [loadingExistingContracts, setLoadingExistingContracts] = useState(false);
+  // renewal type for existing
+  const [renewalType, setRenewalType] = useState<'upgrade' | 'downgrade' | 'flat' | ''>('');
+  const [renewalNewUnits, setRenewalNewUnits] = useState<'credits' | 'minutes' | 'others' | ''>('');
+  const [renewalNewUnitsOther, setRenewalNewUnitsOther] = useState('');
+  const [renewalNewLicenseCount, setRenewalNewLicenseCount] = useState<number | ''>('');
+  const [renewalLicenseUnit, setRenewalLicenseUnit] = useState<'agents' | 'users' | ''>('');
+
+  // UI
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const dueDateRef = useRef<HTMLInputElement | null>(null);
   const renewalDateRef = useRef<HTMLInputElement | null>(null);
 
+  // ------------------------------------------------------------------
+  // Load logged in user (from backend jiraService.myself)
+  // ------------------------------------------------------------------
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -86,169 +111,12 @@ interface ProductItem {
     if (isOpen) loadUser();
   }, [isOpen]);
 
+  // ------------------------------------------------------------------
+  // Load existing contracts when needed
+  // ------------------------------------------------------------------
   useEffect(() => {
-    if (isOpen && contractType === 'existing') {
-      fetchExistingContracts();
-    }
+    if (isOpen && contractType === 'existing') fetchExistingContracts();
   }, [isOpen, contractType]);
-
-  // Load vendors list when NEW contract selected
-useEffect(() => {
-  const loadVendors = async () => {
-    if (contractType !== "new") return;
-
-    try {
-      setLoadingVendors(true);
-      const list = await jiraService.getVendors();
-      if (Array.isArray(list)) setVendors(list);
-    } catch (err) {
-      console.error("Error loading vendors", err);
-    } finally {
-      setLoadingVendors(false);
-    }
-  };
-
-  loadVendors();
-}, [contractType]);
-
-  // Load products when vendor changes
-useEffect(() => {
-  const loadProducts = async () => {
-    if (!vendorName || contractType !== "new") return;
-
-    try {
-      setLoadingProducts(true);
-      const list = await jiraService.getProductsByVendor(vendorName);
-      if (Array.isArray(list)) setProducts(list);
-    } catch (err) {
-      console.error("Error loading products", err);
-    } finally {
-      setLoadingProducts(false);
-    }
-  };
-
-  loadProducts();
-}, [vendorName, contractType]);
-
-
-  // When selecting an existing contract -> populate fields and also prefill NEW fields from current
-  useEffect(() => {
-    if (contractType === 'existing' && selectedExistingContractId) {
-      const found = existingContracts.find(c => c.id === selectedExistingContractId);
-      if (found) {
-        setVendorName(found.vendorName);
-        setProductName(found.productName);
-        setVendorContractType(found.vendorContractType);
-        setDueDate(found.vendorStartDate || '');
-        setRenewalDate(found.vendorEndDate || '');
-        setAdditionalComment(found.additionalComment ?? '');
-        if (found.requesterName) setRequesterName(found.requesterName);
-        if (found.requesterMail) setRequesterMail(found.requesterMail);
-
-        if (typeof found.vendorUsage !== 'undefined' && found.vendorUsage !== null) {
-          const usageNum = Number(found.vendorUsage) || 0;
-          if (found.vendorContractType === 'usage') {
-            setCurrentUsageCount(usageNum);
-            setCurrentLicenseCount('');
-            setNewUsageCount(usageNum);    // prefill NEW from existing usage
-            setNewUnits((found.vendorUnit as any) ?? '');
-            setNewLicenseCount('');
-          } else if (found.vendorContractType === 'license') {
-            setCurrentLicenseCount(usageNum);
-            setCurrentUsageCount('');
-            setNewLicenseCount(usageNum);  // prefill NEW from existing license
-            setNewUsageCount('');
-            setNewUnits('');
-          } else {
-            setCurrentUsageCount('');
-            setCurrentLicenseCount('');
-            setNewUsageCount('');
-            setNewLicenseCount('');
-            setNewUnits('');
-          }
-        } else {
-          setCurrentUsageCount('');
-          setCurrentLicenseCount('');
-          setNewUsageCount('');
-          setNewLicenseCount('');
-          setNewUnits('');
-        }
-
-        setCurrentUnits((found.vendorUnit as any) ?? '');
-      }
-    }
-  }, [selectedExistingContractId, contractType, existingContracts]);
-
-  // If user switches to NEW while an existing contract is selected,
-  // prefill new fields from the selected existing contract (convenience)
-  useEffect(() => {
-    if (contractType === 'new' && selectedExistingContractId) {
-      const found = existingContracts.find(c => c.id === selectedExistingContractId);
-      if (found) {
-        if (typeof found.vendorUsage !== 'undefined' && found.vendorUsage !== null) {
-          const usageNum = Number(found.vendorUsage) || 0;
-          if (found.vendorContractType === 'usage') {
-            setNewUsageCount(usageNum);
-            setNewUnits((found.vendorUnit as any) ?? '');
-            setVendorContractType('usage');
-          } else if (found.vendorContractType === 'license') {
-            setNewLicenseCount(usageNum);
-            setVendorContractType('license');
-          }
-        }
-        if (!vendorName) setVendorName(found.vendorName);
-        if (!productName) setProductName(found.productName);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contractType, selectedExistingContractId]);
-
-  // ********** NEW: Sync from New -> Current **********
-  // If user edits newUsageCount while on New contract, reflect that value into currentUsageCount so Existing view shows it
-  useEffect(() => {
-    // Only sync numeric values ('' means empty)
-    if (newUsageCount === '' || newUsageCount === null) {
-      // If cleared, clear current only if an existing contract is selected (user intent)
-      if (selectedExistingContractId) setCurrentUsageCount('');
-      return;
-    }
-    // When there's a selected existing contract or even without one, update current so existing view displays same
-    if (typeof newUsageCount === 'number' && !Number.isNaN(newUsageCount)) {
-      setCurrentUsageCount(newUsageCount);
-      // also sync units if available
-      if (newUnits) setCurrentUnits(newUnits);
-    }
-  }, [newUsageCount, newUnits, selectedExistingContractId]);
-
-  // Sync newLicenseCount -> currentLicenseCount
-  useEffect(() => {
-    if (newLicenseCount === '' || newLicenseCount === null) {
-      if (selectedExistingContractId) setCurrentLicenseCount('');
-      return;
-    }
-    if (typeof newLicenseCount === 'number' && !Number.isNaN(newLicenseCount)) {
-      setCurrentLicenseCount(newLicenseCount);
-    }
-  }, [newLicenseCount, selectedExistingContractId]);
-
-  const resetForm = () => {
-    setContractType('');
-    setVendorName('');
-    setProductName('');
-    setVendorContractType('');
-    setCurrentUsageCount('');
-    setCurrentUnits('');
-    setCurrentLicenseCount('');
-    setNewUsageCount('');
-    setNewUnits('');
-    setNewLicenseCount('');
-    setDueDate('');
-    setRenewalDate('');
-    setAdditionalComment('');
-    setExistingContracts([]);
-    setSelectedExistingContractId('');
-    setErrors({});
-  };
 
   const fetchExistingContracts = async () => {
     try {
@@ -258,16 +126,30 @@ useEffect(() => {
       const mapped = Array.isArray(data)
         ? data.map((c: any) => ({
             id: String(c.id ?? c.contractId ?? c.key ?? ''),
-            vendorName: c.nameOfVendor ?? '',
+            vendorName: c.vendorName ?? c.nameOfVendor ?? '',
             productName: c.productName ?? '',
             requesterName: c.requesterName ?? '',
             requesterMail: c.requesterMail ?? '',
-            vendorContractType: (c.vendorContractType ?? '') as 'usage' | 'license' | '',
+            vendorContractType:
+  (c.vendorContractType ||
+   c.billingType ||
+   c.billing_type ||
+   c.contractBilling ||
+   c.vendor_contract_type ||
+   '') as 'usage' | 'license' | '',
+
             vendorStartDate: String(c.vendorStartDate ?? ''),
             vendorEndDate: String(c.vendorEndDate ?? ''),
             additionalComment: c.additionalComment ?? '',
             vendorUnit: c.vendorUnit ?? c.unit ?? '',
-            vendorUsage: typeof c.vendorUsage !== 'undefined' ? Number(c.vendorUsage) : (typeof c.usage !== 'undefined' ? Number(c.usage) : (typeof c.count !== 'undefined' ? Number(c.count) : undefined)),
+            vendorUsage:
+              typeof c.vendorUsage !== 'undefined'
+                ? Number(c.vendorUsage)
+                : typeof c.usage !== 'undefined'
+                ? Number(c.usage)
+                : typeof c.count !== 'undefined'
+                ? Number(c.count)
+                : undefined,
           }))
         : [];
       setExistingContracts(mapped);
@@ -278,6 +160,158 @@ useEffect(() => {
     }
   };
 
+  // ------------------------------------------------------------------
+  // Vendors & products (when using dropdown flavor)
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    const loadVendors = async () => {
+      if (contractType !== 'new') return;
+      try {
+        setLoadingVendors(true);
+        const list = await jiraService.getVendors();
+        if (Array.isArray(list)) setVendors(list);
+      } catch (err) {
+        console.error('Error loading vendors', err);
+      } finally {
+        setLoadingVendors(false);
+      }
+    };
+    loadVendors();
+  }, [contractType]);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      if (!vendorName || contractType !== 'new') return;
+      try {
+        setLoadingProducts(true);
+        const list = await jiraService.getProductsByVendor(vendorName);
+        if (Array.isArray(list)) setProducts(list);
+      } catch (err) {
+        console.error('Error loading products', err);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+    loadProducts();
+  }, [vendorName, contractType]);
+
+  // ------------------------------------------------------------------
+  // When an existing contract is selected, populate fields
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (contractType === 'existing' && selectedExistingContractId) {
+      const found = existingContracts.find(c => c.id === selectedExistingContractId);
+      if (!found) return;
+
+      setVendorName(found.vendorName);
+      setProductName(found.productName);
+      setVendorContractType(found.vendorContractType);
+      setDueDate(found.vendorStartDate || '');
+      setRenewalDate(found.vendorEndDate || '');
+      setAdditionalComment(found.additionalComment ?? '');
+      if (found.requesterName) setRequesterName(found.requesterName);
+      if (found.requesterMail) setRequesterMail(found.requesterMail);
+
+      setRenewalType(''); // reset renewal type for user choice
+
+      if (typeof found.vendorUsage !== 'undefined' && found.vendorUsage !== null) {
+        const usageNum = Number(found.vendorUsage) || 0;
+        if (found.vendorContractType === 'usage') {
+          setCurrentUsageCount(usageNum);
+          setCurrentLicenseCount('');
+          setNewUsageCount(usageNum);
+          // units mapping
+          if (found.vendorUnit && !['credits', 'minutes', 'others'].includes(found.vendorUnit)) {
+            setCurrentUnits('others');
+            setCurrentUnitsOther(found.vendorUnit);
+            setNewUnits('others');
+            setNewUnitsOther(found.vendorUnit);
+          } else {
+            setCurrentUnits((found.vendorUnit as any) ?? '');
+            setCurrentUnitsOther('');
+            setNewUnits((found.vendorUnit as any) ?? '');
+            setNewUnitsOther('');
+          }
+        } else if (found.vendorContractType === 'license') {
+          setCurrentLicenseCount(usageNum);
+          setCurrentUsageCount('');
+          setNewLicenseCount(usageNum);
+          setNewUsageCount('');
+          if (found.vendorUnit === 'agents' || found.vendorUnit === 'users') {
+            setCurrentLicenseUnit(found.vendorUnit as any);
+            setNewLicenseUnit(found.vendorUnit as any);
+          } else {
+            setCurrentLicenseUnit('');
+            setNewLicenseUnit('');
+          }
+        }
+      } else {
+        setCurrentUsageCount('');
+        setCurrentLicenseCount('');
+        setNewUsageCount('');
+        setNewLicenseCount('');
+        setNewUnits('');
+      }
+    }
+  }, [selectedExistingContractId, contractType, existingContracts]);
+
+  // If switching to new while existing selected: prefill new fields from selected existing contract
+  useEffect(() => {
+    if (contractType === 'new' && selectedExistingContractId) {
+      const found = existingContracts.find(c => c.id === selectedExistingContractId);
+      if (!found) return;
+      if (typeof found.vendorUsage !== 'undefined' && found.vendorUsage !== null) {
+        const usageNum = Number(found.vendorUsage) || 0;
+        if (found.vendorContractType === 'usage') {
+          setNewUsageCount(usageNum);
+          if (found.vendorUnit && !['credits', 'minutes', 'others'].includes(found.vendorUnit)) {
+            setNewUnits('others');
+            setNewUnitsOther(found.vendorUnit);
+          } else {
+            setNewUnits((found.vendorUnit as any) ?? '');
+            setNewUnitsOther('');
+          }
+          setVendorContractType('usage');
+        } else if (found.vendorContractType === 'license') {
+          setNewLicenseCount(usageNum);
+          if (found.vendorUnit === 'agents' || found.vendorUnit === 'users') setNewLicenseUnit(found.vendorUnit as any);
+          setVendorContractType('license');
+        }
+        if (!vendorName) setVendorName(found.vendorName);
+        if (!productName) setProductName(found.productName);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contractType, selectedExistingContractId]);
+
+  // Sync new -> current only when creating NEW (keeps preview consistent)
+  useEffect(() => {
+    if (contractType !== 'new') return;
+    if (newUsageCount === '' || newUsageCount === null) {
+      if (selectedExistingContractId) setCurrentUsageCount('');
+      return;
+    }
+    if (typeof newUsageCount === 'number' && !Number.isNaN(newUsageCount)) {
+      setCurrentUsageCount(newUsageCount);
+      if (newUnits) setCurrentUnits(newUnits);
+      if (newUnits === 'others' && newUnitsOther) setCurrentUnitsOther(newUnitsOther);
+    }
+  }, [newUsageCount, newUnits, newUnitsOther, selectedExistingContractId, contractType]);
+
+  useEffect(() => {
+    if (contractType !== 'new') return;
+    if (newLicenseCount === '' || newLicenseCount === null) {
+      if (selectedExistingContractId) setCurrentLicenseCount('');
+      return;
+    }
+    if (typeof newLicenseCount === 'number' && !Number.isNaN(newLicenseCount)) {
+      setCurrentLicenseCount(newLicenseCount);
+    }
+  }, [newLicenseCount, selectedExistingContractId, contractType]);
+
+  // ------------------------------------------------------------------
+  // Validation
+  // ------------------------------------------------------------------
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     if (!requesterName) newErrors.requesterName = 'Requester name required';
@@ -293,21 +327,31 @@ useEffect(() => {
       if (vendorContractType === 'usage') {
         if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter usage amount';
         if (!newUnits) newErrors.newUnits = 'Select unit';
+        if (newUnits === 'others' && !newUnitsOther) newErrors.newUnitsOther = 'Enter custom unit';
       }
       if (vendorContractType === 'license') {
         if (newLicenseCount === '' || newLicenseCount === 0) newErrors.newLicenseCount = 'Enter license count';
+        if (!newLicenseUnit) newErrors.newLicenseUnit = 'Select license unit (agents / users)';
       }
     }
 
     if (contractType === 'existing') {
       if (!selectedExistingContractId) newErrors.selectedExistingContractId = 'Select an existing contract';
       if (!vendorContractType) newErrors.vendorContractType = 'Existing contract has no billing type';
+      if (!renewalType) newErrors.renewalType = 'Select renewal type';
+
       if (vendorContractType === 'usage') {
-        if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter new renewal usage amount';
-        if (!newUnits) newErrors.newUnits = 'Select unit for renewal';
+        if (renewalType !== 'flat') {
+          if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0)) newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
+          if (renewalNewUnits === 'others' && !renewalNewUnitsOther) newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
+          if (renewalType !== 'flat' && (newUsageCount === '' || newUsageCount === 0)) newErrors.newUsageCount = 'Enter new renewal usage amount';
+        }
       }
       if (vendorContractType === 'license') {
-        if (newLicenseCount === '' || newLicenseCount === 0) newErrors.newLicenseCount = 'Enter new renewal license count';
+        if (renewalType !== 'flat') {
+          if (renewalNewLicenseCount === '' || renewalNewLicenseCount === 0) newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
+          if (!renewalLicenseUnit) newErrors.renewalLicenseUnit = 'Select license unit (agents / users) for renewal';
+        }
       }
     }
 
@@ -315,53 +359,89 @@ useEffect(() => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
-  if (!validateForm()) return;
-
-  const vendorDetails = {
-    vendorName,
-    productName,
-    vendorContractType,
-    currentUsageCount: currentUsageCount || undefined,
-    currentUnits: currentUnits || undefined,
-    currentLicenseCount: currentLicenseCount || undefined,
-    newUsageCount: newUsageCount || undefined,
-    newUnits: newUnits || undefined,
-    newLicenseCount: newLicenseCount || undefined,
-    dueDate,
-    renewalDate: renewalDate || undefined,
-    additionalComment,
-    requesterName,
-    requesterMail,
-    contractMode: contractType,
-    selectedExistingContractId:
-      contractType === "existing" ? selectedExistingContractId : undefined,
+  // ------------------------------------------------------------------
+  // Submit -> uses jiraService.createContractIssue (ensure jiraService exported function exists)
+  // ------------------------------------------------------------------
+  const resetForm = () => {
+    setContractType('');
+    setVendorName('');
+    setProductName('');
+    setVendorContractType('');
+    setCurrentUsageCount('');
+    setCurrentUnits('');
+    setCurrentUnitsOther('');
+    setCurrentLicenseCount('');
+    setCurrentLicenseUnit('');
+    setNewUsageCount('');
+    setNewUnits('');
+    setNewUnitsOther('');
+    setNewLicenseCount('');
+    setNewLicenseUnit('');
+    setDueDate('');
+    setRenewalDate('');
+    setAdditionalComment('');
+    setExistingContracts([]);
+    setSelectedExistingContractId('');
+    setErrors({});
+    setRenewalType('');
+    setRenewalNewUnits('');
+    setRenewalNewUnitsOther('');
+    setRenewalNewLicenseCount('');
+    setRenewalLicenseUnit('');
   };
 
-  try {
-    const payload = { vendorDetails };
-    console.log("🚀 Submitting payload to Jira:", payload);
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
 
-    // ⭐ FIXED — call correct API
-    const created = await jiraService.createContractIssue(payload);
+    const vendorDetails: any = {
+      vendorName,
+      productName,
+      vendorContractType,
+      currentUsageCount: currentUsageCount || undefined,
+      currentUnits: currentUnits === 'others' ? currentUnitsOther || undefined : currentUnits || undefined,
+      currentLicenseCount: currentLicenseCount || undefined,
+      currentLicenseUnit: currentLicenseUnit || undefined,
+      newUsageCount: newUsageCount || undefined,
+      newUnits: newUnits === 'others' ? newUnitsOther || undefined : newUnits || undefined,
+      newLicenseCount: newLicenseCount || undefined,
+      newLicenseUnit: newLicenseUnit || undefined,
+      dueDate,
+      renewalDate: renewalDate || undefined,
+      additionalComment,
+      requesterName,
+      requesterMail,
+      contractMode: contractType,
+      selectedExistingContractId: contractType === 'existing' ? selectedExistingContractId : undefined,
+      renewalType: contractType === 'existing' ? renewalType || undefined : undefined,
+      renewalNewUnits: renewalNewUnits === 'others' ? renewalNewUnitsOther || undefined : renewalNewUnits || undefined,
+      renewalNewUnitsOther: renewalNewUnitsOther || undefined,
+      renewalNewLicenseCount: renewalNewLicenseCount || undefined,
+      renewalLicenseUnit: renewalLicenseUnit || undefined,
+    };
 
-    setShowSuccess(true);
+    try {
+      const payload = { vendorDetails };
+      console.log('🚀 Submitting payload to Jira:', payload);
 
-    setTimeout(() => {
-      setShowSuccess(false);
-      onIssueCreated?.(created);
+      const created = await jiraService.createContractIssue(payload);
+
+      setSuccessMessage('Request successfully created');
+      setErrorMessage('');
+      setShowSuccess(true);
+
+      setTimeout(() => setShowSuccess(false), 1800);
+
+      onIssueCreated?.(created as CreatedIssue);
       resetForm();
       onClose();
-    }, 2000);
+    } catch (err) {
+      console.error('Create failed', err);
+      setErrorMessage('Failed to create request. Please try again.');
+      setSuccessMessage('');
+    }
+  };
 
-  } catch (err) {
-    console.error("Create failed", err);
-    alert("Failed to create issue.");
-  }
-};
-
-
-
+  // click outside handler
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -372,295 +452,324 @@ useEffect(() => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Utility: focus native date input when calendar icon clicked
-  const focusDueDate = () => dueDateRef.current?.focus();
-  const focusRenewalDate = () => renewalDateRef.current?.focus();
+  // date picker helpers
+  const openDatePicker = (inputEl: HTMLInputElement | null | undefined) => {
+    if (!inputEl) return;
+    try {
+      const anyEl = inputEl as any;
+      if (typeof anyEl.showPicker === 'function') {
+        anyEl.showPicker();
+        return;
+      }
+      inputEl.focus();
+      const evt = new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window });
+      inputEl.dispatchEvent(evt);
+      inputEl.click();
+    } catch (err) {
+      try { inputEl.focus(); } catch (e) { /* ignore */ }
+    }
+  };
+
+  const focusDueDate = () => openDatePicker(dueDateRef.current);
+  const focusRenewalDate = () => openDatePicker(renewalDateRef.current);
 
   if (!isOpen) return null;
 
-  
-
-
   return (
     <>
-    {showSuccess && (
-      <div className="fixed top-5 right-5 z-[100000] bg-green-600 text-white px-4 py-2 rounded shadow-lg animate-fade-in">
-        🎉 Issue Created Successfully!
-      </div>
-    )}
+      {showSuccess && (
+        <div className="fixed top-5 right-5 z-[100000] bg-green-600 text-white px-4 py-2 rounded shadow-lg animate-fade-in">
+          🎉 Issue Created Successfully!
+        </div>
+      )}
 
-    <div className="fixed inset-0 z-[9999] overflow-y-auto">
-      <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} />
-      <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden>{'\u200B'}</span>
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full dark:bg-gray-800 z-[9999] relative">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">Create Procurement Request</h3>
-          </div>
-
-          <div className="px-6 py-4 max-h-[70vh] overflow-y-auto space-y-4">
-            {/* Contract Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type of Contract</label>
-              <div className="flex flex-col space-y-2">
-                <label className="inline-flex items-center">
-                  <input
-                    type="radio"
-                    name="contractType"
-                    value="new"
-                    checked={contractType === 'new'}
-                    onChange={() => {
-                      setContractType('new');
-                    }}
-                  />
-                  <span className="ml-2">New Contract</span>
-                </label>
-                <label className="inline-flex items-center">
-                  <input
-                    type="radio"
-                    name="contractType"
-                    value="existing"
-                    checked={contractType === 'existing'}
-                    onChange={() => {
-                      setContractType('existing');
-                    }}
-                  />
-                  <span className="ml-2">Existing Contract</span>
-                </label>
-              </div>
-              {errors.contractType && <p className="mt-1 text-sm text-red-600">{errors.contractType}</p>}
+      <div className="fixed inset-0 z-[9999] overflow-y-auto">
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} />
+        <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden>{'\u200B'}</span>
+          <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full dark:bg-gray-800 z-[9999] relative">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">Create Procurement Request</h3>
             </div>
 
-            {/* If new: show vendor/product inputs, billing and single due date */}
-            {contractType === 'new' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
-                  <select
-                    value={vendorName}
-                    onChange={e => setVendorName(e.target.value)}
-                    className="w-full border rounded-md py-2 px-3 text-sm"
-                  >
-                    <option value="">{loadingVendors ? "Loading vendors..." : "Select Vendor"}</option>
-                    {vendors.map(v => (
-                      <option key={v} value={v}>{v}</option>
-                    ))}
-                  </select>
-                  {errors.vendorName && <p className="mt-1 text-sm text-red-600">{errors.vendorName}</p>}
+            <div className="px-6 py-4 max-h-[70vh] overflow-y-auto space-y-4">
+              {successMessage && (
+                <div className="mb-4 rounded-md border bg-green-50 border-green-200 px-4 py-2 text-sm text-green-800">{successMessage}</div>
+              )}
+              {errorMessage && (
+                <div className="mb-4 rounded-md border bg-red-50 border-red-200 px-4 py-2 text-sm text-red-800">{errorMessage}</div>
+              )}
+
+              {/* Contract Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type of Contract <span className="text-red-500">*</span></label>
+                <div className="flex flex-col space-y-2">
+                  <label className="inline-flex items-center">
+                    <input type="radio" name="contractType" value="new" checked={contractType === 'new'} onChange={() => setContractType('new')} />
+                    <span className="ml-2">New Contract</span>
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input type="radio" name="contractType" value="existing" checked={contractType === 'existing'} onChange={() => setContractType('existing')} />
+                    <span className="ml-2">Existing Contract</span>
+                  </label>
                 </div>
+                {errors.contractType && <p className="mt-1 text-sm text-red-600">{errors.contractType}</p>}
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
-                  <select
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                    className="w-full border rounded-md py-2 px-3 text-sm"
-                  >
-                    <option value="">
-                      {loadingProducts ? "Loading products..." : "Select Product"}
-                    </option>
-
-                    {products.map((p) => (
-                      <option key={p.id} value={p.productName}>
-                        {p.productName}
-                      </option>
-                    ))}
-                  </select>
-
-                  {errors.productName && <p className="mt-1 text-sm text-red-600">{errors.productName}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contract Billing</label>
-                  <div className="flex flex-col space-y-2">
-                    <label><input type="radio" value="usage" checked={vendorContractType === 'usage'} onChange={() => setVendorContractType('usage')} /> Usage</label>
-                    <label><input type="radio" value="license" checked={vendorContractType === 'license'} onChange={() => setVendorContractType('license')} /> License</label>
+              {/* NEW flow (supports vendor dropdown + detailed fields) */}
+              {contractType === 'new' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Name <span className="text-red-500">*</span></label>
+                    <select value={vendorName} onChange={e => setVendorName(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
+                      <option value="">{loadingVendors ? 'Loading vendors...' : 'Select Vendor'}</option>
+                      {vendors.map(v => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                    {errors.vendorName && <p className="mt-1 text-sm text-red-600">{errors.vendorName}</p>}
                   </div>
 
-                  {/* For usage: show volumes + units (same line) */}
-                  {vendorContractType === 'usage' && (
-                    <>
-                      <div className="mt-3 flex items-end space-x-3">
-                        <div className="flex-1">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">How many volumes you want?</label>
-                          <input
-                            placeholder="Enter number of volumes"
-                            value={newUsageCount}
-                            onChange={e => setNewUsageCount(e.target.value === '' ? '' : Number(e.target.value))}
-                            className="w-full border rounded-md py-2 px-3 text-sm"
-                          />
-                          {/* show current as a hint if selected existing contract is present */}
-                          {selectedExistingContractId && currentUsageCount !== '' && (
-                            <p className="mt-1 text-xs text-gray-500">Current: {currentUsageCount} {currentUnits || ''}</p>
-                          )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Product Name <span className="text-red-500">*</span></label>
+                    <select value={productName} onChange={e => setProductName(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
+                      <option value="">{loadingProducts ? 'Loading products...' : 'Select Product'}</option>
+                      {products.map(p => <option key={p.id} value={p.productName}>{p.productName}</option>)}
+                    </select>
+                    {errors.productName && <p className="mt-1 text-sm text-red-600">{errors.productName}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contract Billing</label>
+                    <div className="flex flex-col space-y-2">
+                      <label><input type="radio" value="usage" checked={vendorContractType === 'usage'} onChange={() => setVendorContractType('usage')} /> Usage</label>
+                      <label><input type="radio" value="license" checked={vendorContractType === 'license'} onChange={() => setVendorContractType('license')} /> License</label>
+                    </div>
+
+                    {vendorContractType === 'usage' && (
+                      <>
+                        <div className="mt-3 flex items-end space-x-3">
+                          <div className="flex-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">How many volumes you want? <span className="text-red-500">*</span></label>
+                            <input placeholder="Enter number of volumes" value={newUsageCount} onChange={e => setNewUsageCount(e.target.value === '' ? '' : Number(e.target.value))} className="w-full border rounded-md py-2 px-3 text-sm" />
+                            {selectedExistingContractId && currentUsageCount !== '' && (<p className="mt-1 text-xs text-gray-500">Current: {currentUsageCount} {currentUnits === 'others' ? currentUnitsOther || '' : currentUnits || ''}</p>)}
+                            {errors.newUsageCount && <p className="mt-1 text-sm text-red-600">{errors.newUsageCount}</p>}
+                          </div>
+                          <div style={{ minWidth: 140 }}>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Units <span className="text-red-500">*</span></label>
+                            <select value={newUnits} onChange={e => setNewUnits(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                              <option value="">Select unit</option>
+                              <option value="credits">Credits</option>
+                              <option value="minutes">Minutes</option>
+                              <option value="others">Others</option>
+                            </select>
+                            {errors.newUnits && <p className="mt-1 text-sm text-red-600">{errors.newUnits}</p>}
+                          </div>
                         </div>
-                        <div style={{ minWidth: 140 }}>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Units</label>
-                          <select value={newUnits} onChange={e => setNewUnits(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
-                            <option value="">Select unit</option>
+
+                        {newUnits === 'others' && (
+                          <div className="mt-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Specify other unit</label>
+                            <input value={newUnitsOther} onChange={e => setNewUnitsOther(e.target.value)} placeholder="Type unit (e.g. messages, transactions)" className="w-full border rounded-md py-2 px-3 text-sm" />
+                            {errors.newUnitsOther && <p className="mt-1 text-sm text-red-600">{errors.newUnitsOther}</p>}
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {vendorContractType === 'license' && (
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">How many licenses do you want? <span className="text-red-500">*</span></label>
+                        <div className="flex items-end space-x-3">
+                          <input type="number" value={newLicenseCount} onChange={e => setNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="License Count" className="flex-1 border rounded-md py-2 px-3 text-sm" />
+                          <div style={{ minWidth: 140 }}>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
+                            <select value={newLicenseUnit} onChange={e => setNewLicenseUnit(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                              <option value="">Select unit</option>
+                              <option value="agents">Agents</option>
+                              <option value="users">Users</option>
+                            </select>
+                          </div>
+                        </div>
+                        {selectedExistingContractId && currentLicenseCount !== '' && (<p className="mt-1 text-xs text-gray-500">Current: {currentLicenseCount} {currentLicenseUnit ? `(${currentLicenseUnit})` : ''}</p>)}
+                        {errors.newLicenseCount && <p className="mt-1 text-sm text-red-600">{errors.newLicenseCount}</p>}
+                        {errors.newLicenseUnit && <p className="mt-1 text-sm text-red-600">{errors.newLicenseUnit}</p>}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Due Date <span className="text-red-500">*</span></label>
+                    <div className="flex items-center space-x-2">
+                      <input ref={dueDateRef} type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
+                      <button type="button" onClick={focusDueDate} className="p-2 border rounded-md bg-white">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 11H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M15 11H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    </div>
+                    {errors.dueDate && <p className="mt-1 text-sm text-red-600">{errors.dueDate}</p>}
+                  </div>
+                </>
+              )}
+
+              {/* EXISTING flow */}
+              {contractType === 'existing' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Existing Contract</label>
+                    <select value={selectedExistingContractId} onChange={e => setSelectedExistingContractId(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
+                      <option value="">{loadingExistingContracts ? 'Loading...' : 'Select Contract'}</option>
+                      {existingContracts.map(c => <option key={c.id} value={c.id}>{c.vendorName} — {c.productName}</option>)}
+                    </select>
+                    {errors.selectedExistingContractId && <p className="mt-1 text-sm text-red-600">{errors.selectedExistingContractId}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
+                    <input value={vendorName} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                    <input value={productName} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Billing Type</label>
+                    <input value={vendorContractType} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                  </div>
+
+                  {vendorContractType === 'usage' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Current volumes</label>
+                      <div className="flex items-center space-x-2">
+                        <input value={currentUsageCount ?? ''} readOnly disabled className="flex-1 w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                        <div className="w-36">
+                          <select value={currentUnits} disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100">
+                            <option value="">Units</option>
                             <option value="credits">Credits</option>
                             <option value="minutes">Minutes</option>
                             <option value="others">Others</option>
                           </select>
                         </div>
                       </div>
-                    </>
-                  )}
+                      {currentUnits === 'others' && currentUnitsOther && <p className="mt-1 text-xs text-gray-500">Custom unit: {currentUnitsOther}</p>}
 
-                  {/* For license: show license count input */}
-                  {vendorContractType === 'license' && (
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">How many licenses do you want?</label>
-                      <input type="number" value={newLicenseCount} onChange={e => setNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="License Count" className="w-full border rounded-md py-2 px-3 text-sm" />
-                      {selectedExistingContractId && currentLicenseCount !== '' && (
-                        <p className="mt-1 text-xs text-gray-500">Current: {currentLicenseCount}</p>
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Renewal Type</label>
+                        <select value={renewalType} onChange={e => setRenewalType(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                          <option value="">Select renewal type</option>
+                          <option value="upgrade">Upgrade</option>
+                          <option value="downgrade">Downgrade</option>
+                          <option value="flat">Flat Renewal</option>
+                        </select>
+                        {errors.renewalType && <p className="mt-1 text-sm text-red-600">{errors.renewalType}</p>}
+                      </div>
+
+                      {renewalType !== 'flat' && renewalType !== '' && (
+                        <div className="mt-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">New renewal usage count</label>
+                          <div className="flex items-end space-x-3">
+                            <div className="flex-1">
+                              <input type="number" value={newUsageCount} onChange={e => setNewUsageCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter renewal usage" className="w-full border rounded-md py-2 px-3 text-sm" />
+                              {errors.newUsageCount && <p className="mt-1 text-sm text-red-600">{errors.newUsageCount}</p>}
+                            </div>
+                            <div style={{ minWidth: 140 }}>
+                              <select value={renewalNewUnits || newUnits} onChange={e => setRenewalNewUnits(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                                <option value="">Select unit</option>
+                                <option value="credits">Credits</option>
+                                <option value="minutes">Minutes</option>
+                                <option value="others">Others</option>
+                              </select>
+                              {errors.renewalNewUnits && <p className="mt-1 text-sm text-red-600">{errors.renewalNewUnits}</p>}
+                            </div>
+                          </div>
+
+                          {renewalNewUnits === 'others' && (
+                            <div className="mt-2">
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Specify other unit for renewal</label>
+                              <input value={renewalNewUnitsOther} onChange={e => setRenewalNewUnitsOther(e.target.value)} placeholder="Type unit (e.g. transactions)" className="w-full border rounded-md py-2 px-3 text-sm" />
+                              {errors.renewalNewUnitsOther && <p className="mt-1 text-sm text-red-600">{errors.renewalNewUnitsOther}</p>}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                  <div className="flex items-center space-x-2">
-                    <input ref={dueDateRef} type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
-                    <button type="button" onClick={focusDueDate} className="p-2 border rounded-md bg-white">
-                      {/* simple calendar SVG */}
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M7 11H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M15 11H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-                        <path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                  {errors.dueDate && <p className="mt-1 text-sm text-red-600">{errors.dueDate}</p>}
-                </div>
-              </>
-            )}
+                  {vendorContractType === 'license' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Current license count</label>
+                      <input value={currentLicenseCount ?? ''} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                      {currentLicenseUnit && <p className="mt-1 text-xs text-gray-500">Current license unit: {currentLicenseUnit}</p>}
 
-            {/* If existing: show select then show all fields filled & readonly */}
-            {contractType === 'existing' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Existing Contract</label>
-                  <select value={selectedExistingContractId} onChange={e => setSelectedExistingContractId(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
-                    <option value="">{loadingExistingContracts ? 'Loading...' : 'Select Contract'}</option>
-                    {existingContracts.map(c => <option key={c.id} value={c.id}>{c.vendorName} — {c.productName}</option>)}
-                  </select>
-                  {errors.selectedExistingContractId && <p className="mt-1 text-sm text-red-600">{errors.selectedExistingContractId}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
-                  <input value={vendorName} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
-                  <input value={productName} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Billing Type</label>
-                  <input value={vendorContractType} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
-                </div>
-
-                {/* Existing usage: show current (non-editable) then new renewal fields editable */}
-                {vendorContractType === 'usage' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Current volumes</label>
-                    <div className="flex items-center space-x-2">
-                      <input value={currentUsageCount ?? ''} readOnly disabled className="flex-1 w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
-                      <select value={currentUnits} disabled className="w-36 border rounded-md py-2 px-3 text-sm bg-gray-100">
-                        <option value="">Units</option>
-                        <option value="credits">Credits</option>
-                        <option value="minutes">Minutes</option>
-                        <option value="others">Others</option>
-                      </select>
-                    </div>
-
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">New renewal usage count</label>
-                      <div className="flex items-end space-x-3">
-                        <div className="flex-1">
-                          <input type="number" value={newUsageCount} onChange={e => setNewUsageCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter renewal usage" className="w-full border rounded-md py-2 px-3 text-sm" />
-                        </div>
-                        <div style={{ minWidth: 140 }}>
-                          <select value={newUnits} onChange={e => setNewUnits(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
-                            <option value="">Select unit</option>
-                            <option value="credits">Credits</option>
-                            <option value="minutes">Minutes</option>
-                            <option value="others">Others</option>
-                          </select>
-                        </div>
+                      <div className="mt-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Renewal Type</label>
+                        <select value={renewalType} onChange={e => setRenewalType(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                          <option value="">Select renewal type</option>
+                          <option value="upgrade">Upgrade</option>
+                          <option value="downgrade">Downgrade</option>
+                          <option value="flat">Flat Renewal</option>
+                        </select>
+                        {errors.renewalType && <p className="mt-1 text-sm text-red-600">{errors.renewalType}</p>}
                       </div>
-                    </div>
-                  </div>
-                )}
 
-                {/* Existing license: show current non-editable, then new renewal license editable */}
-                {vendorContractType === 'license' && (
+                      {renewalType !== 'flat' && renewalType !== '' && (
+                        <div className="mt-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">How many licenses do you want to renew?</label>
+                          <div className="flex items-end space-x-3">
+                            <input type="number" value={renewalNewLicenseCount} onChange={e => setRenewalNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter renewal license count" className="flex-1 border rounded-md py-2 px-3 text-sm" />
+                            <div style={{ minWidth: 140 }}>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
+                              <select value={renewalLicenseUnit} onChange={e => setRenewalLicenseUnit(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                                <option value="">Select unit</option>
+                                <option value="agents">Agents</option>
+                                <option value="users">Users</option>
+                              </select>
+                            </div>
+                          </div>
+                          {errors.renewalNewLicenseCount && <p className="mt-1 text-sm text-red-600">{errors.renewalNewLicenseCount}</p>}
+                          {errors.renewalLicenseUnit && <p className="mt-1 text-sm text-red-600">{errors.renewalLicenseUnit}</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Current license count</label>
-                    <input value={currentLicenseCount ?? ''} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
-
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">How many licenses do you want to renew?</label>
-                      <input type="number" value={newLicenseCount} onChange={e => setNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter renewal license count" className="w-full border rounded-md py-2 px-3 text-sm" />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                    <div className="flex items-center space-x-2">
+                      <input type="date" value={dueDate} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                      <button type="button" onClick={() => dueDateRef.current?.focus()} className="p-2 border rounded-md bg-white" aria-hidden>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
                     </div>
                   </div>
-                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
-                  <div className="flex items-center space-x-2">
-                    <input type="date" value={dueDate} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
-                    <button type="button" onClick={() => dueDateRef.current?.focus()} className="p-2 border rounded-md bg-white" aria-hidden>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-                        <path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Renewal Date</label>
+                    <div className="flex items-center space-x-2">
+                      <input ref={renewalDateRef} type="date" value={renewalDate} onChange={e => setRenewalDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
+                      <button type="button" onClick={focusRenewalDate} className="p-2 border rounded-md bg-white">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </>
+              )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Renewal Date</label>
-                  <div className="flex items-center space-x-2">
-                    <input ref={renewalDateRef} type="date" value={renewalDate} onChange={e => setRenewalDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
-                    <button type="button" onClick={focusRenewalDate} className="p-2 border rounded-md bg-white">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-                        <path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Common Additional Comment */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Additional Comment</label>
-              <textarea value={additionalComment} onChange={e => setAdditionalComment(e.target.value)} rows={3} className="w-full border rounded-md py-2 px-3 text-sm" />
+              {/* Additional comment */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Additional Comment</label>
+                <textarea value={additionalComment} onChange={e => setAdditionalComment(e.target.value)} rows={3} className="w-full border rounded-md py-2 px-3 text-sm" />
+              </div>
             </div>
-          </div>
 
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
-            <button onClick={() => { resetForm(); onClose(); }} className="px-4 py-2 text-sm bg-white border rounded-md">Cancel</button>
-            <button onClick={handleSubmit} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md">Create</button>
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
+              <button onClick={() => { resetForm(); onClose(); }} className="px-4 py-2 text-sm bg-white border rounded-md">Cancel</button>
+              <button onClick={handleSubmit} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md">Create</button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
     </>
   );
 };
 
 export default CreateIssueModal;
-
-
-

@@ -47,7 +47,7 @@ public class FirebaseSyncService {
      * @param email User email
      * @param password User password
      * @param displayName User display name
-     * @param role User role (ADMIN or USER)
+     * @param role User role (SUPER_ADMIN, ADMIN, APPROVER, or REQUESTER)
      * @return User entity stored in local database
      */
     public User createFirebaseUser(String email, String password, String displayName, User.Role role) throws Exception {
@@ -77,8 +77,8 @@ public class FirebaseSyncService {
                 userRecord.getDisplayName() != null ? userRecord.getDisplayName() : ""
             );
             
-            // Update the role in database (createUser sets default role to USER)
-            if (role != User.Role.USER) {
+            // Update the role in database (createUser sets default role to REQUESTER)
+            if (role != User.Role.REQUESTER) {
                 user = userService.updateUserRole(user.getUid(), role);
             }
             
@@ -281,19 +281,19 @@ public class FirebaseSyncService {
             UserRecord firebaseUser = FirebaseAuth.getInstance().getUser(uid);
             logger.debug("Fetched Firebase user: {} - {}", firebaseUser.getUid(), firebaseUser.getEmail());
             
-            // Create new user with default role (USER)
+            // Create new user with default role (REQUESTER)
             User newUser = new User();
             newUser.setUid(firebaseUser.getUid());
             newUser.setEmail(firebaseUser.getEmail());
             newUser.setName(firebaseUser.getDisplayName() != null ? firebaseUser.getDisplayName() : "");
             
-            // Check if this is the first user (admin)
+            // Check if this is the first user (super admin)
             long userCount = userRepository.count();
             if (userCount == 0) {
-                logger.info("First user detected, assigning ADMIN role");
-                newUser.setRole(User.Role.ADMIN);
+                logger.info("First user detected, assigning SUPER_ADMIN role");
+                newUser.setRole(User.Role.SUPER_ADMIN);
             } else {
-                newUser.setRole(User.Role.USER); // Default role
+                newUser.setRole(User.Role.REQUESTER); // Default role
             }
             
             newUser.setActive(true);

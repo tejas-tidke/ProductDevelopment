@@ -102,4 +102,13 @@ export const userApi = {
   }),
 };
 
-export default { userApi };
+// Department API functions
+export const departmentApi = {
+  // Get all departments
+  getAllDepartments: () => apiCall("/api/users/departments"),
+  
+  // Get department by ID
+  getDepartmentById: (id: string) => apiCall(`/api/users/departments/${id}`),
+};
+
+export default { userApi, departmentApi };
