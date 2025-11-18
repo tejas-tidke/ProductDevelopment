@@ -5,6 +5,7 @@ import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.repository.UserRepository;
 import com.htc.productdevelopment.service.UserService;
 import com.htc.productdevelopment.service.FirebaseSyncService;
+import com.htc.productdevelopment.service.InvitationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
@@ -33,17 +34,20 @@ public class AuthController {
     private final UserService userService;
     private final FirebaseSyncService firebaseSyncService;
     private final UserRepository userRepository;
+    private final InvitationService invitationService;
     
     /**
      * Constructor to initialize dependencies
      * @param userService Service for user operations
      * @param firebaseSyncService Service for Firebase synchronization
      * @param userRepository Repository for database operations
+     * @param invitationService Service for invitation operations
      */
-    public AuthController(UserService userService, FirebaseSyncService firebaseSyncService, UserRepository userRepository) {
+    public AuthController(UserService userService, FirebaseSyncService firebaseSyncService, UserRepository userRepository, InvitationService invitationService) {
         this.userService = userService;
         this.firebaseSyncService = firebaseSyncService;
         this.userRepository = userRepository;
+        this.invitationService = invitationService;
     }
     
     /**
@@ -128,7 +132,7 @@ public class AuthController {
             }
             
             // Create user in database
-            User user = userService.createUser(uid, email, name);
+            User user = userService.saveUserToDB(uid, email, name, User.Role.REQUESTER);
             logger.info("User registered successfully: {}", uid);
             return ResponseEntity.ok(user);
         } catch (Exception e) {
@@ -489,9 +493,40 @@ public class AuthController {
         logger.info("Received request to delete user: {}", uid);
         
         try {
-            // Delete user
+            String userEmail = null;
+            // Get user email before deletion
+            try {
+                Optional<User> userOptional = userService.getUserByUid(uid);
+                if (userOptional.isPresent()) {
+                    userEmail = userOptional.get().getEmail();
+                }
+            } catch (Exception e) {
+                logger.warn("Could not fetch user email before deletion: {}", e.getMessage());
+            }
+            
+            // Delete user from Firebase first
+            try {
+                firebaseSyncService.deleteFirebaseUser(uid);
+                logger.info("Firebase user deleted successfully: {}", uid);
+            } catch (Exception e) {
+                logger.warn("Failed to delete user from Firebase: {}", e.getMessage(), e);
+                // Continue with database deletion even if Firebase deletion fails
+            }
+            
+            // Delete user from database
             userService.deleteUser(uid);
             logger.info("User deleted successfully: {}", uid);
+            
+            // Also delete any pending invitations for this user's email
+            if (userEmail != null) {
+                try {
+                    invitationService.deletePendingInvitationsByEmail(userEmail);
+                    logger.info("Pending invitations deleted for email: {}", userEmail);
+                } catch (Exception e) {
+                    logger.warn("Failed to delete pending invitations for email: {}", userEmail, e);
+                }
+            }
+            
             Map<String, String> successResponse = new HashMap<>();
             successResponse.put("message", "User deleted successfully");
             return ResponseEntity.ok(successResponse);

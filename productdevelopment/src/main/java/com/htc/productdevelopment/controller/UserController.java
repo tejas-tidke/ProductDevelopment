@@ -4,6 +4,8 @@ import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.model.Department;
 import com.htc.productdevelopment.repository.DepartmentRepository;
 import com.htc.productdevelopment.service.UserService;
+import com.htc.productdevelopment.service.FirebaseSyncService;
+import com.htc.productdevelopment.service.InvitationService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,12 +24,16 @@ public class UserController {
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     private final UserService userService;
+    private final FirebaseSyncService firebaseSyncService;
+    private final InvitationService invitationService;
     
     @Autowired
     private DepartmentRepository departmentRepository;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, FirebaseSyncService firebaseSyncService, InvitationService invitationService) {
         this.userService = userService;
+        this.firebaseSyncService = firebaseSyncService;
+        this.invitationService = invitationService;
     }
 
     // ----------------------------------------------------
@@ -99,8 +105,19 @@ public class UserController {
         try {
             logger.info("Create user request: {}", userData);
 
-            // userData contains department -> { id: X }
-            User created = userService.createUserFromData(userData);
+            // For now, we'll create a user with a default password and REQUESTER role
+            // In a real implementation, you might want to handle this differently
+            String email = userData.getEmail();
+            String name = userData.getName();
+            User.Role role = userData.getRole() != null ? userData.getRole() : User.Role.REQUESTER;
+            
+            // Create user in Firebase and sync to database
+            User created = firebaseSyncService.createFirebaseUser(
+                email, 
+                "defaultPassword123", // Default password - should be changed by user
+                name, 
+                role
+            );
 
             return ResponseEntity.ok(created);
         } catch (Exception e) {
@@ -132,7 +149,39 @@ public class UserController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
         try {
+            String userEmail = null;
+            // First, get the user to get their UID and email
+            Optional<User> userOptional = userService.getUserById(id);
+            if (userOptional.isPresent()) {
+                User user = userOptional.get();
+                userEmail = user.getEmail();
+                
+                // Delete user from Firebase first
+                try {
+                    firebaseSyncService.deleteFirebaseUser(user.getUid());
+                    logger.info("Firebase user deleted successfully: {}", user.getUid());
+                } catch (Exception e) {
+                    logger.warn("Failed to delete user from Firebase: {}", e.getMessage(), e);
+                    // Continue with database deletion even if Firebase deletion fails
+                }
+            } else {
+                // If user not found in database, still try to delete from Firebase if UID was provided in some way
+                logger.warn("User not found in database with ID: {}", id);
+            }
+            
+            // Delete user from database
             userService.deleteUserById(id);
+            
+            // Also delete any pending invitations for this user's email
+            if (userEmail != null) {
+                try {
+                    invitationService.deletePendingInvitationsByEmail(userEmail);
+                    logger.info("Pending invitations deleted for email: {}", userEmail);
+                } catch (Exception e) {
+                    logger.warn("Failed to delete pending invitations for email: {}", userEmail, e);
+                }
+            }
+            
             return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
         } catch (Exception e) {
             logger.error("Error deleting user", e);

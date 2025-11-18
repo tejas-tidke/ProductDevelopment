@@ -11,10 +11,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @RestController
 @RequestMapping("/api/invitations")
 @CrossOrigin(origins = "http://localhost:5173")
 public class InvitationController {
+
+    private static final Logger logger = LoggerFactory.getLogger(InvitationController.class);
 
     private final InvitationService invitationService;
     private final UserService userService;
@@ -98,10 +103,10 @@ public class InvitationController {
     // -------------------------------------------------------------------------
     @PostMapping("/complete")
     public ResponseEntity<?> completeInvitation(@RequestBody Map<String, Object> body) {
-
+        String email = null;
         try {
             String token = (String) body.get("token");
-            String email = (String) body.get("email");
+            email = (String) body.get("email");
             String fullName = (String) body.get("fullName");
             String password = (String) body.get("password");
 
@@ -119,7 +124,31 @@ public class InvitationController {
             ));
 
         } catch (Exception e) {
+            logger.error("Error completing invitation for email: " + email, e);
             return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage()
+            ));
+        }
+    }
+    
+    // -------------------------------------------------------------------------
+    // 4️⃣ Verify invitation by email only (for OAuth flow)
+    // -------------------------------------------------------------------------
+    @GetMapping("/verify-email")
+    public ResponseEntity<?> verifyByEmail(@RequestParam String email) {
+        try {
+            Invitation inv = invitationService.verifyInvitationByEmail(email);
+            
+            return ResponseEntity.ok(Map.of(
+                    "valid", true,
+                    "email", inv.getEmail(),
+                    "role", inv.getRole(),
+                    "departmentId", inv.getDepartmentId(),
+                    "organization", inv.getOrganization()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "valid", false,
                     "error", e.getMessage()
             ));
         }

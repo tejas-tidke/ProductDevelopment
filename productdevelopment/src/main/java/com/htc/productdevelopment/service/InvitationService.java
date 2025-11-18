@@ -11,6 +11,7 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -125,8 +126,15 @@ public class InvitationService {
     // 5️⃣ Complete Invitation (after Google/Microsoft login & setting password)
     // -------------------------------------------------------------
     public User completeInvitation(String token, String email, String fullName, String password) throws Exception {
-
-        Invitation inv = verifyInvitation(token, email);
+        // For OAuth flow, we might not have a token, so we'll verify by email
+        Invitation inv;
+        if (token != null && !token.isEmpty() && !token.startsWith("oauth_")) {
+            // Traditional token-based verification
+            inv = verifyInvitation(token, email);
+        } else {
+            // OAuth flow - verify by email only
+            inv = verifyInvitationByEmail(email);
+        }
 
         // 1. Create Firebase user (or get existing)
         User firebaseUser;
@@ -184,5 +192,35 @@ public class InvitationService {
     // -------------------------------------------------------------
     public Optional<Invitation> getInvitationByToken(String token) {
         return invitationRepository.findByToken(token);
+    }
+    
+    // -------------------------------------------------------------
+    // Verify invitation by email only (for OAuth flow)
+    // -------------------------------------------------------------
+    public Invitation verifyInvitationByEmail(String email) throws Exception {
+        List<Invitation> invitations = invitationRepository.findByEmailAndUsedFalseOrderByCreatedAtDesc(email.toLowerCase().trim());
+        
+        if (invitations.isEmpty()) {
+            throw new Exception("No pending invitation found for this email.");
+        }
+        
+        // Use the most recent invitation if multiple exist
+        Invitation inv = invitations.get(0);
+        
+        if (LocalDateTime.now().isAfter(inv.getExpiresAt())) {
+            throw new Exception("This invitation has expired.");
+        }
+        
+        return inv;
+    }
+    
+    // -------------------------------------------------------------
+    // Delete pending invitations by email
+    // -------------------------------------------------------------
+    public void deletePendingInvitationsByEmail(String email) {
+        List<Invitation> pendingInvitations = invitationRepository.findByEmailAndUsedFalseOrderByCreatedAtDesc(email.toLowerCase().trim());
+        if (!pendingInvitations.isEmpty()) {
+            invitationRepository.deleteAll(pendingInvitations);
+        }
     }
 }

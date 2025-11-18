@@ -14,8 +14,6 @@ import java.util.List;
 
 import com.google.firebase.auth.UserRecord;
 import com.google.firebase.auth.FirebaseAuth;
-import com.htc.productdevelopment.model.Department;
-import com.htc.productdevelopment.repository.DepartmentRepository;
 
 
 @Service
@@ -49,29 +47,12 @@ public class UserService {
 
 
     // -------------------------------------------------------
-    // Create User
+    // Get All Users
     // -------------------------------------------------------
-    public User createUser(String uid, String email, String name) {
-        logger.info("Creating user with UID: {}", uid);
-
-        if (userRepository.existsByUid(uid)) {
-            throw new RuntimeException("User with this UID already exists");
-        }
-
-        if (email != null && !email.isEmpty() && userRepository.existsByEmail(email)) {
-            throw new RuntimeException("User with this email already exists");
-        }
-
-        User user = new User();
-        user.setUid(uid);
-        user.setEmail(email != null ? email : "");
-        user.setName(name != null ? name : "");
-        user.setRole(User.Role.REQUESTER); // default role
-
-        return userRepository.save(user);
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
     }
 
-    // -------------------------------------------------------
     public Optional<User> getUserByUid(String uid) {
         return userRepository.findByUid(uid);
     }
@@ -84,12 +65,6 @@ public class UserService {
         return userRepository.findByEmail(email);
     }
 
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
-    }
-
-    // -------------------------------------------------------
-    // Update By UID
     // -------------------------------------------------------
     public User updateUser(String uid, String email, String name) {
         User user = userRepository.findByUid(uid)
@@ -117,27 +92,6 @@ public class UserService {
         if (userData.getAvatar() != null) user.setAvatar(userData.getAvatar());
 
         // 🔥 Set or update department
-        if (userData.getDepartment() != null && userData.getDepartment().getId() != null) {
-            Department dept = getDepartmentFromId(userData.getDepartment().getId());
-            user.setDepartment(dept);
-        }
-
-        return userRepository.save(user);
-    }
-
-    // -------------------------------------------------------
-    // Create user from raw object
-    // -------------------------------------------------------
-    public User createUserFromData(User userData) {
-        User user = new User();
-        user.setUid(userData.getUid());
-        user.setEmail(userData.getEmail());
-        user.setName(userData.getName());
-        user.setRole(userData.getRole());
-        user.setActive(userData.getActive());
-        user.setAvatar(userData.getAvatar());
-
-        // 🔥 Set department
         if (userData.getDepartment() != null && userData.getDepartment().getId() != null) {
             Department dept = getDepartmentFromId(userData.getDepartment().getId());
             user.setDepartment(dept);
@@ -229,6 +183,9 @@ public class UserService {
         User user = userRepository.findByUid(uid)
                 .orElseThrow(() -> new RuntimeException("User not found with UID: " + uid));
 
+        // Delete associated invitations
+        deleteInvitationsByEmail(user.getEmail());
+
         userRepository.delete(user);
     }
 
@@ -236,7 +193,16 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found with ID: " + id));
 
+        // Delete associated invitations
+        deleteInvitationsByEmail(user.getEmail());
+
         userRepository.delete(user);
+    }
+    
+    // Delete invitations by email
+    private void deleteInvitationsByEmail(String email) {
+        // We need the invitation repository for this, but it's not injected
+        // We'll handle this in the controller by calling the invitation service
     }
     
  // -------------------------------------------------------------

@@ -308,4 +308,22 @@ public class FirebaseSyncService {
             throw new Exception("Failed to auto-sync Firebase user: " + e.getMessage(), e);
         }
     }
+    
+    /**
+     * Delete a user from Firebase
+     * @param uid Firebase user ID
+     * @throws Exception if deletion fails
+     */
+    public void deleteFirebaseUser(String uid) throws Exception {
+        logger.info("Deleting Firebase user with UID: {}", uid);
+        
+        try {
+            // Delete user from Firebase
+            FirebaseAuth.getInstance().deleteUser(uid);
+            logger.info("Firebase user deleted successfully: {}", uid);
+        } catch (Exception e) {
+            logger.error("Error deleting Firebase user: {}", e.getMessage(), e);
+            throw new Exception("Failed to delete Firebase user: " + e.getMessage(), e);
+        }
+    }
 }

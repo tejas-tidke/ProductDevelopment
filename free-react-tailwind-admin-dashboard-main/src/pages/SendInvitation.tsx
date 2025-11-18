@@ -11,9 +11,17 @@ interface Department {
   name: string;
 }
 
+// Define invitation data type
+interface InvitationData {
+  email: string;
+  role: string;
+  departmentId: number | null;
+  organization?: string;
+}
+
 export default function SendInvitation() {
   const navigate = useNavigate();
-  const { userRole, isSuperAdmin } = useAuth();
+  const { userRole, isSuperAdmin, isAdmin } = useAuth();
   
   const [formData, setFormData] = useState({
     email: "",
@@ -25,7 +33,13 @@ export default function SendInvitation() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: string, text: string} | null>(null);
-  const [invitationLink, setInvitationLink] = useState<string | null>(null);
+
+  // Check if user has permission to access this page
+  useEffect(() => {
+    if (!isAdmin && !isSuperAdmin) {
+      navigate("/");
+    }
+  }, [isAdmin, isSuperAdmin, navigate]);
 
   // Fetch departments when component mounts
   useEffect(() => {
@@ -39,8 +53,10 @@ export default function SendInvitation() {
       }
     };
 
-    fetchDepartments();
-  }, []);
+    if (isAdmin || isSuperAdmin) {
+      fetchDepartments();
+    }
+  }, [isAdmin, isSuperAdmin]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -54,11 +70,10 @@ export default function SendInvitation() {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
-    setInvitationLink(null);
     
     try {
-      // Prepare invitation data
-      const invitationData: any = {
+      // Prepare invitation data for pending user creation
+      const invitationData: InvitationData = {
         email: formData.email,
         role: formData.role,
         departmentId: formData.departmentId ? parseInt(formData.departmentId) : null
@@ -69,13 +84,13 @@ export default function SendInvitation() {
         invitationData.organization = formData.organization;
       }
       
+      // Create pending user record instead of sending token
       const response = await invitationApi.createInvitation(invitationData);
       
-      if (response.invitationLink) {
-        setInvitationLink(response.invitationLink);
-        setMessage({ type: "success", text: "Invitation sent successfully! The user will receive an email with the invitation link." });
+      if (response.success) {
+        setMessage({ type: "success", text: "Invitation sent successfully! The user will receive an email notification with instructions to sign up using their Google or Microsoft account." });
       } else {
-        setMessage({ type: "success", text: "Invitation created successfully!" });
+        setMessage({ type: "success", text: "User invited successfully! They will receive an email notification." });
       }
 
       // Reset form (but keep department selection)
@@ -93,17 +108,22 @@ export default function SendInvitation() {
     }
   };
 
+  // Only show the page to admin or super admin users
+  if (!isAdmin && !isSuperAdmin) {
+    return null;
+  }
+
   return (
     <div>
       <PageMeta
-        title="Send Invitation - Admin Dashboard"
-        description="Send invitations to new users"
+        title="Invite User - Admin Dashboard"
+        description="Invite new users to join the platform"
       />
-      <PageBreadcrumb pageTitle="Send Invitation" />
+      <PageBreadcrumb pageTitle="Invite User" />
       <div className="min-h-screen rounded-2xl border border-gray-200 bg-white px-5 py-7 dark:border-gray-800 dark:bg-white/[0.03] xl:px-10 xl:py-12">
         <div className="mx-auto w-full max-w-[630px]">
           <h3 className="mb-6 text-center font-semibold text-gray-800 text-theme-xl dark:text-white/90 sm:text-2xl">
-            Send Invitation
+            Invite New User
           </h3>
           
           {message && (
@@ -116,28 +136,13 @@ export default function SendInvitation() {
             </div>
           )}
           
-          {invitationLink && (
-            <div className="mb-6 rounded-lg bg-blue-100 p-4 dark:bg-blue-900">
-              <h4 className="mb-2 font-medium text-blue-800 dark:text-blue-100">Invitation Link</h4>
-              <p className="mb-3 text-sm text-blue-700 dark:text-blue-200">
-                Copy and share this link with the invited user:
-              </p>
-              <div className="flex items-center">
-                <input
-                  type="text"
-                  readOnly
-                  value={invitationLink}
-                  className="flex-1 rounded-l-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                />
-                <button
-                  onClick={() => navigator.clipboard.writeText(invitationLink)}
-                  className="rounded-r-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
-                >
-                  Copy
-                </button>
-              </div>
-            </div>
-          )}
+          <div className="mb-6 rounded-lg bg-blue-100 p-4 dark:bg-blue-900">
+            <h4 className="mb-2 font-medium text-blue-800 dark:text-blue-100">Security Notice</h4>
+            <p className="text-sm text-blue-700 dark:text-blue-200">
+              Invite new users to sign up using their Google or Microsoft account. 
+              They will receive an email notification and must use the same email address to complete registration.
+            </p>
+          </div>
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -224,7 +229,7 @@ export default function SendInvitation() {
                 disabled={loading}
                 className="rounded-lg bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
               >
-                {loading ? "Sending..." : "Send Invitation"}
+                {loading ? "Sending..." : "Invite User"}
               </button>
             </div>
           </form>

@@ -127,6 +127,9 @@ export const invitationApi = {
   // Verify invitation
   verifyInvitation: (token: string, email: string) => apiCall(`/api/invitations/verify?token=${token}&email=${email}`),
   
+  // Verify invitation by email only (for OAuth flow)
+  verifyInvitationByEmail: (email: string) => apiCall(`/api/invitations/verify-email?email=${email}`),
+  
   // Complete invitation
   completeInvitation: (completionData: { 
     token: string; 
