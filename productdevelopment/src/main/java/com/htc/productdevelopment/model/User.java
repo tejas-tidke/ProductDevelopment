@@ -53,11 +53,16 @@ public class User {
 
     @Column(nullable = false)
     private Boolean active = true;
+    
+    @Column(name = "organization")
+    private String organization;
 
     @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "created_at")
     private Date createdAt;
 
     @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "updated_at")
     private Date updatedAt;
 
     @PrePersist

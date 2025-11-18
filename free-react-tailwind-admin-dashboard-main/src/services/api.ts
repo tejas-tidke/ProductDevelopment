@@ -111,4 +111,32 @@ export const departmentApi = {
   getDepartmentById: (id: string) => apiCall(`/api/users/departments/${id}`),
 };
 
-export default { userApi, departmentApi };
+// Invitation API functions
+export const invitationApi = {
+  // Create invitation
+  createInvitation: (invitationData: { 
+    email: string; 
+    role: string; 
+    departmentId: number | null; 
+    organization?: string 
+  }) => apiCall("/api/invitations/create", {
+    method: "POST",
+    body: JSON.stringify(invitationData),
+  }),
+  
+  // Verify invitation
+  verifyInvitation: (token: string, email: string) => apiCall(`/api/invitations/verify?token=${token}&email=${email}`),
+  
+  // Complete invitation
+  completeInvitation: (completionData: { 
+    token: string; 
+    email: string; 
+    fullName: string; 
+    password: string 
+  }) => apiCall("/api/invitations/complete", {
+    method: "POST",
+    body: JSON.stringify(completionData),
+  }),
+};
+
+export default { userApi, departmentApi, invitationApi };

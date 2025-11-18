@@ -12,6 +12,12 @@ import org.slf4j.LoggerFactory;
 import java.util.Optional;
 import java.util.List;
 
+import com.google.firebase.auth.UserRecord;
+import com.google.firebase.auth.FirebaseAuth;
+import com.htc.productdevelopment.model.Department;
+import com.htc.productdevelopment.repository.DepartmentRepository;
+
+
 @Service
 public class UserService {
 
@@ -29,12 +35,18 @@ public class UserService {
     // -------------------------------------------------------
     // Utility: Fetch department safely
     // -------------------------------------------------------
-    private Department getDepartmentFromId(Integer deptId) {
-        if (deptId == null) return null;
-        return departmentRepository.findById(deptId)
-                .orElseThrow(() ->
-                        new RuntimeException("Department not found with id: " + deptId));
+//    private Department getDepartmentFromId(Integer deptId) {
+//        if (deptId == null) return null;
+//        return departmentRepository.findById(deptId)
+//                .orElseThrow(() ->
+//                        new RuntimeException("Department not found with id: " + deptId));
+//    }
+    
+    public Department getDepartmentFromId(Long id) {
+        return departmentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Department ID invalid: " + id));
     }
+
 
     // -------------------------------------------------------
     // Create User
@@ -226,4 +238,67 @@ public class UserService {
 
         userRepository.delete(user);
     }
+    
+ // -------------------------------------------------------------
+    // 1️⃣ Create user in Firebase
+    // -------------------------------------------------------------
+    public User createUserInFirebase(String email, String password, String fullName) throws Exception {
+
+        UserRecord.CreateRequest req = new UserRecord.CreateRequest()
+                .setEmail(email)
+                .setPassword(password)
+                .setDisplayName(fullName)
+                .setEmailVerified(true);
+
+        UserRecord rec = FirebaseAuth.getInstance().createUser(req);
+
+        // Returning a temporary User object containing Firebase UID
+        User u = new User();
+        u.setUid(rec.getUid());
+        u.setEmail(email);
+        u.setName(fullName);
+
+        return u;
+    }
+
+
+    // -------------------------------------------------------------
+    // 2️⃣ Save user in DB
+    // -------------------------------------------------------------
+    public User saveUserToDB(String uid,
+                             String email,
+                             String fullName,
+                             User.Role role) {
+
+        // Check if user with this email already exists
+        Optional<User> existingUser = userRepository.findByEmail(email);
+        if (existingUser.isPresent()) {
+            // Update existing user with Firebase UID and other details
+            User user = existingUser.get();
+            user.setUid(uid);
+            user.setName(fullName);
+            user.setRole(role);
+            user.setActive(true);
+            user.setUpdatedAt(new java.util.Date());
+            
+            return userRepository.save(user);
+        }
+
+        User u = new User();
+        u.setUid(uid);
+        u.setEmail(email);
+        u.setName(fullName);
+        u.setRole(role);
+        u.setActive(true);
+        u.setCreatedAt(new java.util.Date());
+        u.setUpdatedAt(new java.util.Date());
+
+        return userRepository.save(u);
+    }
+
+
+    // -------------------------------------------------------------
+    // 3️⃣ Fetch Department by ID (public)
+    // -------------------------------------------------------------
+    
 }

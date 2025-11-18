@@ -42,6 +42,8 @@ import VendorList from "./pages/VendorManagement/VendorList";
 import VendorContracts from "./pages/VendorManagement/VendorContracts";
 import VendorPerformance from "./pages/VendorManagement/VendorPerformance";
 import RequestSplitView from "./pages/RequestSplitView";
+import SendInvitation from "./pages/SendInvitation";
+import CompleteInvitation from "./pages/CompleteInvitation";
 
 export default function App() {
   return (
@@ -402,6 +404,23 @@ export default function App() {
                 <ProtectedRoute>
                   <VendorPerformance />
                 </ProtectedRoute>
+              } 
+            />
+            
+            {/* Invitation Routes */}
+            <Route 
+              path="/send-invitation" 
+              element={
+                <ProtectedRoute>
+                  <SendInvitation />
+                </ProtectedRoute>
+              } 
+            />
+            
+            <Route 
+              path="/complete-invitation" 
+              element={
+                <CompleteInvitation />
               } 
             />
           </Route>

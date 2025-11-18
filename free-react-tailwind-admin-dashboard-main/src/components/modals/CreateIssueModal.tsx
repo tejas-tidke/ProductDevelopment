@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { jiraService } from '../../services/jiraService';
 
@@ -35,6 +36,20 @@ interface ProductItem {
 }
 
 const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onIssueCreated }) => {
+  // Helper functions
+  const calculateMonths = (startDate: string, endDate: string): number => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.round(diffDays / 30.44); // Approximate months
+  };
+
+  const addMonths = (date: string, months: number): string => {
+    const d = new Date(date);
+    d.setMonth(d.getMonth() + months);
+    return d.toISOString().split('T')[0];
+  };
   // requester
   const [requesterName, setRequesterName] = useState('');
   const [requesterMail, setRequesterMail] = useState('');
@@ -71,8 +86,10 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   const [loadingExistingContracts, setLoadingExistingContracts] = useState(false);
 
   // dates/comments
+  const [contractDuration, setContractDuration] = useState<number | ''>('');
   const [dueDate, setDueDate] = useState('');
   const [renewalDate, setRenewalDate] = useState('');
+  const [currentEndDate, setCurrentEndDate] = useState('');
   const [additionalComment, setAdditionalComment] = useState('');
 
   // renewal type for existing
@@ -87,6 +104,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const dueDateRef = useRef<HTMLInputElement | null>(null);
@@ -207,6 +225,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
       setProductName(found.productName);
       setVendorContractType(found.vendorContractType);
       setDueDate(found.vendorStartDate || '');
+      setCurrentEndDate(found.vendorEndDate || '');
       setRenewalDate(found.vendorEndDate || '');
       setAdditionalComment(found.additionalComment ?? '');
       if (found.requesterName) setRequesterName(found.requesterName);
@@ -309,6 +328,15 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
     }
   }, [newLicenseCount, selectedExistingContractId, contractType]);
 
+  // Calculate renewal date
+  useEffect(() => {
+    if ((contractType === 'new' || contractType === 'existing') && contractDuration) {
+      const today = new Date().toISOString().split('T')[0];
+      const newRenewalDate = addMonths(today, contractDuration);
+      setRenewalDate(newRenewalDate);
+    }
+  }, [contractType, contractDuration]);
+
   // ------------------------------------------------------------------
   // Validation
   // ------------------------------------------------------------------
@@ -321,6 +349,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
     if (contractType === 'new') {
       if (!vendorName) newErrors.vendorName = 'Vendor is required';
       if (!productName) newErrors.productName = 'Product is required';
+      if (!contractDuration) newErrors.contractDuration = 'Contract duration is required';
       if (!dueDate) newErrors.dueDate = 'Due date is required';
       if (!vendorContractType) newErrors.vendorContractType = 'Select usage or license';
 
@@ -344,7 +373,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
         if (renewalType !== 'flat') {
           if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0)) newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
           if (renewalNewUnits === 'others' && !renewalNewUnitsOther) newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
-          if (renewalType !== 'flat' && (newUsageCount === '' || newUsageCount === 0)) newErrors.newUsageCount = 'Enter new renewal usage amount';
+          if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter new renewal usage amount';
         }
       }
       if (vendorContractType === 'license') {
@@ -377,6 +406,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
     setNewUnitsOther('');
     setNewLicenseCount('');
     setNewLicenseUnit('');
+    setContractDuration('');
     setDueDate('');
     setRenewalDate('');
     setAdditionalComment('');
@@ -388,6 +418,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
     setRenewalNewUnitsOther('');
     setRenewalNewLicenseCount('');
     setRenewalLicenseUnit('');
+    setAttachments([]);
   };
 
   const handleSubmit = async () => {
@@ -405,6 +436,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
       newUnits: newUnits === 'others' ? newUnitsOther || undefined : newUnits || undefined,
       newLicenseCount: newLicenseCount || undefined,
       newLicenseUnit: newLicenseUnit || undefined,
+      contractDuration: contractDuration || undefined,
       dueDate,
       renewalDate: renewalDate || undefined,
       additionalComment,
@@ -417,15 +449,27 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
       renewalNewUnitsOther: renewalNewUnitsOther || undefined,
       renewalNewLicenseCount: renewalNewLicenseCount || undefined,
       renewalLicenseUnit: renewalLicenseUnit || undefined,
+      attachments,
     };
 
     try {
       const payload = { vendorDetails };
       console.log('🚀 Submitting payload to Jira:', payload);
 
-      const created = await jiraService.createContractIssue(payload);
+    const created = await jiraService.createContractIssue(payload);
 
-      setSuccessMessage('Request successfully created');
+    if (attachments.length > 0 && created.key) {
+      try {
+        for (const file of attachments) {
+          await jiraService.addAttachmentToIssue(created.key, file);
+        }
+      } catch (err) {
+        console.error('Error uploading attachments:', err);
+        // Optionally, set a warning message here if needed
+      }
+    }
+
+    setSuccessMessage('Request successfully created');
       setErrorMessage('');
       setShowSuccess(true);
 
@@ -504,24 +548,26 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type of Contract <span className="text-red-500">*</span></label>
                 <div className="flex flex-col space-y-2">
-                  <label className="inline-flex items-center">
-                    <input type="radio" name="contractType" value="new" checked={contractType === 'new'} onChange={() => setContractType('new')} />
+                  <label htmlFor="contractTypeNew" className="inline-flex items-center">
+                    <input id="contractTypeNew" type="radio" name="contractType" value="new" checked={contractType === 'new'} onChange={() => setContractType('new')} />
                     <span className="ml-2">New Contract</span>
                   </label>
-                  <label className="inline-flex items-center">
-                    <input type="radio" name="contractType" value="existing" checked={contractType === 'existing'} onChange={() => setContractType('existing')} />
+                  <label htmlFor="contractTypeExisting" className="inline-flex items-center">
+                    <input id="contractTypeExisting" type="radio" name="contractType" value="existing" checked={contractType === 'existing'} onChange={() => setContractType('existing')} />
                     <span className="ml-2">Existing Contract</span>
                   </label>
                 </div>
                 {errors.contractType && <p className="mt-1 text-sm text-red-600">{errors.contractType}</p>}
               </div>
 
+
+
               {/* NEW flow (supports vendor dropdown + detailed fields) */}
               {contractType === 'new' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Name <span className="text-red-500">*</span></label>
-                    <select value={vendorName} onChange={e => setVendorName(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
+                    <label htmlFor="vendorName" className="block text-sm font-medium text-gray-700 mb-1">Vendor Name <span className="text-red-500">*</span></label>
+                    <select id="vendorName" value={vendorName} onChange={e => setVendorName(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
                       <option value="">{loadingVendors ? 'Loading vendors...' : 'Select Vendor'}</option>
                       {vendors.map(v => <option key={v} value={v}>{v}</option>)}
                     </select>
@@ -529,8 +575,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Product Name <span className="text-red-500">*</span></label>
-                    <select value={productName} onChange={e => setProductName(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
+                    <label htmlFor="productName" className="block text-sm font-medium text-gray-700 mb-1">Product Name <span className="text-red-500">*</span></label>
+                    <select id="productName" value={productName} onChange={e => setProductName(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
                       <option value="">{loadingProducts ? 'Loading products...' : 'Select Product'}</option>
                       {products.map(p => <option key={p.id} value={p.productName}>{p.productName}</option>)}
                     </select>
@@ -540,22 +586,22 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Contract Billing</label>
                     <div className="flex flex-col space-y-2">
-                      <label><input type="radio" value="usage" checked={vendorContractType === 'usage'} onChange={() => setVendorContractType('usage')} /> Usage</label>
-                      <label><input type="radio" value="license" checked={vendorContractType === 'license'} onChange={() => setVendorContractType('license')} /> License</label>
+                      <label htmlFor="billingUsage"><input id="billingUsage" type="radio" value="usage" checked={vendorContractType === 'usage'} onChange={() => setVendorContractType('usage')} /> Usage</label>
+                      <label htmlFor="billingLicense"><input id="billingLicense" type="radio" value="license" checked={vendorContractType === 'license'} onChange={() => setVendorContractType('license')} /> License</label>
                     </div>
 
                     {vendorContractType === 'usage' && (
                       <>
                         <div className="mt-3 flex items-end space-x-3">
                           <div className="flex-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">How many volumes you want? <span className="text-red-500">*</span></label>
-                            <input placeholder="Enter number of volumes" value={newUsageCount} onChange={e => setNewUsageCount(e.target.value === '' ? '' : Number(e.target.value))} className="w-full border rounded-md py-2 px-3 text-sm" />
+                            <label htmlFor="newUsageCount" className="block text-sm font-medium text-gray-700 mb-1">How many volumes you want? <span className="text-red-500">*</span></label>
+                            <input id="newUsageCount" placeholder="Enter number of volumes" value={newUsageCount} onChange={e => setNewUsageCount(e.target.value === '' ? '' : Number(e.target.value))} className="w-full border rounded-md py-2 px-3 text-sm" />
                             {selectedExistingContractId && currentUsageCount !== '' && (<p className="mt-1 text-xs text-gray-500">Current: {currentUsageCount} {currentUnits === 'others' ? currentUnitsOther || '' : currentUnits || ''}</p>)}
                             {errors.newUsageCount && <p className="mt-1 text-sm text-red-600">{errors.newUsageCount}</p>}
                           </div>
                           <div style={{ minWidth: 140 }}>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Units <span className="text-red-500">*</span></label>
-                            <select value={newUnits} onChange={e => setNewUnits(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                            <label htmlFor="newUnits" className="block text-sm font-medium text-gray-700 mb-1">Units <span className="text-red-500">*</span></label>
+                            <select id="newUnits" value={newUnits} onChange={e => setNewUnits(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
                               <option value="">Select unit</option>
                               <option value="credits">Credits</option>
                               <option value="minutes">Minutes</option>
@@ -567,8 +613,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
 
                         {newUnits === 'others' && (
                           <div className="mt-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Specify other unit</label>
-                            <input value={newUnitsOther} onChange={e => setNewUnitsOther(e.target.value)} placeholder="Type unit (e.g. messages, transactions)" className="w-full border rounded-md py-2 px-3 text-sm" />
+                            <label htmlFor="newUnitsOther" className="block text-sm font-medium text-gray-700 mb-1">Specify other unit</label>
+                            <input id="newUnitsOther" value={newUnitsOther} onChange={e => setNewUnitsOther(e.target.value)} placeholder="Type unit (e.g. messages, transactions)" className="w-full border rounded-md py-2 px-3 text-sm" />
                             {errors.newUnitsOther && <p className="mt-1 text-sm text-red-600">{errors.newUnitsOther}</p>}
                           </div>
                         )}
@@ -577,12 +623,12 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
 
                     {vendorContractType === 'license' && (
                       <div className="mt-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">How many licenses do you want? <span className="text-red-500">*</span></label>
+                        <label htmlFor="newLicenseCount" className="block text-sm font-medium text-gray-700 mb-1">How many licenses do you want? <span className="text-red-500">*</span></label>
                         <div className="flex items-end space-x-3">
-                          <input type="number" value={newLicenseCount} onChange={e => setNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="License Count" className="flex-1 border rounded-md py-2 px-3 text-sm" />
+                          <input id="newLicenseCount" type="number" value={newLicenseCount} onChange={e => setNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="License Count" className="flex-1 border rounded-md py-2 px-3 text-sm" />
                           <div style={{ minWidth: 140 }}>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
-                            <select value={newLicenseUnit} onChange={e => setNewLicenseUnit(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                            <label htmlFor="newLicenseUnit" className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
+                            <select id="newLicenseUnit" value={newLicenseUnit} onChange={e => setNewLicenseUnit(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
                               <option value="">Select unit</option>
                               <option value="agents">Agents</option>
                               <option value="users">Users</option>
@@ -597,10 +643,16 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Due Date <span className="text-red-500">*</span></label>
+                    <label htmlFor="contractDuration" className="block text-sm font-medium text-gray-700 mb-1">Contract Duration (months) <span className="text-red-500">*</span></label>
+                    <input id="contractDuration" type="number" value={contractDuration} onChange={e => setContractDuration(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter duration in months" className="w-full border rounded-md py-2 px-3 text-sm" />
+                    {errors.contractDuration && <p className="mt-1 text-sm text-red-600">{errors.contractDuration}</p>}
+                  </div>
+
+                  <div>
+                    <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-1">Due Date <span className="text-red-500">*</span></label>
                     <div className="flex items-center space-x-2">
-                      <input ref={dueDateRef} type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
-                      <button type="button" onClick={focusDueDate} className="p-2 border rounded-md bg-white">
+                      <input id="dueDate" ref={dueDateRef} type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
+                      <button type="button" onClick={focusDueDate} className="p-2 border rounded-md bg-white" aria-label="Open due date picker">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 11H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M15 11H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                       </button>
                     </div>
@@ -613,8 +665,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
               {contractType === 'existing' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Existing Contract</label>
-                    <select value={selectedExistingContractId} onChange={e => setSelectedExistingContractId(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
+                    <label htmlFor="selectedExistingContractId" className="block text-sm font-medium text-gray-700 mb-1">Select Existing Contract</label>
+                    <select id="selectedExistingContractId" value={selectedExistingContractId} onChange={e => setSelectedExistingContractId(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
                       <option value="">{loadingExistingContracts ? 'Loading...' : 'Select Contract'}</option>
                       {existingContracts.map(c => <option key={c.id} value={c.id}>{c.vendorName} — {c.productName}</option>)}
                     </select>
@@ -622,27 +674,27 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
-                    <input value={vendorName} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                    <label htmlFor="vendorNameExisting" className="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
+                    <input id="vendorNameExisting" value={vendorName} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
-                    <input value={productName} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                    <label htmlFor="productNameExisting" className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                    <input id="productNameExisting" value={productName} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Billing Type</label>
-                    <input value={vendorContractType} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                    <label htmlFor="billingTypeExisting" className="block text-sm font-medium text-gray-700 mb-1">Billing Type</label>
+                    <input id="billingTypeExisting" value={vendorContractType} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                   </div>
 
                   {vendorContractType === 'usage' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Current volumes</label>
+                      <label htmlFor="currentUsageCount" className="block text-sm font-medium text-gray-700 mb-1">Current volumes</label>
                       <div className="flex items-center space-x-2">
-                        <input value={currentUsageCount ?? ''} readOnly disabled className="flex-1 w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                        <input id="currentUsageCount" value={currentUsageCount ?? ''} readOnly disabled className="flex-1 w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                         <div className="w-36">
-                          <select value={currentUnits} disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100">
+                          <select id="currentUnits" value={currentUnits} disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" aria-label="Current units">
                             <option value="">Units</option>
                             <option value="credits">Credits</option>
                             <option value="minutes">Minutes</option>
@@ -653,8 +705,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                       {currentUnits === 'others' && currentUnitsOther && <p className="mt-1 text-xs text-gray-500">Custom unit: {currentUnitsOther}</p>}
 
                       <div className="mt-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Renewal Type</label>
-                        <select value={renewalType} onChange={e => setRenewalType(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                        <label htmlFor="renewalTypeUsage" className="block text-sm font-medium text-gray-700 mb-1">Renewal Type</label>
+                        <select id="renewalTypeUsage" value={renewalType} onChange={e => setRenewalType(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
                           <option value="">Select renewal type</option>
                           <option value="upgrade">Upgrade</option>
                           <option value="downgrade">Downgrade</option>
@@ -665,14 +717,15 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
 
                       {renewalType !== 'flat' && renewalType !== '' && (
                         <div className="mt-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">New renewal usage count</label>
+                          <label htmlFor="renewalNewUsageCount" className="block text-sm font-medium text-gray-700 mb-1">New renewal usage count</label>
                           <div className="flex items-end space-x-3">
                             <div className="flex-1">
-                              <input type="number" value={newUsageCount} onChange={e => setNewUsageCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter renewal usage" className="w-full border rounded-md py-2 px-3 text-sm" />
+                              <input id="renewalNewUsageCount" type="number" value={newUsageCount} onChange={e => setNewUsageCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter renewal usage" className="w-full border rounded-md py-2 px-3 text-sm" />
                               {errors.newUsageCount && <p className="mt-1 text-sm text-red-600">{errors.newUsageCount}</p>}
                             </div>
                             <div style={{ minWidth: 140 }}>
-                              <select value={renewalNewUnits || newUnits} onChange={e => setRenewalNewUnits(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                              <label htmlFor="renewalNewUnits" className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                              <select id="renewalNewUnits" value={renewalNewUnits || newUnits} onChange={e => setRenewalNewUnits(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
                                 <option value="">Select unit</option>
                                 <option value="credits">Credits</option>
                                 <option value="minutes">Minutes</option>
@@ -684,8 +737,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
 
                           {renewalNewUnits === 'others' && (
                             <div className="mt-2">
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Specify other unit for renewal</label>
-                              <input value={renewalNewUnitsOther} onChange={e => setRenewalNewUnitsOther(e.target.value)} placeholder="Type unit (e.g. transactions)" className="w-full border rounded-md py-2 px-3 text-sm" />
+                            <label htmlFor="renewalNewUnitsOther" className="block text-sm font-medium text-gray-700 mb-1">Specify other unit for renewal</label>
+                            <input id="renewalNewUnitsOther" value={renewalNewUnitsOther} onChange={e => setRenewalNewUnitsOther(e.target.value)} placeholder="Type unit (e.g. transactions)" className="w-full border rounded-md py-2 px-3 text-sm" />
                               {errors.renewalNewUnitsOther && <p className="mt-1 text-sm text-red-600">{errors.renewalNewUnitsOther}</p>}
                             </div>
                           )}
@@ -696,13 +749,13 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
 
                   {vendorContractType === 'license' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Current license count</label>
-                      <input value={currentLicenseCount ?? ''} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                      <label htmlFor="currentLicenseCount" className="block text-sm font-medium text-gray-700 mb-1">Current license count</label>
+                      <input id="currentLicenseCount" value={currentLicenseCount ?? ''} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                       {currentLicenseUnit && <p className="mt-1 text-xs text-gray-500">Current license unit: {currentLicenseUnit}</p>}
 
                       <div className="mt-3">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Renewal Type</label>
-                        <select value={renewalType} onChange={e => setRenewalType(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                        <label htmlFor="renewalTypeLicense" className="block text-sm font-medium text-gray-700 mb-1">Renewal Type</label>
+                        <select id="renewalTypeLicense" value={renewalType} onChange={e => setRenewalType(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
                           <option value="">Select renewal type</option>
                           <option value="upgrade">Upgrade</option>
                           <option value="downgrade">Downgrade</option>
@@ -713,12 +766,12 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
 
                       {renewalType !== 'flat' && renewalType !== '' && (
                         <div className="mt-3">
-                          <label className="block text-sm font-medium text-gray-700 mb-1">How many licenses do you want to renew?</label>
+                          <label htmlFor="renewalNewLicenseCount" className="block text-sm font-medium text-gray-700 mb-1">How many licenses do you want to renew?</label>
                           <div className="flex items-end space-x-3">
-                            <input type="number" value={renewalNewLicenseCount} onChange={e => setRenewalNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter renewal license count" className="flex-1 border rounded-md py-2 px-3 text-sm" />
+                            <input id="renewalNewLicenseCount" type="number" value={renewalNewLicenseCount} onChange={e => setRenewalNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter renewal license count" className="flex-1 border rounded-md py-2 px-3 text-sm" />
                             <div style={{ minWidth: 140 }}>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
-                              <select value={renewalLicenseUnit} onChange={e => setRenewalLicenseUnit(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
+                              <label htmlFor="renewalLicenseUnit" className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
+                              <select id="renewalLicenseUnit" value={renewalLicenseUnit} onChange={e => setRenewalLicenseUnit(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
                                 <option value="">Select unit</option>
                                 <option value="agents">Agents</option>
                                 <option value="users">Users</option>
@@ -733,20 +786,25 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                   )}
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                    <label htmlFor="contractDurationExisting" className="block text-sm font-medium text-gray-700 mb-1">Contract Duration (months)</label>
+                    <input id="contractDurationExisting" type="number" value={contractDuration} onChange={e => setContractDuration(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter duration in months" className="w-full border rounded-md py-2 px-3 text-sm" />
+                  </div>
+
+                  <div>
+                    <label htmlFor="renewalDate" className="block text-sm font-medium text-gray-700 mb-1">Renewal Date</label>
                     <div className="flex items-center space-x-2">
-                      <input type="date" value={dueDate} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
-                      <button type="button" onClick={() => dueDateRef.current?.focus()} className="p-2 border rounded-md bg-white" aria-hidden>
+                      <input id="renewalDate" ref={renewalDateRef} type="date" value={renewalDate} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
+                      <button type="button" onClick={focusRenewalDate} className="p-2 border rounded-md bg-white" aria-label="Open renewal date picker">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Renewal Date</label>
+                    <label htmlFor="dueDateExisting" className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
                     <div className="flex items-center space-x-2">
-                      <input ref={renewalDateRef} type="date" value={renewalDate} onChange={e => setRenewalDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
-                      <button type="button" onClick={focusRenewalDate} className="p-2 border rounded-md bg-white">
+                      <input id="dueDateExisting" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
+                      <button type="button" onClick={() => dueDateRef.current?.focus()} className="p-2 border rounded-md bg-white" aria-label="Open due date picker">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                       </button>
                     </div>
@@ -754,11 +812,37 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                 </>
               )}
 
-              {/* Additional comment */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Additional Comment</label>
-                <textarea value={additionalComment} onChange={e => setAdditionalComment(e.target.value)} rows={3} className="w-full border rounded-md py-2 px-3 text-sm" />
-              </div>
+              {contractType && (
+                <>
+                  {/* Additional comment */}
+                  <div>
+                    <label htmlFor="additionalComment" className="block text-sm font-medium text-gray-700 mb-1">Additional Comment</label>
+                    <textarea id="additionalComment" value={additionalComment} onChange={e => setAdditionalComment(e.target.value)} rows={3} className="w-full border rounded-md py-2 px-3 text-sm" placeholder="Enter additional comment" />
+                  </div>
+
+                  {/* Attachments */}
+                  <div>
+                    <label htmlFor="attachments" className="block text-sm font-medium text-gray-700 mb-1">Attachments</label>
+                    <input
+                      id="attachments"
+                      type="file"
+                      multiple
+                      onChange={(e) => setAttachments(Array.from(e.target.files || []))}
+                      className="w-full border rounded-md py-2 px-3 text-sm"
+                    />
+                    {attachments.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-600">Selected files:</p>
+                        <ul className="list-disc list-inside text-sm text-gray-500">
+                          {attachments.map((file, index) => (
+                            <li key={index}>{file.name} ({(file.size / 1024).toFixed(2)} KB)</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">

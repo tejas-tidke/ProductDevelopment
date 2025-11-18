@@ -64,7 +64,7 @@ public class UserController {
     // GET DEPARTMENT BY ID
     // ----------------------------------------------------
     @GetMapping("/departments/{id}")
-    public ResponseEntity<?> getDepartmentById(@PathVariable Integer id) {
+    public ResponseEntity<?> getDepartmentById(@PathVariable Long id) {
         try {
             logger.info("Fetching department with id: {}", id);
             return departmentRepository.findById(id)

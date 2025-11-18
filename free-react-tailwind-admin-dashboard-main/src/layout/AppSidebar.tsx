@@ -362,6 +362,7 @@ const othersItems: NavItem[] = [
     icon: <FileIcon />,
     subItems: [
       { name: "Create New User", path: "/blank", pro: false },
+      { name: "Send Invitation", path: "/send-invitation", pro: false },
       { name: "Create New Project", path: "/create-new-project", pro: false },
       { name: "404 Error", path: "/error-404", pro: false },
     ],
