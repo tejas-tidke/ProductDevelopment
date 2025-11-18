@@ -38,10 +38,18 @@ export default function UsersList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string>("All");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("All");
 
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const filteredUsers = users.filter(user => {
+    const roleMatch = selectedRole === "All" || user.role === selectedRole;
+    const departmentMatch = selectedDepartment === "All" || user.department?.name === selectedDepartment;
+    return roleMatch && departmentMatch;
+  });
 
   const fetchUsers = async () => {
     try {
@@ -128,10 +136,46 @@ export default function UsersList() {
       <PageBreadcrumb pageTitle="Users List" />
       
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] xl:p-6">
-        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+        <div className="mb-6 flex flex-row justify-between items-center">
           <h3 className="text-xl font-semibold text-gray-800 dark:text-white/90">
             Users Management
           </h3>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
+              <label htmlFor="role-select" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Select Role:
+              </label>
+              <select
+                id="role-select"
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              >
+                <option value="All">All</option>
+                <option value="SUPER_ADMIN">Super Admin</option>
+                <option value="ADMIN">Admin</option>
+                <option value="APPROVER">Approver</option>
+                <option value="REQUESTER">Requester</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-4">
+              <label htmlFor="department-select" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Select Department:
+              </label>
+              <select
+                id="department-select"
+                value={selectedDepartment}
+                onChange={(e) => setSelectedDepartment(e.target.value)}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+              >
+                <option value="All">All</option>
+                <option value="Finance">Finance</option>
+                <option value="Technology">Technology</option>
+                <option value="HR">HR</option>
+                <option value="Sales">Sales</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         {error && (
@@ -170,8 +214,8 @@ export default function UsersList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/20">
+                {filteredUsers.map((user) => (  // For changing the USer Background color in the Users List View
+                  <tr key={user.id} className="hover:bg-indigo-100 dark:hover:bg-gray-900/20">
                     <td className="px-6 py-4">
                       <div className="flex items-center">
                         <div className="mr-3 h-10 w-10 overflow-hidden rounded-full">
@@ -275,7 +319,7 @@ export default function UsersList() {
               </tbody>
             </table>
             
-            {users.length === 0 && !loading && (
+            {filteredUsers.length === 0 && !loading && (
               <div className="py-12 text-center">
                 <div className="mx-auto h-16 w-16 text-gray-400">
                   <svg
@@ -297,7 +341,10 @@ export default function UsersList() {
                   No users found
                 </h3>
                 <p className="mt-1 text-gray-500 dark:text-gray-400">
-                  There are no users in the system yet.
+                  {selectedRole === "All"
+                    ? "There are no users in the system yet."
+                    : `No users found with role: ${selectedRole}.`
+                  }
                 </p>
               </div>
             )}
