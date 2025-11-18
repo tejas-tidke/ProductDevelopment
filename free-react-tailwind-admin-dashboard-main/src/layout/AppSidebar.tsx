@@ -5,7 +5,7 @@ import {
   ChevronDownIcon,
   GridIcon,
   HorizontaLDots,
-  IssuesIcon,
+  // IssuesIcon,
   DocsIcon,
   FolderIcon,
   TaskIcon,
@@ -15,7 +15,7 @@ import {
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { JIRA_CONFIG, getJiraAuthHeaders, getJiraRequestUrl } from "../config/jiraConfig";
-import { jiraService } from "../services/jiraService";
+
 import NotificationDropdown from "../components/header/NotificationDropdown";
 import SettingsDropdown from "../components/header/SettingsDropdown";
 import UserDropdown from "../components/header/UserDropdown";
@@ -39,14 +39,7 @@ type Project = {
   new?: boolean;
 };
 
-// Define interface for issue
-interface Issue {
-  id: string;
-  key: string;
-  fields: {
-    summary?: string;
-  };
-}
+
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
@@ -65,7 +58,7 @@ const AppSidebar: React.FC = () => {
   
   // Project state management
   const [recentProjects, setRecentProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>("");
+  // const [selectedProject, setSelectedProject] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -148,9 +141,9 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
       
       // Set recent projects
       setRecentProjects(jiraProjects);
-      if (jiraProjects.length > 0) {
-        setSelectedProject(jiraProjects[0].path);
-      }
+      // if (jiraProjects.length > 0) {
+      //   setSelectedProject(jiraProjects[0].path);
+      // }
     } catch (error) {
       console.error("Failed to fetch Jira projects:", error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch projects';
@@ -172,10 +165,10 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
 
   useEffect(() => {
     // Update selected project when route changes
-    const currentProject = recentProjects.find(project => project.path === location.pathname);
-    if (currentProject) {
-      setSelectedProject(location.pathname);
-    }
+    // const currentProject = recentProjects.find(project => project.path === location.pathname);
+    // if (currentProject) {
+    //   setSelectedProject(location.pathname);
+    // }
     
     // Handle submenu opening based on active route
     let submenuMatched = false;
@@ -194,7 +187,8 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
     });
 
     // Only close the submenu if it's not the Project menu (index 0) or if no submenu matched and it's not the Project menu
-    if (!submenuMatched && !(openSubmenu?.type === "main" && openSubmenu?.index === 0)) {
+    // Note: Project menu has been commented out, so we skip this condition
+    if (!submenuMatched) {
       setOpenSubmenu(null);
     }
   }, [location, isActive, recentProjects]);
@@ -224,25 +218,25 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
   }, [recentProjects, isLoading, error]);
 
   // State for recent issues
-  const [recentIssues, setRecentIssues] = useState<Issue[]>([]);
-  const [issuesLoading, setIssuesLoading] = useState<boolean>(false);
+  // const [recentIssues, setRecentIssues] = useState<Issue[]>([]);
+  // const [issuesLoading, setIssuesLoading] = useState<boolean>(false);
 
   // Fetch recent issues
-  const fetchRecentIssues = async () => {
-    setIssuesLoading(true);
-    try {
-      const issues = await jiraService.getRecentIssues();
-      
-      // Get first 3 issues
-      const recentIssuesData = Array.isArray(issues) ? issues.slice(0, 3) : [];
-      setRecentIssues(recentIssuesData);
-    } catch (error) {
-      console.error("Failed to fetch recent issues:", error);
-      setRecentIssues([]);
-    } finally {
-      setIssuesLoading(false);
-    }
-  };
+  // const fetchRecentIssues = async () => {
+  //   setIssuesLoading(true);
+  //   try {
+  //     const issues = await jiraService.getRecentIssues();
+  //     
+  //     // Get first 3 issues
+  //     const recentIssuesData = Array.isArray(issues) ? issues.slice(0, 3) : [];
+  //     setRecentIssues(recentIssuesData);
+  //   } catch (error) {
+  //     console.error("Failed to fetch recent issues:", error);
+  //     setRecentIssues([]);
+  //   } finally {
+  //     setIssuesLoading(false);
+  //   }
+  // };
 
   // Update submenu height when content changes
   useEffect(() => {
@@ -283,7 +277,7 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
         setTimeout(updateHeight, 50);
       });
     }
-  }, [openSubmenu, recentIssues, recentProjects, issuesLoading]);
+  }, [openSubmenu, recentProjects]);
 
  const navItems: NavItem[] = [
     {
@@ -292,20 +286,20 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
     icon: null,
     path: "#",
   },
-  {
-    icon: <FolderIcon />,
-    name: "Project",
-    subItems: [
-      { name: "Loading...", path: "#", pro: false },
-    ],
-  },
-  {
-    icon: <IssuesIcon />,
-    name: "Issues",
-    subItems: [
-      { name: "Loading recent issues...", path: "/issues", pro: false },
-    ],
-  },
+  // {
+  //   icon: <FolderIcon />,
+  //   name: "Project",
+  //   subItems: [
+  //     { name: "Loading...", path: "#", pro: false },
+  //   ],
+  // },
+  // {
+  //   icon: <IssuesIcon />,
+  //   name: "Issues",
+  //   subItems: [
+  //     { name: "Loading recent issues...", path: "/issues", pro: false },
+  //   ],
+  // },
   {
     name: "Procurement Request",
     icon: <DocsIcon />,
@@ -398,112 +392,112 @@ const othersItems: NavItem[] = [
 ];
 
   // Project dropdown menu component
-  const ProjectDropdownMenu: React.FC<{ project: Project }> = ({ project }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-    const navigate = useNavigate();
-
-    // Close dropdown when clicking outside
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-          setIsOpen(false);
-        }
-      };
-
-      if (isOpen) {
-        document.addEventListener('mousedown', handleClickOutside);
-      }
-
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }, [isOpen]);
-
-    // Handle create issue
-    const handleCreateIssue = () => {
-      // Navigate to the project page with a query parameter to open the create issue modal
-      navigate(`${project.path}?createIssue=true`);
-      setIsOpen(false);
-    };
-
-    // Handle view issues
-    const handleViewIssues = () => {
-      // Navigate to the project page to view issues
-      navigate(project.path);
-      setIsOpen(false);
-    };
-
-    // Handle delete project
-    const handleDeleteProject = async () => {
-      if (window.confirm(`Are you sure you want to delete project "${project.name}"?`)) {
-        try {
-          const apiUrl = getJiraRequestUrl(`/api/jira/projects/${project.key}`);
-          const headers = getJiraAuthHeaders();
-          
-          const response = await fetch(apiUrl, {
-            method: 'DELETE',
-            headers: headers as HeadersInit,
-            mode: 'cors',
-            credentials: 'omit'
-          });
-
-          if (!response.ok) {
-            throw new Error(`Failed to delete project: ${response.statusText}`);
-          }
-
-          // Refresh the projects list
-          window.location.reload();
-        } catch (error) {
-          console.error("Failed to delete project:", error);
-          alert("Failed to delete project. Please try again.");
-        }
-      }
-      setIsOpen(false);
-    };
-
-    return (
-      <div className="relative" ref={dropdownRef}>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsOpen(!isOpen);
-          }}
-          className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none"
-          aria-label="Project options"
-        >
-          <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-          </svg>
-        </button>
-
-        {isOpen && (
-          <div className="absolute right-0 top-0 mt-8 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700">
-            <div className="py-1">
-              <button
-                onClick={handleCreateIssue}
-                className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                Create Issue
-              </button>
-              <button
-                onClick={handleViewIssues}
-                className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                View Issues
-              </button>
-              <button
-                onClick={handleDeleteProject}
-                className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                Delete Project
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  // const ProjectDropdownMenu: React.FC<{ project: Project }> = ({ project }) => {
+  //   const [isOpen, setIsOpen] = useState(false);
+  //   const dropdownRef = useRef<HTMLDivElement>(null);
+  //   const navigate = useNavigate();
+  //
+  //   // Close dropdown when clicking outside
+  //   useEffect(() => {
+  //     const handleClickOutside = (event: MouseEvent) => {
+  //       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+  //         setIsOpen(false);
+  //       }
+  //     };
+  //
+  //     if (isOpen) {
+  //       document.addEventListener('mousedown', handleClickOutside);
+  //     }
+  //
+  //     return () => {
+  //       document.removeEventListener('mousedown', handleClickOutside);
+  //     };
+  //   }, [isOpen]);
+  //
+  //   // Handle create issue
+  //   const handleCreateIssue = () => {
+  //     // Navigate to the project page with a query parameter to open the create issue modal
+  //     navigate(`${project.path}?createIssue=true`);
+  //     setIsOpen(false);
+  //   };
+  //
+  //   // Handle view issues
+  //   const handleViewIssues = () => {
+  //     // Navigate to the project page to view issues
+  //     navigate(project.path);
+  //     setIsOpen(false);
+  //   };
+  //
+  //   // Handle delete project
+  //   const handleDeleteProject = async () => {
+  //     if (window.confirm(`Are you sure you want to delete project "${project.name}"?`)) {
+  //       try {
+  //         const apiUrl = getJiraRequestUrl(`/api/jira/projects/${project.key}`);
+  //         const headers = getJiraAuthHeaders();
+  //         
+  //         const response = await fetch(apiUrl, {
+  //           method: 'DELETE',
+  //           headers: headers as HeadersInit,
+  //           mode: 'cors',
+  //           credentials: 'omit'
+  //         });
+  //
+  //         if (!response.ok) {
+  //           throw new Error(`Failed to delete project: ${response.statusText}`);
+  //         }
+  //
+  //         // Refresh the projects list
+  //         window.location.reload();
+  //       } catch (error) {
+  //         console.error("Failed to delete project:", error);
+  //         alert("Failed to delete project. Please try again.");
+  //       }
+  //     }
+  //     setIsOpen(false);
+  //   };
+  //
+  //   return (
+  //     <div className="relative" ref={dropdownRef}>
+  //       <button
+  //         onClick={(e) => {
+  //           e.stopPropagation();
+  //           setIsOpen(!isOpen);
+  //         }}
+  //         className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none"
+  //         aria-label="Project options"
+  //       >
+  //         <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+  //           <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+  //         </svg>
+  //       </button>
+  //
+  //       {isOpen && (
+  //         <div className="absolute right-0 top-0 mt-8 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700">
+  //           <div className="py-1">
+  //             <button
+  //               onClick={handleCreateIssue}
+  //               className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+  //             >
+  //               Create Issue
+  //             </button>
+  //             <button
+  //               onClick={handleViewIssues}
+  //               className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+  //             >
+  //               View Issues
+  //             </button>
+  //             <button
+  //               onClick={handleDeleteProject}
+  //               className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
+  //             >
+  //               Delete Project
+  //             </button>
+  //           </div>
+  //         </div>
+  //       )}
+  //     </div>
+  //   );
+  // };
 
   const renderMenuItems = (items: NavItem[], menuType: "main" | "others") => (
     <ul className="flex flex-col gap-4">
@@ -555,19 +549,7 @@ const othersItems: NavItem[] = [
             >
               <button
                 onClick={() => {
-                  if (nav.name === "Project") {
-                    // Special handling for Project menu to update projects list
-                    handleSubmenuToggle(index, menuType);
-                  } else if (nav.name === "Issues") {
-                    
-                    // Special handling for Issues menu to fetch recent issues
-                    if (!openSubmenu || openSubmenu.type !== menuType || openSubmenu.index !== index) {
-                      fetchRecentIssues();
-                    }
-                    handleSubmenuToggle(index, menuType);
-                  } else {
-                    handleSubmenuToggle(index, menuType);
-                  }
+                  handleSubmenuToggle(index, menuType);
                 }}
                 className="flex items-center flex-1 bg-transparent border-0 p-0 cursor-pointer"
               >
@@ -647,107 +629,9 @@ const othersItems: NavItem[] = [
               }}
             >
               {nav.name === 'Project' ? (
-                <div className="mt-2 space-y-1 ml-9">
-                  {isLoading ? (
-                    <div className="px-4 py-2 text-sm text-gray-500">Loading projects...</div>
-                  ) : error ? (
-                    <div className="px-4 py-2 text-sm text-red-500">{error}</div>
-                  ) : recentProjects.length > 0 ? (
-                    <>
-                      {recentProjects.slice(0, 3).map((project) => (
-                        <div key={project.path} className="relative group flex items-center justify-between">
-                          <Link
-                            to={project.path}
-                            className={`flex-1 block px-4 py-2 text-sm rounded-md ${
-                              selectedProject === project.path
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
-                                : "hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                            }`}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setSelectedProject(project.path);
-                              // Keep the project submenu open
-                              setOpenSubmenu({ type: "main", index: 0 });
-                              // Navigate to the project page
-                              navigate(project.path);
-                            }}
-                          >
-                            <div className="font-medium truncate">{project.name}</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                              {project.description || "No description"}
-                            </div>
-                          </Link>
-                          <div className="relative">
-                            <ProjectDropdownMenu project={project} />
-                          </div>
-                        </div>
-                      ))}
-                      <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
-                      <Link
-                        to="/all-projects"
-                        className="block px-4 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                      >
-                        View all projects
-                      </Link>
-                    </>
-                  ) : (
-                    <div className="px-4 py-2 text-sm text-gray-500">
-                      No projects available
-                    </div>
-                  )}
-                </div>
+                null
               ) : nav.name === 'Issues' ? (
-                <div 
-                  className="mt-2 space-y-1 ml-9"
-                  ref={(el) => {
-                    // Update the ref for issues dropdown
-                    if (openSubmenu?.type === "main" && openSubmenu?.index === 1) { // Issues is at index 1
-                      subMenuRefs.current[`main-1`] = el;
-                      // Update height immediately when content changes
-                      if (el && openSubmenu) {
-                        // Use requestAnimationFrame to ensure the DOM has updated
-                        requestAnimationFrame(() => {
-                          setSubMenuHeight(prev => ({
-                            ...prev,
-                            [`main-1`]: el.scrollHeight
-                          }));
-                        });
-                      }
-                    }
-                  }}
-                >
-                  {issuesLoading ? (
-                    <div className="px-4 py-2 text-sm text-gray-500">Loading recent issues...</div>
-                  ) : recentIssues.length > 0 ? (
-                    <>
-                      {recentIssues.map((issue: Issue) => (
-                        <Link
-                          key={issue.id}
-                          to={`/issues-split/${issue.key}`}
-                          className="block px-4 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                        >
-                          <div className="font-medium truncate">{issue.key}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            {issue.fields?.summary || "No summary"}
-                          </div>
-                        </Link>
-                      ))}
-                      <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
-                      <Link
-                        to="/issues"
-                        className="block px-4 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50"
-                      >
-                        View all issues
-                      </Link>
-                    </>
-                  ) : (
-                    <div className="px-4 py-2 text-sm text-gray-500">
-                      No recent issues
-                    </div>
-                  )}
-                </div>
-
+                null
               ) : (
                 <ul className="mt-2 space-y-1 ml-9">
                   {nav.subItems.map((subItem) => (
