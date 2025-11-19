@@ -9,16 +9,32 @@ import { useState, useRef, useEffect } from "react";
 import { userService } from "../../services/userService";
 
 export default function UserMetaCard() {
-  const { currentUser } = useAuth();
+  const { currentUser, userData, refreshUserData } = useAuth();
   const { isOpen, openModal, closeModal } = useModal();
   const [avatar, setAvatar] = useState<string>("/images/user/user-01.jpg");
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const modalFileInputRef = useRef<HTMLInputElement>(null);
   
-  // Load avatar from backend when component mounts
+  // Load avatar from backend when component mounts or when userData changes
   useEffect(() => {
     const loadAvatar = async () => {
-      if (currentUser?.uid) {
+      if (userData && userData.user) {
+        try {
+          console.log("Loading avatar from userData:", userData.user.uid);
+          if (userData.user.avatar && userData.user.avatar.trim() !== "") {
+            console.log("Setting avatar from backend:", userData.user.avatar.substring(0, 50) + "...");
+            setAvatar(userData.user.avatar);
+          } else {
+            console.log("No avatar found in user data, using default: /images/user/user-01.jpg");
+            setAvatar("/images/user/user-01.jpg");
+          }
+        } catch (error) {
+          console.error("Failed to load avatar:", error);
+          // Use default avatar on error
+          setAvatar("/images/user/user-01.jpg");
+        }
+      } else if (currentUser?.uid) {
+        // Fallback to loading avatar directly if userData is not available
         try {
           console.log("Loading avatar for user:", currentUser.uid);
           const userData = await userService.getUserData(currentUser.uid);
@@ -42,7 +58,7 @@ export default function UserMetaCard() {
     };
     
     loadAvatar();
-  }, [currentUser]);
+  }, [currentUser, userData]);
   
   const handleSave = async () => {
     // Handle save logic here
@@ -68,6 +84,9 @@ export default function UserMetaCard() {
           console.log("Avatar removed successfully:", result);
           alert("Avatar reset to default successfully!");
         }
+        
+        // Refresh user data after saving avatar
+        await refreshUserData();
       } catch (error) {
         console.error("Failed to save avatar:", error);
         // Show error message to user

@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "../../icons";
+import { EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Checkbox from "../form/input/Checkbox";
 import { useRegister } from "../../hooks/useRegister";
+import { signInWithPopup, GoogleAuthProvider, OAuthProvider } from "firebase/auth";
+import { auth } from "../../firebase";
+import { useAuth } from "../../context/AuthContext";
 
 export default function SignUpForm() {
   const [showPassword, setShowPassword] = useState(false);
@@ -14,6 +17,7 @@ export default function SignUpForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { register, loading, error } = useRegister();
+  const { loading: authLoading, refreshUserData } = useAuth(); // Get loading state and refresh function from AuthContext
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,6 +31,52 @@ export default function SignUpForm() {
     if (user) {
       // Redirect to dashboard on successful registration
       navigate("/dashboard");
+    }
+  };
+
+  // Handle Google sign-up
+  const handleGoogleSignUp = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      console.log("Google sign-up successful:", result.user);
+      
+      // Manually refresh user data to ensure we have the latest role from database
+      await refreshUserData();
+      
+      // Redirect to dashboard on successful sign up
+      // Wait a bit for auth context to load user data before redirecting
+      setTimeout(() => {
+        if (!authLoading) {
+          navigate("/dashboard");
+        }
+      }, 500);
+    } catch (error) {
+      console.error("Error signing up with Google:", error);
+      // Handle error appropriately
+    }
+  };
+
+  // Handle Microsoft sign-up
+  const handleMicrosoftSignUp = async () => {
+    try {
+      const provider = new OAuthProvider('microsoft.com');
+      const result = await signInWithPopup(auth, provider);
+      console.log("Microsoft sign-up successful:", result.user);
+      
+      // Manually refresh user data to ensure we have the latest role from database
+      await refreshUserData();
+      
+      // Redirect to dashboard on successful sign up
+      // Wait a bit for auth context to load user data before redirecting
+      setTimeout(() => {
+        if (!authLoading) {
+          navigate("/dashboard");
+        }
+      }, 500);
+    } catch (error) {
+      console.error("Error signing up with Microsoft:", error);
+      // Handle error appropriately
     }
   };
 
@@ -53,7 +103,10 @@ export default function SignUpForm() {
           </div>
           <div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5">
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button 
+                onClick={handleGoogleSignUp}
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="20"
                   height="20"
@@ -80,7 +133,10 @@ export default function SignUpForm() {
                 </svg>
                 Sign up with Google
               </button>
-              <button className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10">
+              <button 
+                onClick={handleMicrosoftSignUp}
+                className="inline-flex items-center justify-center gap-3 py-3 text-sm font-normal text-gray-700 transition-colors bg-gray-100 rounded-lg px-7 hover:bg-gray-200 hover:text-gray-800 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+              >
                 <svg
                   width="21"
                   className="fill-current"
@@ -91,7 +147,7 @@ export default function SignUpForm() {
                 >
                   <path d="M15.6705 1.875H18.4272L12.4047 8.75833L19.4897 18.125H13.9422L9.59717 12.4442L4.62554 18.125H1.86721L8.30887 10.7625L1.51221 1.875H7.20054L11.128 7.0675L15.6705 1.875ZM14.703 16.475H16.2305L6.37054 3.43833H4.73137L14.703 16.475Z" />
                 </svg>
-                Sign up with X
+                Sign up with Microsoft
               </button>
             </div>
             <div className="relative py-3 sm:py-5">

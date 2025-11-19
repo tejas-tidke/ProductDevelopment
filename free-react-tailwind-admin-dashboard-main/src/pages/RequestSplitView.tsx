@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router";
 import PageMeta from "../components/common/PageMeta";
 import { jiraService, IssueTransition } from "../services/jiraService";
 import { CustomFilterDropdown } from "../components/filters/CustomFilterDropdown";
+import { usePermissions } from "../hooks/usePermissions";
 
 // Define minimal ADF interfaces (enough for description rendering)
 interface AdfNode {
@@ -33,7 +34,11 @@ const renderAdfContent = (adf: AdfDocument): string => {
       case 'hardBreak': return '\n';
       case 'blockquote': return '> ' + (node.content?.map(renderNode).join('') || '') + '\n\n';
       case 'codeBlock':
-        return `\`\`\`\n${node.content?.map(renderNode).join('')}\n\`\`\`\n\n`;
+        return `\`\`\`
+${node.content?.map(renderNode).join('')}
+\`\`\`
+
+`;
       default:
         return node.content ? node.content.map(renderNode).join('') : '';
     }
@@ -95,7 +100,8 @@ const IssueTypeIcon: React.FC<{ type: string; size?: 'sm' | 'md' | 'lg' }> = ({ 
 
 const RequestSplitView: React.FC = () => {
   const { issueKey } = useParams<{ issueKey: string }>();
-
+  const { userRole, canAccessDepartmentIssues, canEditIssue, canTransitionIssue } = usePermissions();
+  
   const navigate = useNavigate();
 
   // filters
@@ -131,6 +137,7 @@ const RequestSplitView: React.FC = () => {
   const [isAddingComment, setIsAddingComment] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  const [selectedTransition, setSelectedTransition] = useState<string>("");
 
   // transitions
   const [jiraTransitions, setJiraTransitions] = useState<IssueTransition[]>([]);
@@ -144,11 +151,11 @@ const RequestSplitView: React.FC = () => {
   const getFieldValue = (keys: string[]) => {
     if (!selectedIssue) return '';
     for (const k of keys) {
-      const val = (selectedIssue as any).fields?.[k];
+      const val = selectedIssue.fields?.[k];
       if (val !== undefined && val !== null && val !== '') {
         if (typeof val === 'object') {
-          if (val.value) return String(val.value);
-          if (val.displayName) return String(val.displayName);
+          if ('value' in val && val.value) return String(val.value);
+          if ('displayName' in val && val.displayName) return String(val.displayName);
           if (Array.isArray(val) && typeof val[0] === 'string') return val[0];
           return JSON.stringify(val);
         }
@@ -301,7 +308,8 @@ useEffect(() => {
   // Filtering logic
   const filteredIssues = useMemo(() => {
     let result = issues.filter(issue => {
-      return (
+      // First apply the existing filters
+      const passesBasicFilters = (
         (searchTerm === "" ||
           (issue.fields?.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             issue.key?.toLowerCase().includes(searchTerm.toLowerCase()))) &&
@@ -310,6 +318,20 @@ useEffect(() => {
         (selectedIssueType === "" || issue.fields?.issuetype?.name === selectedIssueType) &&
         (selectedStatus === "" || issue.fields?.status?.name === selectedStatus)
       );
+      
+      // If user is REQUESTER, only show issues from their department
+      if (userRole === 'REQUESTER') {
+        // Extract department information from the issue
+        // Department is stored in customfield_10244 (based on the field mapping in the component)
+        const issueDepartment = issue.fields?.customfield_10244;
+        
+        // For REQUESTER role, check if they can access this specific department
+        // If issue has no department, we assume it's accessible (null means no restriction)
+        return passesBasicFilters && (issueDepartment === undefined || issueDepartment === null || canAccessDepartmentIssues(String(issueDepartment)));
+      }
+      
+      // For other roles, apply only the basic filters
+      return passesBasicFilters;
     });
 
     if (sortField) {
@@ -326,13 +348,13 @@ useEffect(() => {
     }
 
     return result;
-  }, [issues, searchTerm, selectedProject, selectedAssignee, selectedIssueType, selectedStatus, sortField, sortDirection]);
+  }, [issues, searchTerm, selectedProject, selectedAssignee, selectedIssueType, selectedStatus, sortField, sortDirection, userRole, canAccessDepartmentIssues]);
 
   // click issue
   const handleIssueClick = (issue: Issue) => {
     setSelectedIssue(issue);
     setSelectedStatus(issue.fields.status?.name || '');
-    navigate(`/issues-split/${issue.key}`, { replace: true });
+    navigate(`/request-management/${issue.key}`, { replace: true });
   };
 
   // format date helper (for timestamps in header/activity)
@@ -369,7 +391,7 @@ useEffect(() => {
     if (selectedIssue && window.confirm(`Are you sure you want to delete issue ${selectedIssue.key}?`)) {
       console.log(`Deleting issue ${selectedIssue.key}`);
       if (selectedIssue?.fields.project?.key) navigate(`/project/${selectedIssue.fields.project.key}`);
-      else navigate('/issues-split');
+      else navigate('/request-management');
     }
     setIsMoreDropdownOpen(false);
   };
@@ -474,13 +496,8 @@ const isLicenseBilling = /licen|license|seat|user/.test(billingTypeNorm);
 const licenseUpdateTypeNorm = (licenseUpdateTypeVal || "").toLowerCase();
 const isUpgradeOrDowngrade =
   licenseUpdateTypeNorm === "upgrade" || licenseUpdateTypeNorm === "downgrade";
-const isFlatRenewal =
-  licenseUpdateTypeNorm === "flat renewal" ||
-  licenseUpdateTypeNorm === "flatrenewal" ||
-  licenseUpdateTypeNorm === "flat";
 
-
-  return (
+return (
     <>
       <PageMeta title={selectedIssue ? `${selectedIssue.key} - Requests` : "Requests"} description="View all Requests" />
       <div className="flex flex-col h-screen overflow-hidden">
@@ -585,13 +602,15 @@ const isFlatRenewal =
                   </div>
                 </div>
 
-                {/* Action Buttons (unchanged) */}
+                {/* Action Buttons (conditionally rendered based on permissions) */}
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
                   <div className="flex flex-wrap gap-2">
-                    <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                      Edit
-                    </button>
+                    {canEditIssue() && (
+                      <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        Edit
+                      </button>
+                    )}
 
                     <button onClick={() => { setActiveTab('comments'); setIsAddingComment(true); setTimeout(() => { const commentsSection = document.getElementById('activity-section'); if (commentsSection) commentsSection.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100); }} className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9 8s9 3.582 9 8z"></path></svg>
@@ -617,33 +636,41 @@ const isFlatRenewal =
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <div className="relative inline-block text-left">
-                        <button onClick={() => setIsMoreDropdownOpen((prev) => !prev)} className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full shadow-sm focus:outline-none" style={{ backgroundColor: getStatusColor(selectedIssue.fields.status?.statusCategory?.colorName), color: "white" }}>
-                          <span>{selectedIssue?.fields?.status?.name || "Select Status"}</span>
-                          <svg className="w-4 h-4 ml-2 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                        </button>
+                    {canTransitionIssue() && (
+                      <div className="flex items-center gap-2">
+                        <div className="relative inline-block text-left">
+                          <button onClick={() => setIsMoreDropdownOpen((prev) => !prev)} className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full shadow-sm focus:outline-none" style={{ backgroundColor: getStatusColor(selectedIssue.fields.status?.statusCategory?.colorName), color: "white" }}>
+                            <span>{selectedIssue?.fields?.status?.name || "Select Status"}</span>
+                            <svg className="w-4 h-4 ml-2 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                          </button>
 
-                        {isMoreDropdownOpen && (
-                          <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
-                            <div className="py-1 max-h-60 overflow-auto">
-                              {jiraTransitions.map((transition) => (
-                                <button key={transition.id} onClick={() => {
-                                  setSelectedTransition(transition.id);
-                                  setIsMoreDropdownOpen(false);
-                                  jiraService.transitionIssue(selectedIssue.key, transition.id)
-                                    .then(() => { jiraService.getIssueByIdOrKey(selectedIssue.key).then(setSelectedIssue); jiraService.getIssueTransitions(selectedIssue.key).then(setJiraTransitions); })
-                                    .catch((err) => { console.error("Error updating status:", err); alert("Failed to update status"); });
-                                }} className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all">
-                                  <span className="w-2.5 h-2.5 rounded-full mr-2" style={{ backgroundColor: getStatusColor((transition as any).to?.statusCategory?.colorName) }}></span>
-                                  {(transition as any).name || (transition as any).label || 'Transition'}
-                                </button>
-                              ))}
+                          {isMoreDropdownOpen && (
+                            <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+                              <div className="py-1 max-h-60 overflow-auto">
+                                {jiraTransitions.map((transition) => (
+                                  <button key={transition.id} onClick={() => {
+                                    setSelectedTransition(transition.id);
+                                    setIsMoreDropdownOpen(false);
+                                    jiraService.transitionIssue(selectedIssue.key, transition.id)
+                                      .then(() => { 
+                                        jiraService.getIssueByIdOrKey(selectedIssue.key).then(setSelectedIssue); 
+                                        jiraService.getIssueTransitions(selectedIssue.key).then(setJiraTransitions); 
+                                      })
+                                      .catch((err) => { 
+                                        console.error("Error updating status:", err); 
+                                        alert("Failed to update status"); 
+                                      });
+                                  }} className={`flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all ${selectedTransition === transition.id ? 'bg-blue-100 dark:bg-blue-900' : ''}`}>
+                                    <span className="w-2.5 h-2.5 rounded-full mr-2" style={{ backgroundColor: getStatusColor(transition.to?.statusCategory?.colorName) }}></span>
+                                    {transition.name}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 

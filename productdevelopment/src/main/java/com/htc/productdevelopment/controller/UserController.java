@@ -2,16 +2,16 @@ package com.htc.productdevelopment.controller;
 
 import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.model.Department;
-import com.htc.productdevelopment.repository.DepartmentRepository;
 import com.htc.productdevelopment.service.UserService;
-import com.htc.productdevelopment.service.FirebaseSyncService;
-import com.htc.productdevelopment.service.InvitationService;
+import com.htc.productdevelopment.service.OrganizationService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,62 +24,22 @@ public class UserController {
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     private final UserService userService;
-    private final FirebaseSyncService firebaseSyncService;
-    private final InvitationService invitationService;
-    
-    @Autowired
-    private DepartmentRepository departmentRepository;
+    private final OrganizationService organizationService;
 
-    public UserController(UserService userService, FirebaseSyncService firebaseSyncService, InvitationService invitationService) {
+    @Autowired
+    public UserController(UserService userService, OrganizationService organizationService) {
         this.userService = userService;
-        this.firebaseSyncService = firebaseSyncService;
-        this.invitationService = invitationService;
+        this.organizationService = organizationService;
     }
 
     // ----------------------------------------------------
     // GET ALL USERS
     // ----------------------------------------------------
     @GetMapping
-    public ResponseEntity<?> getAllUsers() {
-        try {
-            List<User> users = userService.getAllUsers();
-            return ResponseEntity.ok(users);
-        } catch (Exception e) {
-            logger.error("Error fetching users", e);
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    // ----------------------------------------------------
-    // GET ALL DEPARTMENTS
-    // ----------------------------------------------------
-    @GetMapping("/departments")
-    public ResponseEntity<?> getAllDepartments() {
-        try {
-            logger.info("Fetching all departments");
-            List<Department> departments = departmentRepository.findAll();
-            logger.info("Fetched {} departments", departments.size());
-            return ResponseEntity.ok(departments);
-        } catch (Exception e) {
-            logger.error("Error fetching departments", e);
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-    
-    // ----------------------------------------------------
-    // GET DEPARTMENT BY ID
-    // ----------------------------------------------------
-    @GetMapping("/departments/{id}")
-    public ResponseEntity<?> getDepartmentById(@PathVariable Long id) {
-        try {
-            logger.info("Fetching department with id: {}", id);
-            return departmentRepository.findById(id)
-                    .map(department -> ResponseEntity.ok(department))
-                    .orElseGet(() -> ResponseEntity.notFound().build());
-        } catch (Exception e) {
-            logger.error("Error fetching department", e);
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
+    public ResponseEntity<List<User>> getAllUsers() {
+        logger.info("Fetching all users");
+        List<User> users = userService.getAllUsers();
+        return ResponseEntity.ok(users);
     }
 
     // ----------------------------------------------------
@@ -87,13 +47,12 @@ public class UserController {
     // ----------------------------------------------------
     @GetMapping("/{id}")
     public ResponseEntity<?> getUserById(@PathVariable Long id) {
-        try {
-            Optional<User> user = userService.getUserById(id);
-            return user.map(ResponseEntity::ok)
-                       .orElseGet(() -> ResponseEntity.notFound().build());
-        } catch (Exception e) {
-            logger.error("Error fetching user", e);
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        logger.info("Fetching user by ID: {}", id);
+        Optional<User> user = userService.getUserById(id);
+        if (user.isPresent()) {
+            return ResponseEntity.ok(user.get());
+        } else {
+            return ResponseEntity.notFound().build();
         }
     }
 
@@ -112,7 +71,7 @@ public class UserController {
             User.Role role = userData.getRole() != null ? userData.getRole() : User.Role.REQUESTER;
             
             // Create user in Firebase and sync to database
-            User created = firebaseSyncService.createFirebaseUser(
+            User created = userService.createUserWithRole(
                 email, 
                 "defaultPassword123", // Default password - should be changed by user
                 name, 
@@ -127,18 +86,16 @@ public class UserController {
     }
 
     // ----------------------------------------------------
-    // UPDATE USER (SUPPORTS DEPARTMENT)
+    // UPDATE USER
     // ----------------------------------------------------
     @PutMapping("/{id}")
     public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody User userData) {
         try {
             logger.info("Update user request for ID {}: {}", id, userData);
-
             User updated = userService.updateUserById(id, userData);
-
             return ResponseEntity.ok(updated);
         } catch (Exception e) {
-            logger.error("Error updating user", e);
+            logger.error("Error updating user with ID " + id, e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -149,42 +106,40 @@ public class UserController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
         try {
-            String userEmail = null;
-            // First, get the user to get their UID and email
-            Optional<User> userOptional = userService.getUserById(id);
-            if (userOptional.isPresent()) {
-                User user = userOptional.get();
-                userEmail = user.getEmail();
-                
-                // Delete user from Firebase first
-                try {
-                    firebaseSyncService.deleteFirebaseUser(user.getUid());
-                    logger.info("Firebase user deleted successfully: {}", user.getUid());
-                } catch (Exception e) {
-                    logger.warn("Failed to delete user from Firebase: {}", e.getMessage(), e);
-                    // Continue with database deletion even if Firebase deletion fails
-                }
-            } else {
-                // If user not found in database, still try to delete from Firebase if UID was provided in some way
-                logger.warn("User not found in database with ID: {}", id);
-            }
-            
-            // Delete user from database
+            logger.info("Delete user request for ID: {}", id);
             userService.deleteUserById(id);
-            
-            // Also delete any pending invitations for this user's email
-            if (userEmail != null) {
-                try {
-                    invitationService.deletePendingInvitationsByEmail(userEmail);
-                    logger.info("Pending invitations deleted for email: {}", userEmail);
-                } catch (Exception e) {
-                    logger.warn("Failed to delete pending invitations for email: {}", userEmail, e);
-                }
-            }
-            
             return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
         } catch (Exception e) {
-            logger.error("Error deleting user", e);
+            logger.error("Error deleting user with ID " + id, e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ----------------------------------------------------
+    // GET ALL DEPARTMENTS
+    // ----------------------------------------------------
+    @GetMapping("/departments")
+    public ResponseEntity<?> getAllDepartments() {
+        try {
+            List<Department> departments = userService.getAllDepartments();
+            return ResponseEntity.ok(departments);
+        } catch (Exception e) {
+            logger.error("Error fetching departments", e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // ----------------------------------------------------
+    // GET DEPARTMENT BY ID
+    // ----------------------------------------------------
+    @GetMapping("/departments/{id}")
+    public ResponseEntity<?> getDepartmentById(@PathVariable Long id) {
+        try {
+            // This would need to be implemented in UserService or a DepartmentService
+            // For now, returning not found
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("Error fetching department with ID: " + id, e);
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }

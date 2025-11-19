@@ -1,40 +1,11 @@
-import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { userService } from "../../services/userService";
 
 interface UserRoleBadgeProps {
   className?: string;
 }
 
 export default function UserRoleBadge({ className = "" }: UserRoleBadgeProps) {
-  const { currentUser } = useAuth();
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (currentUser) {
-      fetchUserRole();
-    }
-  }, [currentUser]);
-
-  const fetchUserRole = async () => {
-    try {
-      setLoading(true);
-      if (currentUser?.uid) {
-        const userData = await userService.getUserData(currentUser.uid);
-        if (userData) {
-          setUserRole(userData.role);
-        } else {
-          setUserRole("REQUESTER"); // Default role if not found
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching user role:", error);
-      setUserRole("REQUESTER"); // Default role on error
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { userRole, loading } = useAuth();
 
   if (loading) {
     return (

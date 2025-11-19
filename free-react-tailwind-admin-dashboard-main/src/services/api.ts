@@ -1,46 +1,52 @@
-// src/services/api.ts
+// services/api.ts
 import { auth } from "../firebase";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
-
-// Helper function to get auth token
-async function getAuthToken() {
-  const user = auth.currentUser;
-  if (user) {
-    return await user.getIdToken();
-  }
-  return null;
-}
-
-// Generic API call function
+// Generic API call function with automatic Authorization header
 export async function apiCall(endpoint: string, options: RequestInit = {}) {
-  const token = await getAuthToken();
-  
-  const config: RequestInit = {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
-    ...options,
+  // Get the current user's ID token
+  const user = auth.currentUser;
+  let idToken = null;
+  if (user) {
+    try {
+      idToken = await user.getIdToken();
+    } catch (error) {
+      console.error("Error getting ID token:", error);
+    }
+  }
+
+  // Prepare headers
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  
+  // Add Authorization header if we have a token
+  if (idToken) {
+    headers["Authorization"] = `Bearer ${idToken}`;
+  }
+
+  // Merge with any existing headers
+  Object.assign(headers, options.headers || {});
+
+  // Prepare the full URL
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8080";
+  const url = `${apiUrl}${endpoint}`;
+
+  // Make the request
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  // Handle non-OK responses
   if (!response.ok) {
-    // Try to parse error response, fallback to status text if not possible
-    let errorMessage = `API call failed: ${response.status} ${response.statusText}`;
+    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
     
     try {
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const errorData = await response.json();
-        errorMessage = errorData.error || errorData.message || errorMessage;
-      } else {
-        const errorText = await response.text();
-        if (errorText) {
-          errorMessage = errorText;
-        }
+      // Try to parse the error response as JSON
+      const errorText = await response.text();
+      const errorData = JSON.parse(errorText);
+      if (errorData.error) {
+        errorMessage = errorData.error;
       }
     } catch (parseError) {
       // If parsing fails, use the status text
@@ -111,6 +117,35 @@ export const departmentApi = {
   getDepartmentById: (id: string) => apiCall(`/api/users/departments/${id}`),
 };
 
+// Organization API functions
+export const organizationApi = {
+  // Get all organizations
+  getAllOrganizations: () => apiCall("/api/organizations"),
+  
+  // Get organization by ID
+  getOrganizationById: (id: string) => apiCall(`/api/organizations/${id}`),
+  
+  // Create organization
+  createOrganization: (orgData: { name: string; parentId?: number }) => apiCall("/api/organizations", {
+    method: "POST",
+    body: JSON.stringify(orgData),
+  }),
+  
+  // Update organization
+  updateOrganization: (id: string, orgData: { name: string; parentId?: number }) => apiCall(`/api/organizations/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(orgData),
+  }),
+  
+  // Delete organization
+  deleteOrganization: (id: string) => apiCall(`/api/organizations/${id}`, {
+    method: "DELETE",
+  }),
+  
+  // Get child organizations
+  getChildOrganizations: (id: string) => apiCall(`/api/organizations/${id}/children`),
+};
+
 // Invitation API functions
 export const invitationApi = {
   // Create invitation
@@ -118,7 +153,7 @@ export const invitationApi = {
     email: string; 
     role: string; 
     departmentId: number | null; 
-    organization?: string 
+    organizationId?: number 
   }) => apiCall("/api/invitations/create", {
     method: "POST",
     body: JSON.stringify(invitationData),
@@ -142,4 +177,4 @@ export const invitationApi = {
   }),
 };
 
-export default { userApi, departmentApi, invitationApi };
+export default { userApi, departmentApi, organizationApi, invitationApi };

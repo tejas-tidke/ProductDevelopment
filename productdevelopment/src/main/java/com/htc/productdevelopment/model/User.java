@@ -6,8 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.util.Date;
 
-import com.htc.productdevelopment.model.Department;
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -54,8 +52,11 @@ public class User {
     @Column(nullable = false)
     private Boolean active = true;
     
-    @Column(name = "organization")
-    private String organization;
+    // ---------- 🔥 Organization Relation ----------
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "organization_id")
+    private Organization organization;
+    // --------------------------------------------
 
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "created_at")

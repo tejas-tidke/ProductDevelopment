@@ -43,7 +43,8 @@ public class InvitationController {
                     ? Long.parseLong(body.get("departmentId").toString()) : null;
 
             // Only Super Admin provides organization
-            String organization = (String) body.get("organization");
+            Long organizationId = body.get("organizationId") != null
+                    ? Long.parseLong(body.get("organizationId").toString()) : null;
             
             // For now, we'll use a placeholder for invitedBy
             // In a real implementation, you would get this from the authenticated user
@@ -53,7 +54,7 @@ public class InvitationController {
                     email,
                     role,
                     departmentId,
-                    organization,
+                    organizationId,
                     invitedBy
             );
 
@@ -87,7 +88,7 @@ public class InvitationController {
                     "email", inv.getEmail(),
                     "role", inv.getRole(),
                     "departmentId", inv.getDepartmentId(),
-                    "organization", inv.getOrganization()
+                    "organizationId", inv.getOrganizationId()
             ));
 
         } catch (Exception e) {
@@ -144,7 +145,7 @@ public class InvitationController {
                     "email", inv.getEmail(),
                     "role", inv.getRole(),
                     "departmentId", inv.getDepartmentId(),
-                    "organization", inv.getOrganization()
+                    "organizationId", inv.getOrganizationId()
             ));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of(

@@ -2,8 +2,10 @@ package com.htc.productdevelopment.service;
 
 import com.htc.productdevelopment.model.Invitation;
 import com.htc.productdevelopment.model.User;
+import com.htc.productdevelopment.model.Organization;
 import com.htc.productdevelopment.repository.InvitationRepository;
 import com.htc.productdevelopment.service.UserService;
+import com.htc.productdevelopment.repository.OrganizationRepository;
 
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +23,8 @@ public class InvitationService {
     private final InvitationRepository invitationRepository;
     private final UserService userService;
     private final JavaMailSender mailSender;
+    private final OrganizationRepository organizationRepository;
+    private final OrganizationService organizationService;
 
     private final String frontendUrl;
 
@@ -28,24 +32,28 @@ public class InvitationService {
             InvitationRepository invitationRepository,
             UserService userService,
             JavaMailSender mailSender,
+            OrganizationRepository organizationRepository,
+            OrganizationService organizationService,
             @Value("${app.frontend.url}") String frontendUrl
     ) {
         this.invitationRepository = invitationRepository;
         this.userService = userService;
         this.mailSender = mailSender;
+        this.organizationRepository = organizationRepository;
+        this.organizationService = organizationService;
         this.frontendUrl = frontendUrl;
     }
 
     // -------------------------------------------------------------
     // 1️⃣ Create Invitation
     // -------------------------------------------------------------
-    public Invitation createInvitation(String email, String role, Long deptId, String organization, String invitedBy) {
+    public Invitation createInvitation(String email, String role, Long deptId, Long orgId, String invitedBy) {
 
         Invitation inv = new Invitation();
         inv.setEmail(email.toLowerCase().trim());
         inv.setRole(role);
         inv.setDepartmentId(deptId);
-        inv.setOrganization(organization);
+        inv.setOrganizationId(orgId);
         inv.setInvitedBy(invitedBy); // Set the invited by field
         inv.setToken(UUID.randomUUID().toString());
         inv.setCreatedAt(LocalDateTime.now());
@@ -164,8 +172,12 @@ public class InvitationService {
         }
 
         // 4. Add organization if present
-        if (inv.getOrganization() != null && !inv.getOrganization().isEmpty()) {
-            created.setOrganization(inv.getOrganization());
+        if (inv.getOrganizationId() != null) {
+            created.setOrganization(userService.getOrganizationFromId(inv.getOrganizationId()));
+        } else if (inv.getRole() != null && inv.getRole().equals("SUPER_ADMIN")) {
+            // If role is SUPER_ADMIN and no organization is provided, assign to "Cost Room"
+            Organization costRoomOrg = organizationService.getOrCreateCostRoomOrganization();
+            created.setOrganization(costRoomOrg);
         }
 
         // Save updates

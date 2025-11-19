@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
-import { invitationApi, departmentApi } from "../services/api";
+import { invitationApi, departmentApi, organizationApi } from "../services/api";
 import { useNavigate } from "react-router";
-import { useAuth } from "../context/AuthContext";
+import { usePermissions } from "../hooks/usePermissions";
 
 // Define Department type
 interface Department {
@@ -11,52 +11,70 @@ interface Department {
   name: string;
 }
 
+// Define Organization type
+interface Organization {
+  id: number;
+  name: string;
+  parentId: number | null;
+}
+
 // Define invitation data type
 interface InvitationData {
   email: string;
   role: string;
   departmentId: number | null;
-  organization?: string;
+  organizationId?: number;
 }
 
 export default function SendInvitation() {
   const navigate = useNavigate();
-  const { userRole, isSuperAdmin, isAdmin } = useAuth();
-  
+  const { userRole, hasRole, canSendInvitations } = usePermissions();
   const [formData, setFormData] = useState({
     email: "",
     role: "REQUESTER",
     departmentId: "", // Add departmentId to form data
-    organization: "" // Only for SUPER_ADMIN
+    organizationId: "" // Only for SUPER_ADMIN
   });
   
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: string, text: string} | null>(null);
 
+  // Create stable versions of the permission checks
+  const stableCanSendInvitations = useCallback(canSendInvitations, []);
+  const stableHasRole = useCallback(hasRole, []);
+  const canSendInvite = useCallback(() => stableCanSendInvitations(), [stableCanSendInvitations]);
+  const isSuperAdminMemo = useCallback(() => stableHasRole('SUPER_ADMIN'), [stableHasRole]);
+
   // Check if user has permission to access this page
   useEffect(() => {
-    if (!isAdmin && !isSuperAdmin) {
+    if (!canSendInvite()) {
       navigate("/");
     }
-  }, [isAdmin, isSuperAdmin, navigate]);
+  }, [canSendInvite, navigate]);
 
-  // Fetch departments when component mounts
+  // Fetch departments and organizations when component mounts
   useEffect(() => {
-    const fetchDepartments = async () => {
+    const fetchData = async () => {
       try {
         const deptData = await departmentApi.getAllDepartments();
         setDepartments(deptData);
+        
+        if (isSuperAdminMemo()) {
+          const orgData = await organizationApi.getAllOrganizations();
+          setOrganizations(orgData);
+        }
       } catch (error) {
-        console.error("Error fetching departments:", error);
-        setMessage({type: "error", text: "Failed to load departments: " + (error as Error).message});
+        console.error("Error fetching data:", error);
+        setMessage({type: "error", text: "Failed to load data: " + (error as Error).message});
       }
     };
 
-    if (isAdmin || isSuperAdmin) {
-      fetchDepartments();
+    if (canSendInvite()) {
+      fetchData();
     }
-  }, [isAdmin, isSuperAdmin]);
+  }, [canSendInvite, isSuperAdminMemo]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -80,8 +98,8 @@ export default function SendInvitation() {
       };
       
       // Only SUPER_ADMIN can set organization
-      if (isSuperAdmin && formData.organization) {
-        invitationData.organization = formData.organization;
+      if (isSuperAdminMemo() && formData.organizationId) {
+        invitationData.organizationId = parseInt(formData.organizationId);
       }
       
       // Create pending user record instead of sending token
@@ -98,7 +116,7 @@ export default function SendInvitation() {
         ...prev,
         email: "",
         role: "REQUESTER",
-        organization: isSuperAdmin ? prev.organization : ""
+        organizationId: isSuperAdminMemo() ? prev.organizationId : ""
       }));
     } catch (error) {
       console.error("Error sending invitation:", error);
@@ -108,8 +126,8 @@ export default function SendInvitation() {
     }
   };
 
-  // Only show the page to admin or super admin users
-  if (!isAdmin && !isSuperAdmin) {
+  // Only show the page to users with SEND_INVITATIONS permission
+  if (!canSendInvite()) {
     return null;
   }
 
@@ -125,6 +143,11 @@ export default function SendInvitation() {
           <h3 className="mb-6 text-center font-semibold text-gray-800 text-theme-xl dark:text-white/90 sm:text-2xl">
             Invite New User
           </h3>
+          {userRole === "SUPER_ADMIN" && (
+            <div className="mb-4 rounded-md bg-yellow-100 p-2 text-center text-sm text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+              SUPER_ADMIN: You can assign users to specific organizations
+            </div>
+          )}
           
           {message && (
             <div className={`mb-6 rounded-lg px-4 py-3 text-center ${
@@ -142,6 +165,11 @@ export default function SendInvitation() {
               Invite new users to sign up using their Google or Microsoft account. 
               They will receive an email notification and must use the same email address to complete registration.
             </p>
+            {userRole === "SUPER_ADMIN" && (
+              <p className="mt-2 text-sm text-blue-700 dark:text-blue-200">
+                <strong>Note:</strong> As a SUPER_ADMIN, you can assign users to specific organizations.
+              </p>
+            )}
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -163,7 +191,7 @@ export default function SendInvitation() {
             
             <div>
               <label htmlFor="role" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Role *
+                Role * {userRole === "SUPER_ADMIN" && <span className="text-xs text-yellow-600 dark:text-yellow-400">(SUPER_ADMIN)</span>}
               </label>
               <select
                 id="role"
@@ -174,25 +202,33 @@ export default function SendInvitation() {
               >
                 <option value="REQUESTER">Requester</option>
                 <option value="APPROVER">Approver</option>
-                {userRole === "SUPER_ADMIN" && (
+                {userRole === "SUPER_ADMIN" ? (
                   <>
                     <option value="ADMIN">Admin</option>
                     <option value="SUPER_ADMIN">Super Admin</option>
                   </>
+                ) : (
+                  <option value="ADMIN" disabled>
+                    Admin (SUPER_ADMIN only)
+                  </option>
                 )}
               </select>
+              {userRole !== "SUPER_ADMIN" && (
+                <p className="mt-1 text-xs text-gray-500">Higher roles available to SUPER_ADMIN users only.</p>
+              )}
             </div>
             
             {/* Department Selection */}
             <div>
               <label htmlFor="departmentId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Department
+                Department *
               </label>
               <select
                 id="departmentId"
                 name="departmentId"
                 value={formData.departmentId}
                 onChange={handleInputChange}
+                required
                 className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
               >
                 <option value="">Select Department</option>
@@ -202,34 +238,40 @@ export default function SendInvitation() {
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-gray-500">Select the department the user will belong to.</p>
             </div>
             
-            {/* Organization (only for SUPER_ADMIN) */}
-            {isSuperAdmin && (
+            {/* Organization Selection - Only visible to SUPER_ADMIN */}
+            {isSuperAdminMemo() && (
               <div>
-                <label htmlFor="organization" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Organization *
+                <label htmlFor="organizationId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Organization <span className="text-xs text-gray-500">(SUPER_ADMIN only)</span>
                 </label>
-                <input
-                  type="text"
-                  id="organization"
-                  name="organization"
-                  value={formData.organization}
+                <select
+                  id="organizationId"
+                  name="organizationId"
+                  value={formData.organizationId}
                   onChange={handleInputChange}
-                  required
                   className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
-                  placeholder="Enter organization name"
-                />
+                >
+                  <option value="">Select Organization (Optional)</option>
+                  {organizations.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">Assign user to a specific organization. If empty, user will be assigned to 'Cost Room'.</p>
               </div>
             )}
             
-            <div className="flex justify-center">
+            <div>
               <button
                 type="submit"
                 disabled={loading}
-                className="rounded-lg bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                className="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
               >
-                {loading ? "Sending..." : "Invite User"}
+                {loading ? "Sending Invitation..." : "Send Invitation"}
               </button>
             </div>
           </form>

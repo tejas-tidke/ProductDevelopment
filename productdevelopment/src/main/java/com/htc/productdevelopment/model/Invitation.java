@@ -25,8 +25,8 @@ public class Invitation {
     @Column(name = "department_id")
     private Long departmentId;
 
-    @Column(name = "organization")
-    private String organization;
+    @Column(name = "organization_id")
+    private Long organizationId;
     
     @Column(name = "invited_by")
     private String invitedBy;

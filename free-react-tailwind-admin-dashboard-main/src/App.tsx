@@ -44,6 +44,9 @@ import VendorPerformance from "./pages/VendorManagement/VendorPerformance";
 import RequestSplitView from "./pages/RequestSplitView";
 import SendInvitation from "./pages/SendInvitation";
 import CompleteInvitation from "./pages/CompleteInvitation";
+import ProtectedPermissionRoute from "./components/auth/ProtectedPermissionRoute";
+import { Permission } from "./config/permissions";
+import Organizations from "./pages/Organizations";
 
 export default function App() {
   return (
@@ -261,12 +264,39 @@ export default function App() {
             <Route 
               path="/users" 
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_USERS]}>
                   <UsersList />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               } 
             />
-            
+
+            <Route 
+              path="/create-user" 
+              element={
+                <ProtectedPermissionRoute requiredPermissions={[Permission.CREATE_USER]}>
+                  <Blank />
+                </ProtectedPermissionRoute>
+              } 
+            />
+
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_DASHBOARD]}>
+                  <Home />
+                </ProtectedPermissionRoute>
+              } 
+            />
+
+            <Route 
+              path="/reports" 
+              element={
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_REPORTS]}>
+                  <Reports />
+                </ProtectedPermissionRoute>
+              } 
+            />
+
             {/* New routes for the additional pages */}
             <Route 
               path="/evaluate-new" 
@@ -303,69 +333,41 @@ export default function App() {
                 </ProtectedRoute>
               } 
             />
-            
-            <Route 
-              path="/reports" 
-              element={
-                <ProtectedRoute>
-                  <Reports />
-                </ProtectedRoute>
-              } 
-            />
 
-            {/* Demo Request route */}
-            {/* <Route 
-              path="/demo-request" 
-              element={
-                <ProtectedRoute>
-                  <DEMO_REQUEST />
-                </ProtectedRoute>
-              } 
-            />
-
-            {/* Admin Approver route */}
-            {/* <Route 
-              path="/admin-approver" 
-              element={
-                <ProtectedRoute>
-                  <ADMIN_Approver />
-                </ProtectedRoute>
-              } 
-            /> */} 
-            
+            {/* Request Management Routes - Only for users with VIEW_ISSUES permission */}
             <Route 
               path="/request-management/all-open" 
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_ISSUES]}>
                   <AllOpen />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               } 
             />
-            
+
             <Route 
               path="/request-management/assigned-to-me" 
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_ISSUES]}>
                   <AssignedToMe />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               } 
             />
-            
+
             <Route 
               path="/request-management/unassigned" 
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_ISSUES]}>
                   <Unassigned />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               } 
             />
-            
+
             <Route
               path="/request-management/resolved"
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_ISSUES]}>
                   <Resolved />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               }
             />
 
@@ -373,50 +375,60 @@ export default function App() {
             <Route
               path="/request-management/:issueKey"
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_ISSUES]}>
                   <RequestSplitView />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               }
             />
-            
+
             {/* Vendor Management Routes */}
             <Route 
               path="/vendor-management/list" 
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_VENDORS]}>
                   <VendorList />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               } 
             />
-            
+
             <Route 
               path="/vendor-management/contracts" 
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_CONTRACTS]}>
                   <VendorContracts />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               } 
             />
-            
+
             <Route 
               path="/vendor-management/performance" 
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_VENDORS]}>
                   <VendorPerformance />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               } 
             />
-            
-            {/* Invitation Routes */}
+
+            {/* Invitation Routes - Only for users with SEND_INVITATIONS permission */}
             <Route 
               path="/send-invitation" 
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.SEND_INVITATIONS]}>
                   <SendInvitation />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               } 
             />
             
+            {/* Organizations Route - Only for users with MANAGE_ORGANIZATIONS permission */}
+            <Route 
+              path="/organizations" 
+              element={
+                <ProtectedPermissionRoute requiredPermissions={[Permission.MANAGE_ORGANIZATIONS]}>
+                  <Organizations />
+                </ProtectedPermissionRoute>
+              } 
+            />
+
             <Route 
               path="/complete-invitation" 
               element={

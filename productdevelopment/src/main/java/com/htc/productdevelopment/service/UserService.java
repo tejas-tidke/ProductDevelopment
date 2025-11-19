@@ -2,8 +2,10 @@ package com.htc.productdevelopment.service;
 
 import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.model.Department;
+import com.htc.productdevelopment.model.Organization;
 import com.htc.productdevelopment.repository.UserRepository;
 import com.htc.productdevelopment.repository.DepartmentRepository;
+import com.htc.productdevelopment.repository.OrganizationRepository;
 
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -23,28 +25,40 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final DepartmentRepository departmentRepository;
+    private final OrganizationService organizationService;
 
     public UserService(UserRepository userRepository,
-                       DepartmentRepository departmentRepository) {
+                       DepartmentRepository departmentRepository,
+                       OrganizationService organizationService) {
         this.userRepository = userRepository;
         this.departmentRepository = departmentRepository;
+        this.organizationService = organizationService;
     }
 
     // -------------------------------------------------------
     // Utility: Fetch department safely
     // -------------------------------------------------------
-//    private Department getDepartmentFromId(Integer deptId) {
-//        if (deptId == null) return null;
-//        return departmentRepository.findById(deptId)
-//                .orElseThrow(() ->
-//                        new RuntimeException("Department not found with id: " + deptId));
-//    }
-    
     public Department getDepartmentFromId(Long id) {
         return departmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Department ID invalid: " + id));
     }
-
+    
+    // -------------------------------------------------------
+    // Get All Departments
+    // -------------------------------------------------------
+    public List<Department> getAllDepartments() {
+        return departmentRepository.findAll();
+    }
+    
+    // -------------------------------------------------------
+    // Utility: Fetch organization safely
+    // -------------------------------------------------------
+    public Organization getOrganizationFromId(Long id) {
+        // Use organizationService to get the organization repository
+        // We need to add a method to OrganizationService to get organization by ID
+        return organizationService.getOrganizationById(id)
+                .orElseThrow(() -> new RuntimeException("Organization ID invalid: " + id));
+    }
 
     // -------------------------------------------------------
     // Get All Users
@@ -77,30 +91,6 @@ public class UserService {
     }
 
     // -------------------------------------------------------
-    // Update by ID (Used in Admin User Management)
-    // -------------------------------------------------------
-    public User updateUserById(Long id, User userData) {
-        logger.info("Updating user data for ID: {}", id);
-
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with ID: " + id));
-
-        if (userData.getEmail() != null) user.setEmail(userData.getEmail());
-        if (userData.getName() != null) user.setName(userData.getName());
-        if (userData.getRole() != null) user.setRole(userData.getRole());
-        if (userData.getActive() != null) user.setActive(userData.getActive());
-        if (userData.getAvatar() != null) user.setAvatar(userData.getAvatar());
-
-        // 🔥 Set or update department
-        if (userData.getDepartment() != null && userData.getDepartment().getId() != null) {
-            Department dept = getDepartmentFromId(userData.getDepartment().getId());
-            user.setDepartment(dept);
-        }
-
-        return userRepository.save(user);
-    }
-
-    // -------------------------------------------------------
     public User updateUserAvatar(String uid, String avatar) {
         User user = userRepository.findByUid(uid)
                 .orElseThrow(() -> new RuntimeException("User not found with UID: " + uid));
@@ -114,6 +104,13 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("User not found with UID: " + uid));
 
         user.setRole(role);
+        
+        // If role is changed to SUPER_ADMIN, assign to "Cost Room" organization
+        if (role == User.Role.SUPER_ADMIN) {
+            Organization costRoomOrg = organizationService.getOrCreateCostRoomOrganization();
+            user.setOrganization(costRoomOrg);
+        }
+        
         return userRepository.save(user);
     }
 
@@ -247,6 +244,12 @@ public class UserService {
             user.setActive(true);
             user.setUpdatedAt(new java.util.Date());
             
+            // If role is SUPER_ADMIN, assign to "Cost Room" organization
+            if (role == User.Role.SUPER_ADMIN) {
+                Organization costRoomOrg = organizationService.getOrCreateCostRoomOrganization();
+                user.setOrganization(costRoomOrg);
+            }
+            
             return userRepository.save(user);
         }
 
@@ -259,6 +262,20 @@ public class UserService {
         u.setCreatedAt(new java.util.Date());
         u.setUpdatedAt(new java.util.Date());
 
+        // If this is the first user, set them as SUPER_ADMIN and assign to "Cost Room" organization
+        long userCount = userRepository.count();
+        if (userCount == 0) {
+            u.setRole(User.Role.SUPER_ADMIN);
+            
+            // Find or create "Cost Room" organization
+            Organization costRoomOrg = organizationService.getOrCreateCostRoomOrganization();
+            u.setOrganization(costRoomOrg);
+        } else if (role == User.Role.SUPER_ADMIN) {
+            // For any other SUPER_ADMIN user, assign to "Cost Room" organization
+            Organization costRoomOrg = organizationService.getOrCreateCostRoomOrganization();
+            u.setOrganization(costRoomOrg);
+        }
+
         return userRepository.save(u);
     }
 
@@ -267,4 +284,90 @@ public class UserService {
     // 3️⃣ Fetch Department by ID (public)
     // -------------------------------------------------------------
     
+    // -------------------------------------------------------------
+    // 4️⃣ Create user (for FirebaseSyncService)
+    // -------------------------------------------------------------
+    public User createUser(String uid, String email, String name) {
+        logger.info("Creating user with UID: {}, email: {}, name: {}", uid, email, name);
+        
+        // Check if user already exists
+        Optional<User> existingUser = userRepository.findByUid(uid);
+        if (existingUser.isPresent()) {
+            logger.debug("User already exists: {}", uid);
+            return existingUser.get();
+        }
+        
+        User user = new User();
+        user.setUid(uid);
+        user.setEmail(email != null ? email : "");
+        user.setName(name != null ? name : "");
+        
+        // Set default role
+        user.setRole(User.Role.REQUESTER);
+        
+        // If this is the first user, set them as SUPER_ADMIN and assign to "Cost Room" organization
+        long userCount = userRepository.count();
+        if (userCount == 0) {
+            user.setRole(User.Role.SUPER_ADMIN);
+            
+            // Find or create "Cost Room" organization
+            Organization costRoomOrg = organizationService.getOrCreateCostRoomOrganization();
+            user.setOrganization(costRoomOrg);
+        }
+        
+        user.setActive(true);
+        user.setCreatedAt(new java.util.Date());
+        user.setUpdatedAt(new java.util.Date());
+        
+        User savedUser = userRepository.save(user);
+        logger.info("User created successfully: {}", savedUser.getUid());
+        return savedUser;
+    }
+
+    // -------------------------------------------------------------
+    // 5️⃣ Create user with role (for Admin User Management)
+    // -------------------------------------------------------------
+    public User createUserWithRole(String email, String password, String name, User.Role role) throws Exception {
+        // Create user in Firebase
+        User firebaseUser = createUserInFirebase(email, password, name);
+        
+        // Save user to database with specified role
+        User dbUser = saveUserToDB(firebaseUser.getUid(), email, name, role);
+        
+        return dbUser;
+    }
+    
+    // -------------------------------------------------------
+    // Update by ID (Used in Admin User Management)
+    // -------------------------------------------------------
+    public User updateUserById(Long id, User userData) {
+        logger.info("Updating user data for ID: {}", id);
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with ID: " + id));
+
+        if (userData.getEmail() != null) user.setEmail(userData.getEmail());
+        if (userData.getName() != null) user.setName(userData.getName());
+        if (userData.getRole() != null) user.setRole(userData.getRole());
+        if (userData.getActive() != null) user.setActive(userData.getActive());
+        if (userData.getAvatar() != null) user.setAvatar(userData.getAvatar());
+
+        // 🔥 Set or update department
+        if (userData.getDepartment() != null && userData.getDepartment().getId() != null) {
+            Department dept = getDepartmentFromId(userData.getDepartment().getId());
+            user.setDepartment(dept);
+        }
+        
+        // 🔥 Set or update organization
+        if (userData.getOrganization() != null && userData.getOrganization().getId() != null) {
+            Organization org = getOrganizationFromId(userData.getOrganization().getId());
+            user.setOrganization(org);
+        } else if (userData.getRole() != null && userData.getRole() == User.Role.SUPER_ADMIN) {
+            // If role is changed to SUPER_ADMIN and no organization is provided, assign to "Cost Room"
+            Organization costRoomOrg = organizationService.getOrCreateCostRoomOrganization();
+            user.setOrganization(costRoomOrg);
+        }
+
+        return userRepository.save(user);
+    }
 }

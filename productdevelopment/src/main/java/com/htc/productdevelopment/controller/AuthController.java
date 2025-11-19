@@ -6,6 +6,7 @@ import com.htc.productdevelopment.repository.UserRepository;
 import com.htc.productdevelopment.service.UserService;
 import com.htc.productdevelopment.service.FirebaseSyncService;
 import com.htc.productdevelopment.service.InvitationService;
+import com.htc.productdevelopment.service.OrganizationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,7 @@ public class AuthController {
     private final FirebaseSyncService firebaseSyncService;
     private final UserRepository userRepository;
     private final InvitationService invitationService;
+    private final OrganizationService organizationService;
     
     /**
      * Constructor to initialize dependencies
@@ -42,12 +44,14 @@ public class AuthController {
      * @param firebaseSyncService Service for Firebase synchronization
      * @param userRepository Repository for database operations
      * @param invitationService Service for invitation operations
+     * @param organizationService Service for organization operations
      */
-    public AuthController(UserService userService, FirebaseSyncService firebaseSyncService, UserRepository userRepository, InvitationService invitationService) {
+    public AuthController(UserService userService, FirebaseSyncService firebaseSyncService, UserRepository userRepository, InvitationService invitationService, OrganizationService organizationService) {
         this.userService = userService;
         this.firebaseSyncService = firebaseSyncService;
         this.userRepository = userRepository;
         this.invitationService = invitationService;
+        this.organizationService = organizationService;
     }
     
     /**
@@ -91,58 +95,11 @@ public class AuthController {
             logger.info("Firebase user created and synced successfully: {}", user.getUid());
             return ResponseEntity.ok(user);
         } catch (Exception e) {
-            logger.error("Error creating Firebase user: {}", e.getMessage(), e);
-            Map<String, String> errorResponse = new HashMap<>();
-            
-            // Provide more specific error messages
-            String errorMessage = e.getMessage();
-            if (errorMessage.contains("FirebaseApp")) {
-                errorResponse.put("error", "Firebase not properly configured. Please check firebase-service-account.json file.");
-            } else if (errorMessage.contains("PERMISSION_DENIED")) {
-                errorResponse.put("error", "Firebase permission denied. Check service account permissions.");
-            } else {
-                errorResponse.put("error", "Error creating user: " + errorMessage);
-            }
-            
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            logger.error("Error creating Firebase user", e);
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
-    
-    /**
-     * Register a new user in the local database
-     * @param userData User data including UID, email, and name
-     * @return The registered user
-     */
-    @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody Map<String, String> userData) {
-        logger.info("Received request to register user");
-        
-        try {
-            // Extract user data from request
-            String uid = userData.get("uid");
-            String email = userData.get("email");
-            String name = userData.get("name");
-            
-            // Validate required field
-            if (uid == null || uid.isEmpty()) {
-                logger.warn("Registration failed: UID is required");
-                Map<String, String> errorResponse = new HashMap<>();
-                errorResponse.put("error", "UID is required");
-                return ResponseEntity.badRequest().body(errorResponse);
-            }
-            
-            // Create user in database
-            User user = userService.saveUserToDB(uid, email, name, User.Role.REQUESTER);
-            logger.info("User registered successfully: {}", uid);
-            return ResponseEntity.ok(user);
-        } catch (Exception e) {
-            logger.error("Error registering user: {}", e.getMessage(), e);
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-    
+
     /**
      * Sync Firebase user data to local database
      * @param requestData Request data containing UID
@@ -153,8 +110,10 @@ public class AuthController {
         logger.info("Received request to sync Firebase user");
         
         try {
-            // Extract UID from request
+            // Extract UID from request data
             String uid = requestData.get("uid");
+            String email = requestData.get("email");
+            String name = requestData.get("name");
             
             // Validate required field
             if (uid == null || uid.isEmpty()) {
@@ -164,47 +123,47 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(errorResponse);
             }
             
-            // Sync user from Firebase to database
-            User user = firebaseSyncService.syncFirebaseUserToDB(uid);
+            // Sync user data
+            User user = firebaseSyncService.syncUser(uid, email, name);
             logger.info("Firebase user synced successfully: {}", uid);
             return ResponseEntity.ok(user);
         } catch (Exception e) {
-            logger.error("Error syncing Firebase user: {}", e.getMessage(), e);
+            logger.error("Error syncing Firebase user", e);
             Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Error syncing user: " + e.getMessage());
+            errorResponse.put("error", e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
     /**
-     * Sync Firebase user by token
-     * @param requestData Request data containing ID token
+     * Automatically sync user with default role if not already in database
+     * @param requestData Request data containing UID
      * @return The synced user
      */
-    @PostMapping("/sync-firebase-user-token")
-    public ResponseEntity<?> syncFirebaseUserByToken(@RequestBody Map<String, String> requestData) {
-        logger.info("Received request to sync Firebase user by token");
+    @PostMapping("/auto-sync")
+    public ResponseEntity<?> autoSyncUser(@RequestBody Map<String, String> requestData) {
+        logger.info("Received request to auto-sync user");
         
         try {
-            // Extract ID token from request
-            String idToken = requestData.get("idToken");
+            // Extract UID from request data
+            String uid = requestData.get("uid");
             
             // Validate required field
-            if (idToken == null || idToken.isEmpty()) {
-                logger.warn("Sync failed: ID token is required");
+            if (uid == null || uid.isEmpty()) {
+                logger.warn("Auto-sync failed: UID is required");
                 Map<String, String> errorResponse = new HashMap<>();
-                errorResponse.put("error", "ID token is required");
+                errorResponse.put("error", "UID is required");
                 return ResponseEntity.badRequest().body(errorResponse);
             }
             
-            // Sync user from Firebase to database using token
-            User user = firebaseSyncService.syncFirebaseUserByToken(idToken);
-            logger.info("Firebase user synced by token successfully: {}", user.getUid());
+            // Auto-sync user
+            User user = firebaseSyncService.autoSyncUser(uid);
+            logger.info("User auto-synced successfully: {}", uid);
             return ResponseEntity.ok(user);
         } catch (Exception e) {
-            logger.error("Error syncing Firebase user by token: {}", e.getMessage(), e);
+            logger.error("Error auto-syncing user", e);
             Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Error syncing user: " + e.getMessage());
+            errorResponse.put("error", e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
@@ -216,127 +175,103 @@ public class AuthController {
      */
     @GetMapping("/role/{uid}")
     public ResponseEntity<?> getUserRole(@PathVariable String uid) {
-        logger.info("Received request for user role: {}", uid);
+        logger.info("Received request to get role for user: {}", uid);
         
-        // Get user from database
-        Optional<User> user = userService.getUserByUid(uid);
-        if (user.isPresent()) {
-            // Return user role and user data
-            Map<String, Object> response = new HashMap<>();
-            response.put("role", user.get().getRole());
-            response.put("user", user.get());
-            logger.info("Returning role for user: {}", uid);
-            return ResponseEntity.ok(response);
-        } else {
-            logger.warn("User not found: {}", uid);
-            return ResponseEntity.notFound().build();
+        try {
+            // Get user by UID
+            Optional<User> userOpt = userService.getUserByUid(uid);
+            
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                Map<String, Object> responseData = new HashMap<>();
+                responseData.put("role", user.getRole().name());
+                responseData.put("user", user);
+                
+                // Include department if present
+                if (user.getDepartment() != null) {
+                    Map<String, Object> deptData = new HashMap<>();
+                    deptData.put("id", user.getDepartment().getId());
+                    deptData.put("name", user.getDepartment().getName());
+                    responseData.put("department", deptData);
+                }
+                
+                // Include organization if present
+                if (user.getOrganization() != null) {
+                    Map<String, Object> orgData = new HashMap<>();
+                    orgData.put("id", user.getOrganization().getId());
+                    orgData.put("name", user.getOrganization().getName());
+                    responseData.put("organization", orgData);
+                }
+                
+                logger.info("Role retrieved successfully for user: {}", uid);
+                return ResponseEntity.ok(responseData);
+            } else {
+                logger.warn("User not found: {}", uid);
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "User not found");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+        } catch (Exception e) {
+            logger.error("Error getting role for user: {}", uid, e);
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
     /**
      * Check if user is admin
      * @param uid User ID
-     * @return Whether user is admin
+     * @return Admin status
      */
     @GetMapping("/isAdmin/{uid}")
     public ResponseEntity<?> isAdmin(@PathVariable String uid) {
         logger.info("Received request to check if user is admin: {}", uid);
         
-        // Check if user is admin
-        boolean isAdmin = userService.isAdmin(uid);
-        Map<String, Boolean> response = new HashMap<>();
-        response.put("isAdmin", isAdmin);
-        logger.info("User {} isAdmin: {}", uid, isAdmin);
-        return ResponseEntity.ok(response);
-    }
-    
-    /**
-     * Check if user is regular user
-     * @param uid User ID
-     * @return Whether user is regular user
-     */
-    @GetMapping("/isUser/{uid}")
-    public ResponseEntity<?> isUser(@PathVariable String uid) {
-        logger.info("Received request to check if user is regular user: {}", uid);
-        
-        // ❌ Wrong
-        // boolean isUser = userService.isUser(uid);
-
-        // ✅ Correct — normal users in your system = REQUESTER
-        boolean isUser = userService.isRequester(uid);
-
-        Map<String, Boolean> response = new HashMap<>();
-        response.put("isUser", isUser);
-        logger.info("User {} isUser: {}", uid, isUser);
-        return ResponseEntity.ok(response);
-    }
-
-    
-    /**
-     * Get users by role
-     * @param role User role
-     * @return List of users with specified role
-     */
-    @GetMapping("/users/role/{role}")
-    public ResponseEntity<?> getUsersByRole(@PathVariable String role) {
-        logger.info("Received request for users with role: {}", role);
-        
         try {
-            // Convert role string to enum
-            User.Role userRole = User.Role.valueOf(role.toUpperCase());
-            
-            // Get users with specified role
-            List<User> users = userService.getUsersByRole(userRole);
-            logger.info("Returning {} users with role: {}", users.size(), role);
-            return ResponseEntity.ok(users);
-        } catch (IllegalArgumentException e) {
-            logger.warn("Invalid role value: {}", role);
+            boolean isAdmin = userService.isAdmin(uid);
+            logger.info("Admin check completed for user: {}, result: {}", uid, isAdmin);
+            return ResponseEntity.ok(Map.of("isAdmin", isAdmin));
+        } catch (Exception e) {
+            logger.error("Error checking admin status for user: {}", uid, e);
             Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Invalid role value");
+            errorResponse.put("error", e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
     
     /**
-     * Get active users
-     * @return List of active users
+     * Check if user is regular user
+     * @param uid User ID
+     * @return User status
      */
-    @GetMapping("/users/active")
-    public ResponseEntity<?> getActiveUsers() {
-        logger.info("Received request for active users");
+    @GetMapping("/isUser/{uid}")
+    public ResponseEntity<?> isUser(@PathVariable String uid) {
+        logger.info("Received request to check if user is regular user: {}", uid);
         
-        // Get active users
-        List<User> users = userService.getUsersByActiveStatus(true);
-        logger.info("Returning {} active users", users.size());
-        return ResponseEntity.ok(users);
-    }
-    
-    /**
-     * Get inactive users
-     * @return List of inactive users
-     */
-    @GetMapping("/users/inactive")
-    public ResponseEntity<?> getInactiveUsers() {
-        logger.info("Received request for inactive users");
-        
-        // Get inactive users
-        List<User> users = userService.getUsersByActiveStatus(false);
-        logger.info("Returning {} inactive users", users.size());
-        return ResponseEntity.ok(users);
+        try {
+            boolean isUser = userService.isRequester(uid);
+            logger.info("User check completed for user: {}, result: {}", uid, isUser);
+            return ResponseEntity.ok(Map.of("isUser", isUser));
+        } catch (Exception e) {
+            logger.error("Error checking user status for user: {}", uid, e);
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
     
     /**
      * Update user role
      * @param uid User ID
-     * @param roleData Role data containing new role
+     * @param roleData Role data
      * @return Updated user
      */
     @PutMapping("/role/{uid}")
     public ResponseEntity<?> updateUserRole(@PathVariable String uid, @RequestBody Map<String, String> roleData) {
-        logger.info("Received request to update user role: {}", uid);
+        logger.info("Received request to update role for user: {}", uid);
         
         try {
-            // Extract role from request
             String roleStr = roleData.get("role");
             
             // Validate required field
@@ -368,26 +303,40 @@ public class AuthController {
     }
     
     /**
+     * Get database status
+     * @return Database status
+     */
+    @GetMapping("/db-status")
+    public ResponseEntity<?> getDatabaseStatus() {
+        logger.info("Received request to get database status");
+        
+        try {
+            long userCount = userRepository.count();
+            Map<String, Object> status = new HashMap<>();
+            status.put("userCount", userCount);
+            status.put("status", "OK");
+            logger.info("Database status retrieved successfully");
+            return ResponseEntity.ok(status);
+        } catch (Exception e) {
+            logger.error("Error getting database status", e);
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+    
+    /**
      * Update user avatar
      * @param uid User ID
-     * @param avatarData Avatar data containing new avatar
+     * @param avatarData Avatar data
      * @return Updated user
      */
     @PutMapping("/avatar/{uid}")
     public ResponseEntity<?> updateUserAvatar(@PathVariable String uid, @RequestBody Map<String, String> avatarData) {
-        logger.info("Received request to update user avatar: {}", uid);
+        logger.info("Received request to update avatar for user: {}", uid);
         
         try {
-            // Extract avatar from request
             String avatar = avatarData.get("avatar");
-            
-            // Validate required field
-            if (avatar == null) {
-                logger.warn("Avatar update failed: Avatar is null");
-                Map<String, String> errorResponse = new HashMap<>();
-                errorResponse.put("error", "Avatar is required");
-                return ResponseEntity.badRequest().body(errorResponse);
-            }
             
             // Update user avatar
             User user = userService.updateUserAvatar(uid, avatar);
@@ -402,39 +351,36 @@ public class AuthController {
     }
     
     /**
-     * Auto-sync endpoint for login - automatically creates user with default role
-     * @param requestData Request data containing UID
-     * @return Auto-synced user
+     * Register a new user (for OAuth flow)
+     * @param userData User data
+     * @return Registered user
      */
-    @PostMapping("/auto-sync")
-    public ResponseEntity<?> autoSyncUser(@RequestBody Map<String, String> requestData) {
-        logger.info("Received request to auto-sync user");
+    @PostMapping("/register")
+    public ResponseEntity<?> registerUser(@RequestBody Map<String, String> userData) {
+        logger.info("Received request to register user");
         
         try {
-            // Extract UID from request
-            String uid = requestData.get("uid");
+            // Extract user data from request
+            String uid = userData.get("uid");
+            String email = userData.get("email");
+            String name = userData.get("name");
             
             // Validate required field
             if (uid == null || uid.isEmpty()) {
-                logger.warn("Auto-sync failed: UID is required");
+                logger.warn("Registration failed: UID is required");
                 Map<String, String> errorResponse = new HashMap<>();
                 errorResponse.put("error", "UID is required");
                 return ResponseEntity.badRequest().body(errorResponse);
             }
             
-            // Auto-sync user
-            User user = firebaseSyncService.autoSyncFirebaseUser(uid);
-            logger.info("User auto-synced successfully: {}", uid);
-            
-            // Return user and role
-            Map<String, Object> response = new HashMap<>();
-            response.put("user", user);
-            response.put("role", user.getRole());
-            return ResponseEntity.ok(response);
+            // Create user in database
+            User user = userService.saveUserToDB(uid, email, name, User.Role.REQUESTER);
+            logger.info("User registered successfully: {}", uid);
+            return ResponseEntity.ok(user);
         } catch (Exception e) {
-            logger.error("Error auto-syncing user: {}", e.getMessage(), e);
+            logger.error("Error registering user: {}", e.getMessage(), e);
             Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Error auto-syncing user: " + e.getMessage());
+            errorResponse.put("error", e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
@@ -493,47 +439,35 @@ public class AuthController {
         logger.info("Received request to delete user: {}", uid);
         
         try {
-            String userEmail = null;
-            // Get user email before deletion
-            try {
-                Optional<User> userOptional = userService.getUserByUid(uid);
-                if (userOptional.isPresent()) {
-                    userEmail = userOptional.get().getEmail();
-                }
-            } catch (Exception e) {
-                logger.warn("Could not fetch user email before deletion: {}", e.getMessage());
-            }
-            
-            // Delete user from Firebase first
-            try {
-                firebaseSyncService.deleteFirebaseUser(uid);
-                logger.info("Firebase user deleted successfully: {}", uid);
-            } catch (Exception e) {
-                logger.warn("Failed to delete user from Firebase: {}", e.getMessage(), e);
-                // Continue with database deletion even if Firebase deletion fails
-            }
-            
-            // Delete user from database
+            // Delete user
             userService.deleteUser(uid);
             logger.info("User deleted successfully: {}", uid);
-            
-            // Also delete any pending invitations for this user's email
-            if (userEmail != null) {
-                try {
-                    invitationService.deletePendingInvitationsByEmail(userEmail);
-                    logger.info("Pending invitations deleted for email: {}", userEmail);
-                } catch (Exception e) {
-                    logger.warn("Failed to delete pending invitations for email: {}", userEmail, e);
-                }
-            }
-            
-            Map<String, String> successResponse = new HashMap<>();
-            successResponse.put("message", "User deleted successfully");
-            return ResponseEntity.ok(successResponse);
+            return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
         } catch (Exception e) {
             logger.error("Error deleting user: {}", e.getMessage(), e);
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("error", "Error deleting user: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+    
+    /**
+     * Sync all Firebase users to local database
+     * @return Sync result
+     */
+    @PostMapping("/sync-all-firebase-users")
+    public ResponseEntity<?> syncAllFirebaseUsers() {
+        logger.info("Received request to sync all Firebase users");
+        
+        try {
+            // Sync all users
+            List<User> users = firebaseSyncService.syncAllUsers();
+            logger.info("All Firebase users synced successfully, count: {}", users.size());
+            return ResponseEntity.ok(Map.of("message", "Synced " + users.size() + " users", "users", users));
+        } catch (Exception e) {
+            logger.error("Error syncing all Firebase users", e);
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Error syncing users: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
