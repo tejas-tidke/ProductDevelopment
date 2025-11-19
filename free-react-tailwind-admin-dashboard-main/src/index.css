@@ -879,3 +879,37 @@ label.required::after {
   color: red;
   font-weight: bold;
 }
+
+/* For Hover in PIE CHART BOX or MOnthlySalesChart*/
+
+/* professional tooltip styling for ApexCharts */
+.apexcharts-tooltip {
+  display: none;               /* hidden until shown via mouseEnter/showTooltip */
+  pointer-events: none;        
+  opacity: 1;
+  transition: opacity 120ms ease, transform 120ms ease;
+  background: #ffffff;
+  color: #0f172a;            
+  border-radius: 10px;
+  padding: 8px 10px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  z-index: 9999;              
+  transform: translateY(0);
+  font-family: "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  font-size: 13px;
+}
+
+/* when Apex or JS sets opacity to 1, it will fade in (JS above sets display:block and opacity:1) */
+.apexcharts-tooltip * {
+  color: inherit;
+}
+
+/* optional: dark mode tweak (if your page toggles .dark on body) */
+.dark .apexcharts-tooltip {
+  background: rgba(15, 23, 42, 0.92);
+  color: #e6edf3;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: 0 6px 24px rgba(2, 6, 23, 0.6);
+}
+

@@ -83,7 +83,7 @@ export default function UserDropdown({ isOpen, onToggle }: UserDropdownProps) {
         isOpen={isOpen}
         onClose={closeDropdown}
         placement="right"
-        offsetX={225}
+        offsetX={240}
         offsetY={8}
         anchorRef={btnRef}
         className="mt-2 flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white  p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"

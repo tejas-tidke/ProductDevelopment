@@ -4,13 +4,12 @@ import PageMeta from "../components/common/PageMeta";
 import { userApi, departmentApi } from "../services/api";
 import { useNavigate } from "react-router";
 
-// Define Department type
 interface Department {
   id: number;
   name: string;
 }
 
-export default function Blank() {
+export default function CreateNewUser() {
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -18,14 +17,14 @@ export default function Blank() {
     email: "",
     password: "",
     role: "REQUESTER",
-    departmentId: "" // Add departmentId to form data
+    organization: "",   // ✅ NEW FIELD ADDED
+    departmentId: ""
   });
-  
+
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{type: string, text: string} | null>(null);
+  const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
 
-  // Fetch departments when component mounts
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
@@ -33,18 +32,23 @@ export default function Blank() {
         setDepartments(deptData);
       } catch (error) {
         console.error("Error fetching departments:", error);
-        setMessage({type: "error", text: "Failed to load departments: " + (error as Error).message});
+        setMessage({
+          type: "error",
+          text: "Failed to load departments: " + (error as Error).message,
+        });
       }
     };
 
     fetchDepartments();
   }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -52,36 +56,41 @@ export default function Blank() {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
-    
+
     try {
-      // Prepare user data with department
       const userData = {
         name: formData.name,
         email: formData.email,
         password: formData.password,
         role: formData.role,
-        department: formData.departmentId ? { id: parseInt(formData.departmentId) } : null
+        organization: formData.organization || null, // ✅ SEND ORGANIZATION
+        department: formData.departmentId
+          ? { id: parseInt(formData.departmentId) }
+          : null,
       };
-      
-      await userApi.createFirebaseUser(userData);
+
+      await userApi.createUser(userData);
+
       setMessage({ type: "success", text: "User created successfully!" });
 
-      // Redirect to user management after a short delay
       setTimeout(() => {
-        navigate("/users"); // <-- change this path to match your actual route
+        navigate("/users");
       }, 1500);
-      
-      // Reset form
+
       setFormData({
         name: "",
         email: "",
         password: "",
         role: "REQUESTER",
-        departmentId: ""
+        organization: "",
+        departmentId: "",
       });
     } catch (error) {
       console.error("Error creating user:", error);
-      setMessage({type: "error", text: "Failed to create user: " + (error as Error).message});
+      setMessage({
+        type: "error",
+        text: "Failed to create user: " + (error as Error).message,
+      });
     } finally {
       setLoading(false);
     }
@@ -94,25 +103,32 @@ export default function Blank() {
         description="Create new users in the system"
       />
       <PageBreadcrumb pageTitle="Create New User" />
+
       <div className="min-h-screen rounded-2xl border border-gray-200 bg-white px-5 py-7 dark:border-gray-800 dark:bg-white/[0.03] xl:px-10 xl:py-12">
         <div className="mx-auto w-full max-w-[630px]">
           <h3 className="mb-6 text-center font-semibold text-gray-800 text-theme-xl dark:text-white/90 sm:text-2xl">
             Create New User
           </h3>
-          
+
           {message && (
-            <div className={`mb-6 rounded-lg px-4 py-3 text-center ${
-              message.type === "success" 
-                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" 
-                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
-            }`}>
+            <div
+              className={`mb-6 rounded-lg px-4 py-3 text-center ${
+                message.type === "success"
+                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                  : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
+              }`}
+            >
               {message.text}
             </div>
           )}
-          
+
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* NAME */}
             <div>
-              <label htmlFor="name" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="name"
+                className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Full Name
               </label>
               <input
@@ -122,13 +138,17 @@ export default function Blank() {
                 value={formData.name}
                 onChange={handleInputChange}
                 required
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2"
                 placeholder="Enter full name"
               />
             </div>
-            
+
+            {/* EMAIL */}
             <div>
-              <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="email"
+                className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Email Address
               </label>
               <input
@@ -138,13 +158,17 @@ export default function Blank() {
                 value={formData.email}
                 onChange={handleInputChange}
                 required
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2"
                 placeholder="Enter email address"
               />
             </div>
-            
+
+            {/* PASSWORD */}
             <div>
-              <label htmlFor="password" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="password"
+                className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Password
               </label>
               <input
@@ -155,13 +179,17 @@ export default function Blank() {
                 onChange={handleInputChange}
                 required
                 minLength={6}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2"
                 placeholder="Enter password (min. 6 characters)"
               />
             </div>
-            
+
+            {/* ROLE */}
             <div>
-              <label htmlFor="role" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="role"
+                className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Role
               </label>
               <select
@@ -169,7 +197,7 @@ export default function Blank() {
                 name="role"
                 value={formData.role}
                 onChange={handleInputChange}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2"
               >
                 <option value="REQUESTER">Requester</option>
                 <option value="APPROVER">Approver</option>
@@ -177,10 +205,32 @@ export default function Blank() {
                 <option value="SUPER_ADMIN">Super Admin</option>
               </select>
             </div>
-            
-            {/* Department Selection */}
+
+            {/* Organization Bloc for Filtration */}
             <div>
-              <label htmlFor="departmentId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="organization"
+                className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                Organization
+              </label>
+              <input
+                type="text"
+                id="organization"
+                name="organization"
+                value={formData.organization}
+                onChange={handleInputChange}
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2"
+                placeholder="Enter organization name"
+              />
+            </div>
+
+            {/* DEPARTMENT */}
+            <div>
+              <label
+                htmlFor="departmentId"
+                className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Department
               </label>
               <select
@@ -188,7 +238,7 @@ export default function Blank() {
                 name="departmentId"
                 value={formData.departmentId}
                 onChange={handleInputChange}
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2"
               >
                 <option value="">Select Department</option>
                 {departments.map((dept) => (
@@ -198,12 +248,13 @@ export default function Blank() {
                 ))}
               </select>
             </div>
-            
+
+            {/* BUTTON */}
             <div className="flex justify-center">
               <button
                 type="submit"
                 disabled={loading}
-                className="rounded-lg bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                className="rounded-lg bg-blue-600 px-6 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {loading ? "Creating..." : "Create User"}
               </button>

@@ -7,7 +7,7 @@ interface NotificationDropdownProps {
   isOpen: boolean;
   onToggle: () => void;
 }
-
+//For  the Setting up the Notification Dropdown in the SideBar
 export default function NotificationDropdown({ isOpen, onToggle }: NotificationDropdownProps) {
   const btnRef = useRef<HTMLButtonElement>(null);
   const [notifying, setNotifying] = useState(true);
@@ -53,7 +53,7 @@ export default function NotificationDropdown({ isOpen, onToggle }: NotificationD
         isOpen={isOpen}
         onClose={closeDropdown}
         placement="right"
-        offsetX={225}
+        offsetX={240}
         offsetY={400}
         anchorRef={btnRef}
         // To change the size of Notification Dropdown width and height 

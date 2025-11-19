@@ -1,5 +1,5 @@
 // src/context/AuthContext.tsx
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { auth } from "../firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { userService } from "../services/userService";
@@ -12,8 +12,8 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   isApprover: boolean;
   isRequester: boolean;
-  hasRole?: (role: string) => boolean;
-  hasAnyRole?: (roles: string[]) => boolean;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (roles: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,17 +32,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (user) {
         setCurrentUser(user);
         try {
-          // Auto-sync user with default role if not already in database
           const syncResult = await userService.autoSyncUser(user.uid);
-          setUserRole(syncResult.role);
-          setIsAdmin(syncResult.role === 'ADMIN' || syncResult.role === 'SUPER_ADMIN');
-          setIsSuperAdmin(syncResult.role === 'SUPER_ADMIN');
-          setIsApprover(syncResult.role === 'APPROVER');
-          setIsRequester(syncResult.role === 'REQUESTER');
+          const role = syncResult?.role ?? "REQUESTER";
+          setUserRole(role);
+          setIsAdmin(role === "ADMIN" || role === "SUPER_ADMIN");
+          setIsSuperAdmin(role === "SUPER_ADMIN");
+          setIsApprover(role === "APPROVER");
+          setIsRequester(role === "REQUESTER");
         } catch (error) {
           console.error("Error auto-syncing user:", error);
-          // Set default values if sync fails
-          setUserRole('REQUESTER');
+          // fallback defaults
+          setUserRole("REQUESTER");
           setIsAdmin(false);
           setIsSuperAdmin(false);
           setIsApprover(false);
@@ -59,17 +59,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => unsubscribe();
   }, []);
 
-  const value = {
+  // Stable helper functions included in context value
+  const hasRole = (role: string) => userRole === role;
+  const hasAnyRole = (roles: string[]) => roles.includes(userRole ?? "");
+
+  const value: AuthContextType = {
     currentUser,
     userRole,
     loading,
     isAdmin,
     isSuperAdmin,
     isApprover,
-    isRequester
+    isRequester,
+    hasRole,
+    hasAnyRole,
   };
 
   return (
@@ -81,17 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
-  
-  // Helper functions for role checking
-  const hasRole = (role: string) => context.userRole === role;
-  const hasAnyRole = (roles: string[]) => roles.includes(context.userRole || '');
-  
-  return {
-    ...context,
-    hasRole,
-    hasAnyRole
-  };
+  return context;
 }
