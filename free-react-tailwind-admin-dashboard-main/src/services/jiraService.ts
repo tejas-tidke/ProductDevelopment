@@ -191,6 +191,14 @@ export interface ContractIssuePayload {
   };
 }
 
+// Define the product item structure
+export interface ProductItem {
+  id: string;
+  productName: string;
+  nameOfVendor?: string;
+  productLink?: string;
+  productType?: 'license' | 'usage'; // New field to indicate if product is license-based or usage-based
+}
 
 // Jira API functions
 export const jiraService = {
@@ -205,21 +213,29 @@ export const jiraService = {
   // 3️⃣ Get all Products for a Vendor
   getProductsByVendor: (vendorName: string) =>
     jiraApiCall(`/api/jira/vendors/${vendorName}/products`),
+    
+  // 4️⃣ Get product type for a Vendor and Product
+  getProductType: (vendorName: string, productName: string) =>
+    jiraApiCall(`/api/jira/vendors/${vendorName}/products/${productName}/type`),
+    
+  // 5️⃣ Get products of a specific type for a Vendor
+  getProductsByVendorAndType: (vendorName: string, productType: string) =>
+    jiraApiCall(`/api/jira/vendors/${vendorName}/products/type/${productType}`),
 
-  // 4️⃣ Get ALL existing contracts for dropdown
+  // 6️⃣ Get ALL existing contracts for dropdown
   getContracts: () => jiraApiCall("/api/jira/contracts"),
 
-  // 5️⃣ Get one contract by ID (used when selecting existing contract)
+  // 7️⃣ Get one contract by ID (used when selecting existing contract)
   getContractById: (id: string) =>
     jiraApiCall(`/api/jira/contracts/${id}`),
 
-  // 6️⃣ Get existing license count (upgrade/downgrade)
+  // 8️⃣ Get existing license count (upgrade/downgrade)
   getLicenseCount: (vendorName: string, productName: string) =>
     jiraApiCall(
       `/api/jira/contracts/license-count?vendor=${vendorName}&product=${productName}`
     ),
 
-  // 7️⃣ Create Contract Issue (NEW API)
+  // 9️⃣ Create Contract Issue (NEW API)
   createContractIssue: async (payload: ContractIssuePayload) => {
   const user = auth.currentUser;
 

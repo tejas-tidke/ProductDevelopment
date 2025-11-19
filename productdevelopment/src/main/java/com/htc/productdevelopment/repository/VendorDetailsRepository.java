@@ -16,4 +16,11 @@ public interface VendorDetailsRepository extends JpaRepository<VendorDetails, Lo
     // Distinct vendor names for dropdown
     @Query("SELECT DISTINCT v.nameOfVendor FROM VendorDetails v ORDER BY v.nameOfVendor ASC")
     List<String> findDistinctVendorNames();
+    
+    // Get product type for a specific vendor and product
+    @Query("SELECT v.productType FROM VendorDetails v WHERE v.nameOfVendor = ?1 AND v.productName = ?2")
+    String findProductTypeByVendorAndProduct(String vendorName, String productName);
+    
+    // Get all products of a specific type for a vendor
+    List<VendorDetails> findByNameOfVendorAndProductType(String nameOfVendor, String productType);
 }

@@ -28,28 +28,52 @@ interface CreateIssueModalProps {
   onIssueCreated?: (issue: CreatedIssue) => void;
 }
 
+// Define the product item structure
 interface ProductItem {
   id: string;
   productName: string;
   nameOfVendor?: string;
   productLink?: string;
+  productType?: 'license' | 'usage'; // New field to indicate if product is license-based or usage-based
 }
 
 const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onIssueCreated }) => {
   // Helper functions
-  const calculateMonths = (startDate: string, endDate: string): number => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return Math.round(diffDays / 30.44); // Approximate months
-  };
-
   const addMonths = (date: string, months: number): string => {
     const d = new Date(date);
     d.setMonth(d.getMonth() + months);
     return d.toISOString().split('T')[0];
   };
+  
+  // When a product is selected, fetch its type
+  const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedProductName = e.target.value;
+    setProductName(selectedProductName);
+    
+    // Reset billing type when product changes
+    setVendorContractType('');
+    
+    // Fetch product type
+    if (selectedProductName && vendorName) {
+      jiraService.getProductType(vendorName, selectedProductName)
+        .then((response: { productType: string }) => {
+          if (response.productType) {
+            setProductType(response.productType as 'license' | 'usage' | '');
+            // Auto-select billing type based on product type
+            if (response.productType === 'license') {
+              setVendorContractType('license');
+            } else if (response.productType === 'usage') {
+              setVendorContractType('usage');
+            }
+          }
+        })
+        .catch(err => {
+          console.error('Error fetching product type', err);
+          setProductType('');
+        });
+    }
+  };
+
   // requester
   const [requesterName, setRequesterName] = useState('');
   const [requesterMail, setRequesterMail] = useState('');
@@ -62,6 +86,9 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [loadingVendors, setLoadingVendors] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  
+  // product type
+  const [productType, setProductType] = useState<'license' | 'usage' | ''>('');
 
   // core fields (detailed)
   const [vendorName, setVendorName] = useState('');
@@ -89,7 +116,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   const [contractDuration, setContractDuration] = useState<number | ''>('');
   const [dueDate, setDueDate] = useState('');
   const [renewalDate, setRenewalDate] = useState('');
-  const [currentEndDate, setCurrentEndDate] = useState('');
   const [additionalComment, setAdditionalComment] = useState('');
 
   // renewal type for existing
@@ -204,6 +230,9 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
         setLoadingProducts(true);
         const list = await jiraService.getProductsByVendor(vendorName);
         if (Array.isArray(list)) setProducts(list);
+        
+        // Reset product type when vendor changes
+        setProductType('');
       } catch (err) {
         console.error('Error loading products', err);
       } finally {
@@ -350,7 +379,19 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
       if (!vendorName) newErrors.vendorName = 'Vendor is required';
       if (!productName) newErrors.productName = 'Product is required';
       if (!contractDuration) newErrors.contractDuration = 'Contract duration is required';
+      if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
       if (!dueDate) newErrors.dueDate = 'Due date is required';
+      
+      // For new contracts, due date should not be in the past
+      if (dueDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Reset time part for comparison
+        const selectedDate = new Date(dueDate);
+        if (selectedDate < today) {
+          newErrors.dueDate = 'Due date cannot be in the past for new contracts';
+        }
+      }
+      
       if (!vendorContractType) newErrors.vendorContractType = 'Select usage or license';
 
       if (vendorContractType === 'usage') {
@@ -368,6 +409,12 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
       if (!selectedExistingContractId) newErrors.selectedExistingContractId = 'Select an existing contract';
       if (!vendorContractType) newErrors.vendorContractType = 'Existing contract has no billing type';
       if (!renewalType) newErrors.renewalType = 'Select renewal type';
+      
+      // For existing contracts, due date is still required
+      if (!dueDate) newErrors.dueDate = 'Due date is required';
+      
+      // Contract duration validation for existing contracts
+      if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
 
       if (vendorContractType === 'usage') {
         if (renewalType !== 'flat') {
@@ -576,7 +623,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
 
                   <div>
                     <label htmlFor="productName" className="block text-sm font-medium text-gray-700 mb-1">Product Name <span className="text-red-500">*</span></label>
-                    <select id="productName" value={productName} onChange={e => setProductName(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
+                    <select id="productName" value={productName} onChange={handleProductChange} className="w-full border rounded-md py-2 px-3 text-sm">
                       <option value="">{loadingProducts ? 'Loading products...' : 'Select Product'}</option>
                       {products.map(p => <option key={p.id} value={p.productName}>{p.productName}</option>)}
                     </select>
@@ -589,6 +636,13 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                       <label htmlFor="billingUsage"><input id="billingUsage" type="radio" value="usage" checked={vendorContractType === 'usage'} onChange={() => setVendorContractType('usage')} /> Usage</label>
                       <label htmlFor="billingLicense"><input id="billingLicense" type="radio" value="license" checked={vendorContractType === 'license'} onChange={() => setVendorContractType('license')} /> License</label>
                     </div>
+                    
+                    {/* Show a message if the product type doesn't match the selected billing type */}
+                    {productType && vendorContractType && productType !== vendorContractType && (
+                      <div className="mt-2 text-sm text-yellow-600">
+                        Note: The selected product is typically {productType}-based, but you've selected {vendorContractType} billing.
+                      </div>
+                    )}
 
                     {vendorContractType === 'usage' && (
                       <>

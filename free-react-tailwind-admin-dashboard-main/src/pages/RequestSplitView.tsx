@@ -4,6 +4,7 @@ import PageMeta from "../components/common/PageMeta";
 import { jiraService, IssueTransition } from "../services/jiraService";
 import { CustomFilterDropdown } from "../components/filters/CustomFilterDropdown";
 import { usePermissions } from "../hooks/usePermissions";
+import EditIssueModal from "../components/modals/EditIssueModal";
 
 // Define minimal ADF interfaces (enough for description rendering)
 interface AdfNode {
@@ -67,6 +68,24 @@ interface Issue {
     description?: string | null;
     customfield_10200?: string;
     customfield_10201?: string;
+  };
+}
+
+// Type for EditIssueModal
+interface EditModalIssue {
+  id: string;
+  key: string;
+  fields: {
+    summary?: string;
+    project?: {
+      key: string;
+    };
+    description?: string;
+    duedate?: string;
+    issuetype?: {
+      name: string;
+    };
+    customfield_10200?: string;
   };
 }
 
@@ -138,6 +157,9 @@ const RequestSplitView: React.FC = () => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const [selectedTransition, setSelectedTransition] = useState<string>("");
+  
+  // Edit modal
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // transitions
   const [jiraTransitions, setJiraTransitions] = useState<IssueTransition[]>([]);
@@ -421,6 +443,27 @@ useEffect(() => {
     }
   };
 
+  // edit issue
+  const handleEditIssue = () => {
+    if (selectedIssue && canEditIssue()) {
+      setIsEditModalOpen(true);
+    }
+  };
+
+  // Convert issue type to match EditIssueModal requirements
+  const convertIssueForEditModal = (issue: Issue): EditModalIssue => {
+    return {
+      ...issue,
+      fields: {
+        ...issue.fields,
+        description: issue.fields.description || undefined,
+        project: issue.fields.project ? { key: issue.fields.project.key } : undefined,
+        duedate: undefined, // Add other fields as needed
+        issuetype: issue.fields.issuetype ? { name: issue.fields.issuetype.name } : undefined
+      }
+    } as EditModalIssue;
+  };
+
   const goToProjectIssues = () => {
     if (selectedIssue?.fields.project?.key) navigate(`/project/${selectedIssue.fields.project.key}`);
     else navigate('/issues-split');
@@ -606,7 +649,7 @@ return (
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
                   <div className="flex flex-wrap gap-2">
                     {canEditIssue() && (
-                      <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                      <button onClick={handleEditIssue} className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                         Edit
                       </button>
@@ -1073,6 +1116,27 @@ return (
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Issue Modal */}
+      {selectedIssue && (
+        <EditIssueModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSubmit={async (issueIdOrKey, issueData) => {
+            try {
+              await jiraService.updateIssue(issueIdOrKey, issueData);
+              // Refresh the issue data after update
+              const updatedIssue = await jiraService.getIssueByIdOrKey(issueIdOrKey);
+              setSelectedIssue(updatedIssue);
+              setIsEditModalOpen(false);
+            } catch (error) {
+              console.error('Error updating issue:', error);
+              alert('Failed to update issue. Please try again.');
+            }
+          }}
+          issue={convertIssueForEditModal(selectedIssue)}
+        />
       )}
     </>
   );

@@ -27,4 +27,7 @@ public class VendorDetails {
 
     @Column(name = "product_link")
     private String productLink;
+    
+    @Column(name = "product_type")
+    private String productType; // New field to indicate if product is license-based or usage-based
 }

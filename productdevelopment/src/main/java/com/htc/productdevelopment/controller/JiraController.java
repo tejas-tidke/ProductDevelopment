@@ -640,12 +640,35 @@ public class JiraController {
          return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch products: " + e.getMessage()));
      }
  }
+ 
+ // 3️⃣ Fetch product type for a given vendor and product
+ @GetMapping("/vendors/{vendorName}/products/{productName}/type")
+ public ResponseEntity<?> getProductType(@PathVariable String vendorName, @PathVariable String productName) {
+     try {
+         logger.info("Fetching product type for vendor: {}, product: {}", vendorName, productName);
+         String productType = vendorDetailsService.getProductType(vendorName, productName);
+         return ResponseEntity.ok(Map.of("productType", productType != null ? productType : "unknown"));
+     } catch (Exception e) {
+         return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch product type: " + e.getMessage()));
+     }
+ }
+ 
+ // 4️⃣ Fetch products of a specific type for a given vendor
+ @GetMapping("/vendors/{vendorName}/products/type/{productType}")
+ public ResponseEntity<?> getVendorProductsByType(@PathVariable String vendorName, @PathVariable String productType) {
+     try {
+         logger.info("Fetching {} products for vendor: {}", productType, vendorName);
+         return ResponseEntity.ok(vendorDetailsService.getProductsByVendorAndType(vendorName, productType));
+     } catch (Exception e) {
+         return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch products: " + e.getMessage()));
+     }
+ }
 
  // -------------------------------------------------------------------------
  // 📄 Contract Details Endpoints
  // -------------------------------------------------------------------------
-
- // 3️⃣ Fetch contract details for a given vendor
+ 
+ // 5️⃣ Fetch contract details for a given vendor
  @GetMapping("/contracts/vendor/{vendorName}")
  public ResponseEntity<?> getContractsByVendor(@PathVariable String vendorName) {
      try {

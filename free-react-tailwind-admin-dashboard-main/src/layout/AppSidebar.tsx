@@ -15,6 +15,7 @@ import {
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
 import { JIRA_CONFIG, getJiraAuthHeaders, getJiraRequestUrl } from "../config/jiraConfig";
+import { useAuth } from "../context/AuthContext";
 
 import NotificationDropdown from "../components/header/NotificationDropdown";
 import SettingsDropdown from "../components/header/SettingsDropdown";
@@ -45,6 +46,7 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
+  const { isAdmin, isSuperAdmin } = useAuth(); // Add this line to get user role information
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
@@ -312,7 +314,7 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
     name: "Request Management",
     icon: <ListIcon />,
     subItems: [
-      { name: "All Open", path: "/request-management/all-open" },
+      { name: "All Request", path: "/request-management/all-open" },
       { name: "Assigned to Me", path: "/request-management/assigned-to-me" },
       { name: "Unassigned", path: "/request-management/unassigned" },
       { name: "Resolved", path: "/request-management/resolved" },
@@ -357,8 +359,6 @@ const othersItems: NavItem[] = [
     subItems: [
       { name: "Create New User", path: "/blank", pro: false },
       { name: "Send Invitation", path: "/send-invitation", pro: false },
-      { name: "Manage Organizations", path: "/organizations", pro: false },
-      { name: "Create New Project", path: "/create-new-project", pro: false },
       { name: "404 Error", path: "/error-404", pro: false },
     ],
   },
@@ -781,23 +781,25 @@ onMouseLeave={() => {
     </div>
   </div>
 
-  {/* Settings */}
-  <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
-    <div className="flex items-center">
-      <div className="relative">
-        <SettingsDropdown
-  isOpen={openBottomDropdown === 'settings'}
-  onToggle={() => {
-    setIsInteractingWithDropdown(true);
-    setOpenBottomDropdown(openBottomDropdown === 'settings' ? null : 'settings');
-  }}
-/>
+  {/* Settings - Only visible for Admin and Super Admin */}
+  {(isAdmin || isSuperAdmin) && (
+    <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center">
+        <div className="relative">
+          <SettingsDropdown
+    isOpen={openBottomDropdown === 'settings'}
+    onToggle={() => {
+      setIsInteractingWithDropdown(true);
+      setOpenBottomDropdown(openBottomDropdown === 'settings' ? null : 'settings');
+    }}
+  />
+        </div>
+        {(isExpanded || isHovered || isMobileOpen) && (
+          <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Settings</span>
+        )}
       </div>
-      {(isExpanded || isHovered || isMobileOpen) && (
-        <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Settings</span>
-      )}
     </div>
-  </div>
+  )}
 
   {/* Profile */}
   <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>

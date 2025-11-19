@@ -2,6 +2,7 @@ package com.htc.productdevelopment.controller;
 
 import com.htc.productdevelopment.dto.CreateUserRequest;
 import com.htc.productdevelopment.model.User;
+import com.htc.productdevelopment.model.Department;
 import com.htc.productdevelopment.repository.UserRepository;
 import com.htc.productdevelopment.service.UserService;
 import com.htc.productdevelopment.service.FirebaseSyncService;
@@ -159,11 +160,40 @@ public class AuthController {
             // Auto-sync user
             User user = firebaseSyncService.autoSyncUser(uid);
             logger.info("User auto-synced successfully: {}", uid);
-            return ResponseEntity.ok(user);
+            
+            // Create a simplified user object for serialization
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("id", user.getId());
+            userData.put("uid", user.getUid());
+            userData.put("email", user.getEmail());
+            userData.put("name", user.getName());
+            userData.put("avatar", user.getAvatar());
+            userData.put("active", user.getActive());
+            userData.put("createdAt", user.getCreatedAt());
+            userData.put("updatedAt", user.getUpdatedAt());
+            userData.put("role", user.getRole().name());
+            
+            // Include department if present
+            if (user.getDepartment() != null) {
+                Map<String, Object> deptData = new HashMap<>();
+                deptData.put("id", user.getDepartment().getId());
+                deptData.put("name", user.getDepartment().getName());
+                userData.put("department", deptData);
+            }
+            
+            // Include organization if present
+            if (user.getOrganization() != null) {
+                Map<String, Object> orgData = new HashMap<>();
+                orgData.put("id", user.getOrganization().getId());
+                orgData.put("name", user.getOrganization().getName());
+                userData.put("organization", orgData);
+            }
+            
+            return ResponseEntity.ok(userData);
         } catch (Exception e) {
             logger.error("Error auto-syncing user", e);
             Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", e.getMessage());
+            errorResponse.put("error", "Runtime Exception: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
@@ -185,13 +215,25 @@ public class AuthController {
                 User user = userOpt.get();
                 Map<String, Object> responseData = new HashMap<>();
                 responseData.put("role", user.getRole().name());
-                responseData.put("user", user);
+                
+                // Create a simplified user object for serialization
+                Map<String, Object> userData = new HashMap<>();
+                userData.put("id", user.getId());
+                userData.put("uid", user.getUid());
+                userData.put("email", user.getEmail());
+                userData.put("name", user.getName());
+                userData.put("avatar", user.getAvatar());
+                userData.put("active", user.getActive());
+                userData.put("createdAt", user.getCreatedAt());
+                userData.put("updatedAt", user.getUpdatedAt());
+                userData.put("role", user.getRole().name());
                 
                 // Include department if present
                 if (user.getDepartment() != null) {
                     Map<String, Object> deptData = new HashMap<>();
                     deptData.put("id", user.getDepartment().getId());
                     deptData.put("name", user.getDepartment().getName());
+                    userData.put("department", deptData);
                     responseData.put("department", deptData);
                 }
                 
@@ -200,8 +242,11 @@ public class AuthController {
                     Map<String, Object> orgData = new HashMap<>();
                     orgData.put("id", user.getOrganization().getId());
                     orgData.put("name", user.getOrganization().getName());
+                    userData.put("organization", orgData);
                     responseData.put("organization", orgData);
                 }
+                
+                responseData.put("user", userData);
                 
                 logger.info("Role retrieved successfully for user: {}", uid);
                 return ResponseEntity.ok(responseData);
@@ -214,7 +259,7 @@ public class AuthController {
         } catch (Exception e) {
             logger.error("Error getting role for user: {}", uid, e);
             Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", e.getMessage());
+            errorResponse.put("error", "Runtime Exception: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }

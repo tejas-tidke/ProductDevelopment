@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, RefObject } from "react";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { useNavigate } from "react-router";
@@ -85,7 +85,7 @@ export default function UserDropdown({ isOpen, onToggle }: UserDropdownProps) {
         placement="right"
         offsetX={225}
         offsetY={8}
-        anchorRef={btnRef}
+        anchorRef={btnRef as RefObject<HTMLElement>}
         className="mt-2 flex w-[260px] flex-col rounded-2xl border border-gray-200 bg-white  p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"
       >
         <div>
@@ -146,56 +146,6 @@ export default function UserDropdown({ isOpen, onToggle }: UserDropdownProps) {
                 />
               </svg>
               Account settings
-            </DropdownItem>
-          </li>
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              tag="a"
-              to="/blank"
-              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-indigo-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-            >
-              <svg
-                className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M3.5 12C3.5 7.30558 7.30558 3.5 12 3.5C16.6944 3.5 20.5 7.30558 20.5 12C20.5 16.6944 16.6944 20.5 12 20.5C7.30558 20.5 3.5 16.6944 3.5 12ZM12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2ZM11.0991 7.52507C11.0991 8.02213 11.5021 8.42507 11.9991 8.42507H12.0001C12.4972 8.42507 12.9001 8.02213 12.9001 7.52507C12.9001 7.02802 12.4972 6.62507 12.0001 6.62507H11.9991C11.5021 6.62507 11.0991 7.02802 11.0991 7.52507ZM12.0001 17.3714C11.5859 17.3714 11.2501 17.0356 11.2501 16.6214V10.9449C11.2501 10.5307 11.5859 10.1949 12.0001 10.1949C12.4143 10.1949 12.7501 10.5307 12.7501 10.9449V16.6214C12.7501 17.0356 12.4143 17.3714 12.0001 17.3714Z"
-                  fill=""
-                />
-              </svg>
-              User Management
-            </DropdownItem>
-          </li>
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              tag="a"
-              to="/users"
-              className="flex items-center gap-3 px-3 py-2 font-medium text-gray-700 rounded-lg group text-theme-sm hover:bg-indigo-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
-            >
-              <svg
-                className="fill-gray-500 group-hover:fill-gray-700 dark:fill-gray-400 dark:group-hover:fill-gray-300"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M12 6C13.1046 6 14 5.10457 14 4C14 2.89543 13.1046 2 12 2C10.8954 2 10 2.89543 10 4C10 5.10457 10.8954 6 12 6ZM15.8639 15.864C17.2446 14.4833 18 12.7003 18 10.875C18 9.04974 17.2446 7.26674 15.8639 5.88602C14.4832 4.5053 12.7002 3.75 10.875 3.75C9.04974 3.75 7.26674 4.5053 5.88602 5.88602C4.5053 7.26674 3.75 9.04974 3.75 10.875C3.75 12.7003 4.5053 14.4833 5.88602 15.864C7.26674 17.2447 9.04974 18 10.875 18C12.7002 18 14.4832 17.2447 15.8639 15.864ZM17.2783 17.2784C15.6289 18.9278 13.3352 19.875 10.875 19.875C8.41481 19.875 6.12106 18.9278 4.47168 17.2784C2.8223 15.629 1.875 13.3353 1.875 10.875C1.875 8.41481 2.8223 6.12106 4.47168 4.47168C6.12106 2.8223 8.41481 1.875 10.875 1.875C13.3352 1.875 15.6289 2.8223 17.2783 4.47168C18.9277 6.12106 19.875 8.41481 19.875 10.875C19.875 13.3353 18.9277 15.629 17.2783 17.2784Z"
-                  fill=""
-                />
-              </svg>
-              List of Users
             </DropdownItem>
           </li>
         </ul>

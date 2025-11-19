@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,10 +38,43 @@ public class UserController {
     // GET ALL USERS
     // ----------------------------------------------------
     @GetMapping
-    public ResponseEntity<List<User>> getAllUsers() {
+    public ResponseEntity<List<Map<String, Object>>> getAllUsers() {
         logger.info("Fetching all users");
         List<User> users = userService.getAllUsers();
-        return ResponseEntity.ok(users);
+        
+        // Convert users to simplified objects for serialization
+        List<Map<String, Object>> simplifiedUsers = users.stream().map(user -> {
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("id", user.getId());
+            userData.put("uid", user.getUid());
+            userData.put("email", user.getEmail());
+            userData.put("name", user.getName());
+            userData.put("avatar", user.getAvatar());
+            userData.put("active", user.getActive());
+            userData.put("createdAt", user.getCreatedAt());
+            userData.put("updatedAt", user.getUpdatedAt());
+            userData.put("role", user.getRole().name());
+            
+            // Include department if present
+            if (user.getDepartment() != null) {
+                Map<String, Object> deptData = new HashMap<>();
+                deptData.put("id", user.getDepartment().getId());
+                deptData.put("name", user.getDepartment().getName());
+                userData.put("department", deptData);
+            }
+            
+            // Include organization if present
+            if (user.getOrganization() != null) {
+                Map<String, Object> orgData = new HashMap<>();
+                orgData.put("id", user.getOrganization().getId());
+                orgData.put("name", user.getOrganization().getName());
+                userData.put("organization", orgData);
+            }
+            
+            return userData;
+        }).collect(Collectors.toList());
+        
+        return ResponseEntity.ok(simplifiedUsers);
     }
 
     // ----------------------------------------------------
@@ -50,7 +85,36 @@ public class UserController {
         logger.info("Fetching user by ID: {}", id);
         Optional<User> user = userService.getUserById(id);
         if (user.isPresent()) {
-            return ResponseEntity.ok(user.get());
+            User u = user.get();
+            // Create a simplified user object for serialization
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("id", u.getId());
+            userData.put("uid", u.getUid());
+            userData.put("email", u.getEmail());
+            userData.put("name", u.getName());
+            userData.put("avatar", u.getAvatar());
+            userData.put("active", u.getActive());
+            userData.put("createdAt", u.getCreatedAt());
+            userData.put("updatedAt", u.getUpdatedAt());
+            userData.put("role", u.getRole().name());
+            
+            // Include department if present
+            if (u.getDepartment() != null) {
+                Map<String, Object> deptData = new HashMap<>();
+                deptData.put("id", u.getDepartment().getId());
+                deptData.put("name", u.getDepartment().getName());
+                userData.put("department", deptData);
+            }
+            
+            // Include organization if present
+            if (u.getOrganization() != null) {
+                Map<String, Object> orgData = new HashMap<>();
+                orgData.put("id", u.getOrganization().getId());
+                orgData.put("name", u.getOrganization().getName());
+                userData.put("organization", orgData);
+            }
+            
+            return ResponseEntity.ok(userData);
         } else {
             return ResponseEntity.notFound().build();
         }

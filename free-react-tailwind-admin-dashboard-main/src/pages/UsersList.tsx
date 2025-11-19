@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
-import { userApi, departmentApi } from "../services/api";
+import { userApi, departmentApi, organizationApi } from "../services/api";
 import { Dropdown } from "../components/ui/dropdown/Dropdown";
 import { DropdownItem } from "../components/ui/dropdown/DropdownItem";
 
@@ -43,6 +43,7 @@ interface UserData {
 export default function UsersList() {
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [organizations, setOrganizations] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
@@ -68,9 +69,10 @@ export default function UsersList() {
     try {
       setLoading(true);
 
-      const [usersData, deptsData] = await Promise.all([
+      const [usersData, deptsData, orgsData] = await Promise.all([
         userApi.getAllUsers(),
         departmentApi.getAllDepartments(),
+        organizationApi.getAllOrganizations(),
       ]);
 
       // Normalize departments from backend
@@ -85,6 +87,12 @@ export default function UsersList() {
       const mergedDepartments = Array.from(mergedMap.values()).sort((a, b) => a.name.localeCompare(b.name));
       setDepartments(mergedDepartments);
 
+      // Normalize organizations from backend
+      const fetchedOrgs = Array.isArray(orgsData)
+        ? orgsData.map((o: { id: unknown; name: unknown }) => ({ id: Number(o.id), name: String(o.name) }))
+        : [];
+      setOrganizations(fetchedOrgs);
+
       // build id->name map for quick lookup
       const deptNameLookup = new Map<number, string>();
       mergedDepartments.forEach((d) => deptNameLookup.set(d.id, d.name));
@@ -96,6 +104,16 @@ export default function UsersList() {
           (u.departmentId !== undefined ? u.departmentId : undefined);
 
         const deptObj = deptId ? { id: Number(deptId), name: deptNameLookup.get(Number(deptId)) || u.department?.name } : u.department ?? null;
+        
+        // Extract organization name from nested object
+        let organizationName = null;
+        if (u.organization) {
+          if (typeof u.organization === 'string') {
+            organizationName = u.organization;
+          } else if (typeof u.organization === 'object' && u.organization !== null) {
+            organizationName = (u.organization as { name?: string }).name || null;
+          }
+        }
 
         return {
           id: u.id?.toString() || "",
@@ -105,7 +123,7 @@ export default function UsersList() {
           role: u.role || "REQUESTER",
           active: u.active !== undefined ? u.active : true,
           avatar: u.avatar || "/images/user/user-01.jpg",
-          organization: u.organization ?? null,
+          organization: organizationName,
           department: deptObj ?? null,
           departmentId: u.departmentId ?? null,
         };
@@ -114,8 +132,8 @@ export default function UsersList() {
       setUsers(transformedUsers);
       setError(null);
     } catch (err) {
-      console.error("Error fetching users or departments:", err);
-      setError("Failed to fetch users or departments: " + ((err as Error).message || String(err)));
+      console.error("Error fetching users, departments or organizations:", err);
+      setError("Failed to fetch users, departments or organizations: " + ((err as Error).message || String(err)));
     } finally {
       setLoading(false);
     }
@@ -126,7 +144,7 @@ export default function UsersList() {
 
   const filteredUsers = users.filter((user) => {
     const roleMatch = selectedRole === "All" || user.role === selectedRole;
-    const departmentMatch = selectedDepartment === "All" || user.department?.name === selectedDepartment;
+    const departmentMatch = selectedDepartment === "All" || (user.department && typeof user.department === 'object' && user.department !== null ? user.department.name : user.department) === selectedDepartment;
     const organizationMatch = selectedOrganization === "All" || user.organization === selectedOrganization;
     return roleMatch && departmentMatch && organizationMatch;
   });
@@ -235,11 +253,11 @@ export default function UsersList() {
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               >
                 <option value="All">All</option>
-                <option value="Holograph">Holograph</option>
-                <option value="Google">Google</option>
-                <option value="Wipro">Wipro</option>
-                <option value="Apple">Apple</option>
-                <option value="TATA">TATA</option>
+                {organizations.map((org) => (
+                  <option key={org.id} value={org.name}>
+                    {org.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -306,7 +324,7 @@ export default function UsersList() {
                       {user.organization || "No Organization"}
                     </td>
                     <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
-                      {user.department ? user.department.name : "No Department"}
+                      {user.department ? (typeof user.department === 'object' && user.department !== null ? user.department.name : user.department) : "No Department"}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
