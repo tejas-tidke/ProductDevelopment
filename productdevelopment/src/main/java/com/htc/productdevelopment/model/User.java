@@ -4,28 +4,33 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+
 import java.util.Date;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "users", indexes = {
+@Table(
+    name = "users",
+    indexes = {
         @Index(name = "idx_user_uid", columnList = "uid"),
         @Index(name = "idx_user_email", columnList = "email"),
         @Index(name = "idx_user_role", columnList = "role"),
         @Index(name = "idx_user_active", columnList = "active")
-})
+    }
+)
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Firebase UID
     @Column(unique = true)
-    private String uid;   // Firebase UID
+    private String uid;
 
-    @Column(unique = true)
+    @Column(unique = true, nullable = false)
     private String email;
 
     private String name;
@@ -36,10 +41,13 @@ public class User {
     private Department department;
     // --------------------------------------------
 
-    @Column(columnDefinition = "LONGTEXT")
+    // Avatar image URL / base64 / JSON etc.
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String avatar;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Role role;
 
     public enum Role {
@@ -51,15 +59,28 @@ public class User {
 
     @Column(nullable = false)
     private Boolean active = true;
-    
+
     // ---------- 🔥 Organization Relation ----------
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "organization_id")
     private Organization organization;
     // --------------------------------------------
 
+    // Plain text organization name (e.g. "Holograph")
+    @Column(name = "organization_name")
+    private String organizationName;
+
+    @Column(name = "created_by")
+    private String createdBy;
+
+    @Column(name = "updated_by")
+    private String updatedBy;
+
+    @Column(name = "approved")
+    private Boolean approved = false;
+
     @Temporal(TemporalType.TIMESTAMP)
-    @Column(name = "created_at")
+    @Column(name = "created_at", updatable = false)
     private Date createdAt;
 
     @Temporal(TemporalType.TIMESTAMP)
@@ -68,8 +89,9 @@ public class User {
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = new Date();
-        this.updatedAt = new Date();
+        Date now = new Date();
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
     @PreUpdate

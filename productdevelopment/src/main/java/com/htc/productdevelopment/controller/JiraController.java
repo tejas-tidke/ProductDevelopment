@@ -712,6 +712,6 @@ public class JiraController {
          return ResponseEntity.internalServerError()
                  .body(Map.of("message", "Failed to fetch statuses: " + e.getMessage()));
      }
- }
+ }}
 
 
