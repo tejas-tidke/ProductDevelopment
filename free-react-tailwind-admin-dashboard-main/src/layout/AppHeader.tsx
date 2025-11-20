@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useSidebar } from "../context/SidebarContext";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
-import NotificationDropdown from "../components/header/NotificationDropdown";
-import UserDropdown from "../components/header/UserDropdown";
-import SettingsDropdown from "../components/header/SettingsDropdown";
+// import NotificationDropdown from "../components/header/NotificationDropdown";
+// import UserDropdown from "../components/header/UserDropdown";
+// import SettingsDropdown from "../components/header/SettingsDropdown";
 import CreateIssueModal from "../components/modals/CreateIssueModal";
 import { jiraService } from "../services/jiraService";
 
@@ -200,12 +200,12 @@ const AppHeader: React.FC = () => {
             {/* <!-- Dark Mode Toggler --> */}
             <ThemeToggleButton />
             {/* <!-- Dark Mode Toggler --> */}
-            <NotificationDropdown />
-            <SettingsDropdown />
+            {/* <NotificationDropdown />
+            <SettingsDropdown /> */}
             {/* <!-- Notification Menu Area --> */}
           </div>
           {/* <!-- User Area --> */}
-          <UserDropdown />
+          {/* <UserDropdown /> */}
         </div>
       </div>
 

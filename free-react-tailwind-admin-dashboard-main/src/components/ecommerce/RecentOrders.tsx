@@ -63,7 +63,7 @@ export default function RecentOrders() {
     <div>
       {/* Recent Orders Card */}
       <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03]">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-13 ">
           <div>
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Recent Orders</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">Latest products & statuses</p>
@@ -76,7 +76,7 @@ export default function RecentOrders() {
                 setQuery(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search"
+              placeholder="Search Vendor/Product"
               aria-label="Search orders"
               className="rounded-md border border-gray-300 px-3 py-1 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
             />

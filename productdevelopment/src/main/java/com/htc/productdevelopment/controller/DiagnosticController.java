@@ -104,7 +104,7 @@ public class DiagnosticController {
             }
             
             // Try to sync a single user
-            User user = firebaseSyncService.syncFirebaseUserToDB(uid);
+            User user = firebaseSyncService.syncUser(uid, null, null);
             
             Map<String, Object> response = new HashMap<>();
             response.put("status", "Success");
@@ -161,7 +161,7 @@ public class DiagnosticController {
         logger.info("Manual sync all users endpoint called");
         
         try {
-            List<User> syncedUsers = firebaseSyncService.syncAllFirebaseUsers();
+            List<User> syncedUsers = firebaseSyncService.syncAllUsers();
             
             Map<String, Object> response = new HashMap<>();
             response.put("status", "Manual sync completed");
@@ -188,7 +188,7 @@ public class DiagnosticController {
                 return ResponseEntity.badRequest().body("UID is required");
             }
             
-            User user = firebaseSyncService.syncFirebaseUserToDB(uid);
+            User user = firebaseSyncService.syncUser(uid, null, null);
             
             Map<String, Object> response = new HashMap<>();
             response.put("status", "Success");

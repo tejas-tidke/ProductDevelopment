@@ -35,7 +35,7 @@ public class ManualSyncUtil {
             logger.info("Firebase connection verified");
             
             // Use FirebaseSyncService to sync all users
-            List<User> syncedUsers = firebaseSyncService.syncAllFirebaseUsers();
+            List<User> syncedUsers = firebaseSyncService.syncAllUsers();
             logger.info("Manual sync completed. Synced {} users", syncedUsers.size());
             
         } catch (Exception e) {
@@ -51,7 +51,7 @@ public class ManualSyncUtil {
         
         try {
             // Use FirebaseSyncService to sync a single user
-            User user = firebaseSyncService.syncFirebaseUserToDB(uid);
+            User user = firebaseSyncService.syncUser(uid, null, null);
             logger.info("Successfully synced user to database: {} ({})", user.getEmail(), user.getUid());
             return true;
         } catch (Exception e) {

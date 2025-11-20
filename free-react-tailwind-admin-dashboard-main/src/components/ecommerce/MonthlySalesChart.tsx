@@ -408,7 +408,7 @@ export default function MonthlySalesChart() {
       {/* Header for Pie Chart and Monthly Sales Chart */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-Bold text-gray-800 dark:text-white/90">PIE CHART</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white/90 h-10">PIE CHART</h3>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Sprint Analytics like Jira: Issue Types</p>
         </div>
 
@@ -427,7 +427,7 @@ export default function MonthlySalesChart() {
             </button>
 
             <Dropdown isOpen={isOpen} onClose={closeDropdown} anchorRef={containerRef} className="w-44 p-2">
-              <DropdownItem
+              {/* <DropdownItem
                 onItemClick={() => {
                   onExportCSV();
                   closeDropdown();
@@ -435,7 +435,7 @@ export default function MonthlySalesChart() {
                 className="flex w-full rounded-lg text-left font-normal text-gray-600 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-gray-100"
               >
                 Export CSV
-              </DropdownItem>
+              </DropdownItem> */}
               <DropdownItem
                 onItemClick={closeDropdown}
                 className="flex w-full rounded-lg text-left font-normal text-gray-600 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-gray-100"

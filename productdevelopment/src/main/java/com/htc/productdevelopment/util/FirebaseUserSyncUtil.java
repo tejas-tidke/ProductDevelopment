@@ -29,7 +29,7 @@ public class FirebaseUserSyncUtil implements CommandLineRunner {
         logger.info("Starting synchronization of all Firebase users to database");
         
         try {
-            List<User> syncedUsers = firebaseSyncService.syncAllFirebaseUsers();
+            List<User> syncedUsers = firebaseSyncService.syncAllUsers();
             logger.info("Successfully synchronized {} Firebase users to database", syncedUsers.size());
         } catch (Exception e) {
             logger.error("Error during Firebase user synchronization: {}", e.getMessage(), e);

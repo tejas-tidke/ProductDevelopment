@@ -4,6 +4,7 @@ import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.model.Organization;
 import com.htc.productdevelopment.repository.UserRepository;
 import com.google.firebase.auth.UserRecord;
+import com.google.firebase.auth.ExportedUserRecord;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.UserRecord.CreateRequest;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -214,11 +216,13 @@ public class FirebaseSyncService {
         
         try {
             // Fetch all users from Firebase (limited to 1000 for now)
-            List<UserRecord> firebaseUsers = FirebaseAuth.getInstance().listUsersAsync(null).get().getValues();
+            Iterable<ExportedUserRecord> firebaseUsersIterable = FirebaseAuth.getInstance().listUsersAsync(null).get().getValues();
+                        List<ExportedUserRecord> firebaseUsers = new ArrayList<>();
+                        firebaseUsersIterable.forEach(firebaseUsers::add);
             logger.debug("Fetched {} users from Firebase", firebaseUsers.size());
             
             // Sync each user to local database
-            for (UserRecord firebaseUser : firebaseUsers) {
+            for (ExportedUserRecord firebaseUser : firebaseUsers) {
                 try {
                     syncUser(firebaseUser.getUid(), firebaseUser.getEmail(), firebaseUser.getDisplayName());
                 } catch (Exception e) {
