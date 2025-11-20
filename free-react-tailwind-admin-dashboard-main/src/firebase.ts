@@ -1,6 +1,6 @@
 // src/firebase.ts
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 
 // Firebase config using environment variables
 const firebaseConfig = {
@@ -17,5 +17,11 @@ const app = initializeApp(firebaseConfig);
 
 // Firebase Auth instance
 export const auth = getAuth(app);
+
+// Set auth persistence to local storage to keep user logged in
+setPersistence(auth, browserLocalPersistence)
+  .catch((error) => {
+    console.error("Failed to set auth persistence:", error);
+  });
 
 export default app;

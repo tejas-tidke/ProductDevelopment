@@ -128,6 +128,7 @@ const Issues: React.FC = () => {
     { key: 'reporter', title: 'Reporter', isSortable: true, isSelected: true },
     { key: 'customfield_10200', title: 'Assignee (Custom)', isSortable: true, isSelected: true },
     { key: 'customfield_10201', title: 'Reporter (Custom)', isSortable: true, isSelected: true },
+    { key: 'customfield_10244', title: 'Department', isSortable: true, isSelected: true },
     { key: 'created', title: 'Created', isSortable: true, isSelected: false },
     { key: 'updated', title: 'Updated', isSortable: true, isSelected: false },
     { key: 'priority', title: 'Priority', isSortable: true, isSelected: true },
@@ -576,6 +577,8 @@ const Issues: React.FC = () => {
         return issue.fields?.customfield_10200 || "N/A";
       case 'customfield_10201': // Reporter Custom Field
         return issue.fields?.customfield_10201 || "N/A";
+      case 'customfield_10244': // Department Custom Field
+        return issue.fields?.customfield_10244 || "N/A";
       case 'actions':
         return <ActionsDropdown issue={issue} />;
       default:

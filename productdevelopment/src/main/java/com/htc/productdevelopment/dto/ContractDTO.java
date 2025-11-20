@@ -13,6 +13,7 @@ public class ContractDTO {
     private String requesterName;
     private String requesterEmail;       // requesterMail
     private String requesterDepartment;
+    private String requesterOrganization;
 
     private String vendorContractType;
     private String additionalComment;

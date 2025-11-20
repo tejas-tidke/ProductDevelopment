@@ -228,7 +228,7 @@ const IssueTypeIcon: React.FC<{ type: string; size?: 'sm' | 'md' | 'lg' }> = ({ 
     'Task': {
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
-      icon: 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z'
+      icon: 'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v6z'
     },
     'Bug': {
       color: 'text-red-600',
@@ -1120,6 +1120,13 @@ useEffect(() => {
                           <div>
                             <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Custom Assignee</h4>
                             <span className="text-gray-900 dark:text-white">{selectedIssue.fields.customfield_10200}</span>
+                          </div>
+                        )}
+
+                        {selectedIssue.fields.customfield_10244 && (
+                          <div>
+                            <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Department</h4>
+                            <span className="text-gray-900 dark:text-white">{selectedIssue.fields.customfield_10244}</span>
                           </div>
                         )}
                       </div>

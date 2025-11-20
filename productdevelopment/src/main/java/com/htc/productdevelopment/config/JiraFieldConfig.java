@@ -55,6 +55,8 @@ public class JiraFieldConfig {
     private String requesterEmail;
     @Value("${jira.customfield.department}")
     private String department;
+    @Value("${jira.customfield.organization}")
+    private String organization;
 
     // 🔹 Comments (paragraph field)
     @Value("${jira.customfield.additionalComment}")

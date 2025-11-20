@@ -36,6 +36,9 @@ public interface ContractDetailsRepository extends JpaRepository<ContractDetails
     """)
     List<ContractDetails> findContractsByDepartments(List<String> departments);
 
+    // Fetch contracts by contract type
+    List<ContractDetails> findByContractType(String contractType);
+
     // ⭐ ADD THESE (Fix your error)
     List<ContractDetails> findByNameOfVendorIgnoreCase(String vendorName);
 

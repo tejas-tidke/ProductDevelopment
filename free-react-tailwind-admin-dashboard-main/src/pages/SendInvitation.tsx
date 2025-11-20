@@ -4,6 +4,7 @@ import PageMeta from "../components/common/PageMeta";
 import { invitationApi, departmentApi, organizationApi } from "../services/api";
 import { useNavigate } from "react-router";
 import { usePermissions } from "../hooks/usePermissions";
+import { useAuth } from "../context/AuthContext";
 
 // Define Department type
 interface Department {
@@ -18,17 +19,10 @@ interface Organization {
   parentId: number | null;
 }
 
-// Define invitation data type
-interface InvitationData {
-  email: string;
-  role: string;
-  departmentId: number | null;
-  organizationId?: number;
-}
-
 export default function SendInvitation() {
   const navigate = useNavigate();
   const { userRole, hasRole, canSendInvitations } = usePermissions();
+  const { userDepartmentId, userOrganizationId } = useAuth();
   const [formData, setFormData] = useState({
     email: "",
     role: "REQUESTER",
@@ -61,9 +55,25 @@ export default function SendInvitation() {
         const deptData = await departmentApi.getAllDepartments();
         setDepartments(deptData);
         
-        if (isSuperAdminMemo()) {
+        // Auto-select the current user's department for Admin users
+        if (userDepartmentId && !hasRole('SUPER_ADMIN')) {
+          setFormData(prev => ({
+            ...prev,
+            departmentId: userDepartmentId.toString()
+          }));
+        }
+        
+        if (hasRole('SUPER_ADMIN')) {
           const orgData = await organizationApi.getAllOrganizations();
           setOrganizations(orgData);
+          
+          // Auto-select the current user's organization for SUPER_ADMIN
+          if (userOrganizationId) {
+            setFormData(prev => ({
+              ...prev,
+              organizationId: userOrganizationId.toString()
+            }));
+          }
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -74,7 +84,7 @@ export default function SendInvitation() {
     if (canSendInvite()) {
       fetchData();
     }
-  }, [canSendInvite, isSuperAdminMemo]);
+  }, [canSendInvite, hasRole, userDepartmentId, userOrganizationId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -91,15 +101,23 @@ export default function SendInvitation() {
     
     try {
       // Prepare invitation data for pending user creation
-      const invitationData: InvitationData = {
+      const invitationData: {
+        email: string;
+        role: string;
+        departmentId: number | null;
+        organizationId?: number;
+      } = {
         email: formData.email,
         role: formData.role,
         departmentId: formData.departmentId ? parseInt(formData.departmentId) : null
       };
       
-      // Only SUPER_ADMIN can set organization
-      if (isSuperAdminMemo() && formData.organizationId) {
+      // Add organizationId if provided
+      if (formData.organizationId) {
         invitationData.organizationId = parseInt(formData.organizationId);
+      } else if (!hasRole('SUPER_ADMIN') && userOrganizationId) {
+        // For non-SUPER_ADMIN users, add organizationId if available
+        invitationData.organizationId = userOrganizationId;
       }
       
       // Create pending user record instead of sending token
@@ -111,12 +129,13 @@ export default function SendInvitation() {
         setMessage({ type: "success", text: "User invited successfully! They will receive an email notification." });
       }
 
-      // Reset form (but keep department selection)
+      // Reset form (but keep department selection for Admin users)
       setFormData(prev => ({
         ...prev,
         email: "",
         role: "REQUESTER",
-        organizationId: isSuperAdminMemo() ? prev.organizationId : ""
+        departmentId: hasRole('SUPER_ADMIN') ? "" : (userDepartmentId ? userDepartmentId.toString() : ""),
+        organizationId: hasRole('SUPER_ADMIN') ? (userOrganizationId ? userOrganizationId.toString() : "") : ""
       }));
     } catch (error) {
       console.error("Error sending invitation:", error);
@@ -221,7 +240,7 @@ export default function SendInvitation() {
             {/* Department Selection */}
             <div>
               <label htmlFor="departmentId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Department *
+                Department * {hasRole('SUPER_ADMIN') ? "" : "(Auto-selected based on your department)"}
               </label>
               <select
                 id="departmentId"
@@ -229,7 +248,8 @@ export default function SendInvitation() {
                 value={formData.departmentId}
                 onChange={handleInputChange}
                 required
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
+                disabled={!hasRole('SUPER_ADMIN')} // Disable for non-SUPER_ADMIN users
+                className={`w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900 ${!hasRole('SUPER_ADMIN') ? 'opacity-75 cursor-not-allowed' : ''}`}
               >
                 <option value="">Select Department</option>
                 {departments.map((dept) => (
@@ -238,7 +258,11 @@ export default function SendInvitation() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-gray-500">Select the department the user will belong to.</p>
+              {!hasRole('SUPER_ADMIN') ? (
+                <p className="mt-1 text-xs text-gray-500">Department is auto-selected based on your login credentials.</p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">Select the department the user will belong to.</p>
+              )}
             </div>
             
             {/* Organization Selection - Only visible to SUPER_ADMIN */}

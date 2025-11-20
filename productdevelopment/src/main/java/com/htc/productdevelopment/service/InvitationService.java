@@ -27,6 +27,7 @@ public class InvitationService {
     private final OrganizationService organizationService;
 
     private final String frontendUrl;
+    private final String mailUsername;
 
     public InvitationService(
             InvitationRepository invitationRepository,
@@ -34,7 +35,8 @@ public class InvitationService {
             JavaMailSender mailSender,
             OrganizationRepository organizationRepository,
             OrganizationService organizationService,
-            @Value("${app.frontend.url}") String frontendUrl
+            @Value("${app.frontend.url}") String frontendUrl,
+            @Value("${spring.mail.username}") String mailUsername
     ) {
         this.invitationRepository = invitationRepository;
         this.userService = userService;
@@ -42,6 +44,7 @@ public class InvitationService {
         this.organizationRepository = organizationRepository;
         this.organizationService = organizationService;
         this.frontendUrl = frontendUrl;
+        this.mailUsername = mailUsername;
     }
 
     // -------------------------------------------------------------
@@ -77,6 +80,7 @@ public class InvitationService {
             String invitationLink = generateInvitationLink(inv);
             
             SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(mailUsername); // Set the "from" address to the primary email from configuration
             message.setTo(inv.getEmail());
             message.setSubject("You've been invited to join our platform");
             message.setText(

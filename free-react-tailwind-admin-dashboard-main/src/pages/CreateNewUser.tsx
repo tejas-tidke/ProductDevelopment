@@ -1,11 +1,16 @@
 import { useState, useEffect } from "react";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
-import { userApi, departmentApi } from "../services/api";
+import { userApi, departmentApi, organizationApi } from "../services/api";
 import { useNavigate } from "react-router";
 
-// Define Department type
+// Define Department and Organization types
 interface Department {
+  id: number;
+  name: string;
+}
+
+interface Organization {
   id: number;
   name: string;
 }
@@ -18,26 +23,32 @@ export default function Blank() {
     email: "",
     password: "",
     role: "REQUESTER",
-    departmentId: "" // Add departmentId to form data
+    departmentId: "", // Add departmentId to form data
+    organizationId: "" // Add organizationId to form data
   });
   
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: string, text: string} | null>(null);
 
-  // Fetch departments when component mounts
+  // Fetch departments and organizations when component mounts
   useEffect(() => {
-    const fetchDepartments = async () => {
+    const fetchData = async () => {
       try {
-        const deptData = await departmentApi.getAllDepartments();
+        const [deptData, orgData] = await Promise.all([
+          departmentApi.getAllDepartments(),
+          organizationApi.getAllOrganizations()
+        ]);
         setDepartments(deptData);
+        setOrganizations(orgData);
       } catch (error) {
-        console.error("Error fetching departments:", error);
-        setMessage({type: "error", text: "Failed to load departments: " + (error as Error).message});
+        console.error("Error fetching data:", error);
+        setMessage({type: "error", text: "Failed to load departments/organizations: " + (error as Error).message});
       }
     };
 
-    fetchDepartments();
+    fetchData();
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -54,13 +65,14 @@ export default function Blank() {
     setMessage(null);
     
     try {
-      // Prepare user data with department
+      // Prepare user data with department and organization
       const userData = {
         name: formData.name,
         email: formData.email,
         password: formData.password,
         role: formData.role,
-        department: formData.departmentId ? { id: parseInt(formData.departmentId) } : null
+        department: formData.departmentId ? { id: parseInt(formData.departmentId) } : null,
+        organization: formData.organizationId ? { id: parseInt(formData.organizationId) } : null
       };
       
       await userApi.createFirebaseUser(userData);
@@ -77,7 +89,8 @@ export default function Blank() {
         email: "",
         password: "",
         role: "REQUESTER",
-        departmentId: ""
+        departmentId: "",
+        organizationId: ""
       });
     } catch (error) {
       console.error("Error creating user:", error);
@@ -194,6 +207,27 @@ export default function Blank() {
                 {departments.map((dept) => (
                   <option key={dept.id} value={dept.id}>
                     {dept.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {/* Organization Selection */}
+            <div>
+              <label htmlFor="organizationId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Organization
+              </label>
+              <select
+                id="organizationId"
+                name="organizationId"
+                value={formData.organizationId}
+                onChange={handleInputChange}
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
+              >
+                <option value="">Select Organization</option>
+                {organizations.map((org) => (
+                  <option key={org.id} value={org.id}>
+                    {org.name}
                   </option>
                 ))}
               </select>

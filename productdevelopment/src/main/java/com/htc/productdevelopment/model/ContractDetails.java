@@ -25,6 +25,12 @@ public class ContractDetails {
     private Long id;
 
     // -------------------------
+    // Contract Type
+    // -------------------------
+    @Column(name = "contract_type", length = 20)
+    private String contractType; // "new" or "existing"
+
+    // -------------------------
     // Vendor & Product
     // -------------------------
     @Column(name = "name_of_vendor", nullable = false)
@@ -77,6 +83,9 @@ public class ContractDetails {
 
     @Column(name = "requester_department")
     private String requesterDepartment;
+
+    @Column(name = "requester_organization")
+    private String requesterOrganization;
 
     // ============================================
     // ✅ NEW FIELDS REQUIRED BY JiraService + DTO

@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link } from "react-router";
+import { useAuth } from "../../context/AuthContext";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { useDrag, useDrop } from "react-dnd";
 import PageMeta from "../../components/common/PageMeta";
-import { jiraService, IssueData, IssueUpdateData } from "../../services/jiraService";
+import { jiraService } from "../../services/jiraService";
 import EditIssueModal from "../../components/modals/EditIssueModal";
-import CreateIssueModal from "../../components/modals/CreateIssueModal";
-import { CustomFilterDropdown } from "../../components/filters/CustomFilterDropdown";
-import ColumnSelector from "../../components/tables/ColumnSelector";
 
 interface Project {
   id: string;
@@ -39,7 +37,6 @@ interface Issue {
   id: string;
   key: string;
   fields: {
-    [k: string]: any;
     summary?: string;
     project?: {
       name?: string;
@@ -63,6 +60,7 @@ interface Issue {
       displayName?: string;
       emailAddress?: string;
     };
+    [k: string]: unknown;
   };
 }
 
@@ -74,9 +72,9 @@ interface Column {
 }
 
 const AllOpen: React.FC = () => {
+  const { userRole, userOrganizationId, userDepartmentId } = useAuth();
   // --- UI / filter state
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedAssignee, setSelectedAssignee] = useState("");
   const [selectedIssueType, setSelectedIssueType] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [sortField, setSortField] = useState<string>("");
@@ -87,14 +85,12 @@ const AllOpen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
   const [issueTypes, setIssueTypes] = useState<JiraIssueType[]>([]);
   const [statuses, setStatuses] = useState<{ id: string; name: string }[]>([]);
   const [customFields, setCustomFields] = useState<JiraField[]>([]);
 
   // modals / selection
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
 
   // column visibility + ordering (defaults tuned for Request Management)
@@ -103,9 +99,10 @@ const AllOpen: React.FC = () => {
     { key: 'issuetype', title: 'Type', isSortable: true, isSelected: true },
     { key: 'summary', title: 'Summary', isSortable: true, isSelected: true },
     { key: 'status', title: 'Status', isSortable: true, isSelected: true },
-    { key: 'assignee', title: 'Assignee', isSortable: true, isSelected: true },
     { key: 'requesterName', title: 'Requester Name', isSortable: true, isSelected: true },
     { key: 'requesterEmail', title: 'Requester Email', isSortable: true, isSelected: true },
+    { key: 'organization', title: 'Organization', isSortable: true, isSelected: true }, // Added organization column
+    { key: 'department', title: 'Department', isSortable: true, isSelected: true }, // Added department column
     { key: 'vendorName', title: 'Vendor', isSortable: false, isSelected: true },
     { key: 'productName', title: 'Product', isSortable: false, isSelected: true },
     { key: 'billingType', title: 'Billing Type', isSortable: false, isSelected: true },
@@ -125,9 +122,9 @@ const AllOpen: React.FC = () => {
   const navigate = useNavigate();
 
   // helper: toggle column
-  const toggleColumn = (columnKey: string) => {
-    setAllColumns(prev => prev.map(col => col.key === columnKey ? { ...col, isSelected: !col.isSelected } : col));
-  };
+  // const toggleColumn = (columnKey: string) => {
+  //   setAllColumns(prev => prev.map(col => col.key === columnKey ? { ...col, isSelected: !col.isSelected } : col));
+  // };
 
   // helper: safe field reader (tries many key variants)
   const getFieldValue = (issue: Issue, keys: string[]): string => {
@@ -142,18 +139,27 @@ const AllOpen: React.FC = () => {
 
       // Jira object shapes: { value } or { displayName } or { name } or array
       if (typeof val === 'object') {
-        if (val.value) return String(val.value);
-        if (val.displayName) return String(val.displayName);
-        if (val.name) return String(val.name);
+        // Type guard for objects with value property
+        if (val && typeof val === 'object' && 'value' in val && val.value !== undefined) {
+          return String(val.value);
+        }
+        // Type guard for objects with displayName property
+        if (val && typeof val === 'object' && 'displayName' in val && val.displayName !== undefined) {
+          return String(val.displayName);
+        }
+        // Type guard for objects with name property
+        if (val && typeof val === 'object' && 'name' in val && val.name !== undefined) {
+          return String(val.name);
+        }
         if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'string') return val[0];
         // nested reporter email example: issue.fields.reporter?.emailAddress
         if (k.includes('.') && k.split('.').length > 1) {
           // support 'reporter.emailAddress'
           const parts = k.split('.');
-          let cur: any = issue.fields;
+          let cur: Record<string, unknown> = issue.fields;
           for (const p of parts) {
             if (!cur) break;
-            cur = cur[p];
+            cur = cur[p] as Record<string, unknown>;
           }
           if (cur) return String(cur);
         }
@@ -208,11 +214,8 @@ const AllOpen: React.FC = () => {
 
         // issues
         try {
-          const resp = await jiraService.getAllIssues();
-          let allIssues: Issue[] = [];
-          if (Array.isArray(resp)) allIssues = resp;
-          else if (resp && Array.isArray(resp.issues)) allIssues = resp.issues;
-          else allIssues = [];
+          const resp = await jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId); // Pass user context
+          const allIssues: Issue[] = Array.isArray(resp) ? resp : (resp && Array.isArray(resp.issues) ? resp.issues : []);
 
           // filter to Request Management project only
           const projectNameToShow = "Request Management";
@@ -223,9 +226,8 @@ const AllOpen: React.FC = () => {
           const uniqueStatuses = Array.from(new Set(filtered.map(i => i.fields?.status?.name).filter(Boolean))).map(s => ({ id: s!, name: s! }));
           setStatuses(uniqueStatuses);
 
-          const uniqueAssignees = Array.from(new Set(filtered.map(i => i.fields?.assignee?.displayName).filter(Boolean))).map(a => ({ id: a!, name: a! }));
-          setAssignees(uniqueAssignees);
         } catch (err) {
+
           console.error("Failed fetch issues", err);
           setError("Failed to load requests.");
         }
@@ -244,7 +246,6 @@ const AllOpen: React.FC = () => {
       const key = (issue.key || '').toString().toLowerCase();
       return (
         (searchTerm === "" || summary.includes(searchTerm.toLowerCase()) || key.includes(searchTerm.toLowerCase())) &&
-        (selectedAssignee === "" || issue.fields?.assignee?.displayName === selectedAssignee) &&
         (selectedIssueType === "" || issue.fields?.issuetype?.name === selectedIssueType) &&
         (selectedStatus === "" || issue.fields?.status?.name === selectedStatus)
       );
@@ -257,7 +258,8 @@ const AllOpen: React.FC = () => {
             case 'key': return iss.key || '';
             case 'summary': return iss.fields?.summary || '';
             case 'status': return iss.fields?.status?.name || '';
-            case 'assignee': return iss.fields?.assignee?.displayName || '';
+            case 'organization': return getFieldValue(iss, ['customfield_10337']) || '';
+            case 'department': return getFieldValue(iss, ['customfield_10244']) || '';
             case 'created': return iss.fields?.created || '';
             case 'dueDate':
               return getFieldValue(iss, ['dueDate', 'Due Date', 'vendorStartDate', 'customfield_dueDate']);
@@ -272,17 +274,9 @@ const AllOpen: React.FC = () => {
     }
 
     return res;
-  }, [issues, searchTerm, selectedAssignee, selectedIssueType, selectedStatus, sortField, sortDirection]);
+  }, [issues, searchTerm, selectedIssueType, selectedStatus, sortField, sortDirection]);
 
   // billing helpers per issue (returns booleans)
-  const billingIsUsage = (issue: Issue) => {
-    const billing = getFieldValue(issue, ['billingType','Billing Type','vendorContractType','contractType']).toLowerCase();
-    return /usage|meter|consum/i.test(billing);
-  };
-  const billingIsLicense = (issue: Issue) => {
-    const billing = getFieldValue(issue, ['billingType','Billing Type','vendorContractType','contractType']).toLowerCase();
-    return /licen|license|seat|user/i.test(billing);
-  };
 
   // ActionsDropdown (view/edit/delete)
   const ActionsDropdown: React.FC<{ issue: Issue }> = ({ issue }) => {
@@ -319,9 +313,15 @@ const AllOpen: React.FC = () => {
     };
 
     return (
-      <div className="relative" ref={(el) => (ref.current = el)}>
-        <button onClick={() => setOpen(v => !v)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
-          <svg className="w-5 h-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/></svg>
+      <div className="relative" ref={ref}>
+        <button 
+          onClick={() => setOpen(v => !v)} 
+          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+          aria-label="Actions"
+        >
+          <svg className="w-5 h-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z"/>
+          </svg>
         </button>
 
         {open && (
@@ -408,8 +408,6 @@ const AllOpen: React.FC = () => {
         return issue.fields?.summary || '-';
       case 'status':
         return issue.fields?.status?.name || '-';
-      case 'assignee':
-        return issue.fields?.assignee?.displayName || 'Unassigned';
       case 'requesterName':
   return (
     getFieldValue(issue, ['customfield_10243']) ||
@@ -423,6 +421,12 @@ case 'requesterEmail':
     issue.fields?.reporter?.emailAddress ||
     '-'
   );
+
+case 'organization':
+  return getFieldValue(issue, ['customfield_10337']) || '-';
+
+case 'department':
+  return getFieldValue(issue, ['customfield_10244']) || '-';
 
 case 'vendorName':
   return getFieldValue(issue, ['customfield_10290']) || '-';
@@ -513,37 +517,50 @@ case 'additionalComments':
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">All Requests</h1>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setIsCreateModalOpen(true)} className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm">Create</button>
-              <ColumnSelector columns={allColumns} onColumnToggle={toggleColumn} projectKey="REQUEST_MANAGEMENT" />
-            </div>
-          </div>
+            <div className="flex space-x-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search requests..."
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+              <div className="relative">
+                <label htmlFor="issueTypeFilter" className="sr-only">Filter by Issue Type</label>
+                <select
+                  id="issueTypeFilter"
+                  className="pl-3 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  value={selectedIssueType}
+                  onChange={(e) => setSelectedIssueType(e.target.value)}
+                >
+                  <option value="">All Types</option>
+                  {issueTypes.map(type => (
+                    <option key={type.id} value={type.name}>{type.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="relative">
+                <label htmlFor="statusFilter" className="sr-only">Filter by Status</label>
+                <select
+                  id="statusFilter"
+                  className="pl-3 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                >
+                  <option value="">All Statuses</option>
+                  {statuses.map(status => (
+                    <option key={status.id} value={status.name}>{status.name}</option>
+                  ))}
+                </select>
+              </div>
 
-          {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-4">
-            <div className="md:col-span-2">
-              <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search requests..." className="w-full px-3 py-2 rounded border" />
-            </div>
-            <div>
-              <select value={selectedAssignee} onChange={e => setSelectedAssignee(e.target.value)} className="w-full px-3 py-2 rounded border">
-                <option value="">All Assignees</option>
-                {assignees.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <select value={selectedIssueType} onChange={e => setSelectedIssueType(e.target.value)} className="w-full px-3 py-2 rounded border">
-                <option value="">All Types</option>
-                {issueTypes.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)} className="w-full px-3 py-2 rounded border">
-                <option value="">All Statuses</option>
-                {statuses.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <CustomFilterDropdown customFields={customFields.map(f => ({ id: f.id, name: f.name }))} onSortChange={(f,d) => { setSortField(f); setSortDirection(d); }} onAddFilter={() => {}} />
             </div>
           </div>
 
@@ -585,18 +602,11 @@ case 'additionalComments':
 
           {/* Modals */}
           {selectedIssue && <EditIssueModal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setSelectedIssue(null); }} onSubmit={async (key, data) => { await jiraService.updateIssue(key, data); /* Refresh simplified */ }} issue={selectedIssue as any} />}
-          <CreateIssueModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          onIssueCreated={(createdIssue) => {
-            console.log("Issue created:", createdIssue);
-            navigate("/request-management/all-open");
-          }}
-        />
-      </div>
-      </div>
-    </>
-  );
+
+        </div>
+        </div>
+      </>
+    );
 };
 
 export default AllOpen;

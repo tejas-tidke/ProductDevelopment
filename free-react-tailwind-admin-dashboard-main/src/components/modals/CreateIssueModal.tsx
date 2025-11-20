@@ -1,6 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { jiraService } from '../../services/jiraService';
+import { useAuth } from '../../context/AuthContext';
 
 interface ExistingContract {
   id: string;
@@ -38,6 +39,13 @@ interface ProductItem {
 }
 
 const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onIssueCreated }) => {
+  // Get user data from context
+  const { userDepartmentName, userOrganizationName } = useAuth();
+  
+  // Log the auth context values
+  console.log('🔐 Auth Context - Department:', userDepartmentName);
+  console.log('🔐 Auth Context - Organization:', userOrganizationName);
+
   // Helper functions
   const addMonths = (date: string, months: number): string => {
     const d = new Date(date);
@@ -165,16 +173,17 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   const fetchExistingContracts = async () => {
     try {
       setLoadingExistingContracts(true);
-      if (typeof jiraService.getContracts !== 'function') return;
-      const data = await jiraService.getContracts();
-      const mapped = Array.isArray(data)
-        ? data.map((c: any) => ({
-            id: String(c.id ?? c.contractId ?? c.key ?? ''),
-            vendorName: c.vendorName ?? c.nameOfVendor ?? '',
-            productName: c.productName ?? '',
-            requesterName: c.requesterName ?? '',
-            requesterMail: c.requesterMail ?? '',
-            vendorContractType:
+      // Use the new endpoint to fetch only "new" contracts when selecting "existing" contract type
+      if (typeof jiraService.getContractsByTypeAsDTO === 'function') {
+        const data: unknown = await jiraService.getContractsByTypeAsDTO('new');
+        const mapped = Array.isArray(data)
+          ? data.map((c: any) => ({
+              id: String(c.id ?? c.contractId ?? c.key ?? ''),
+              vendorName: c.vendorName ?? c.nameOfVendor ?? '',
+              productName: c.productName ?? '',
+              requesterName: c.requesterName ?? '',
+              requesterMail: c.requesterMail ?? c.requesterEmail ?? '',
+              vendorContractType:
   (c.vendorContractType ||
    c.billingType ||
    c.billing_type ||
@@ -182,21 +191,21 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
    c.vendor_contract_type ||
    '') as 'usage' | 'license' | '',
 
-            vendorStartDate: String(c.vendorStartDate ?? ''),
-            vendorEndDate: String(c.vendorEndDate ?? ''),
-            additionalComment: c.additionalComment ?? '',
-            vendorUnit: c.vendorUnit ?? c.unit ?? '',
-            vendorUsage:
-              typeof c.vendorUsage !== 'undefined'
-                ? Number(c.vendorUsage)
-                : typeof c.usage !== 'undefined'
-                ? Number(c.usage)
-                : typeof c.count !== 'undefined'
-                ? Number(c.count)
-                : undefined,
-          }))
-        : [];
-      setExistingContracts(mapped);
+              vendorStartDate: String(c.dueDate ?? ''),
+              vendorEndDate: String(c.renewalDate ?? ''),
+              additionalComment: c.additionalComment ?? '',
+              // Fixed mapping for current units and usage
+              vendorUnit: c.currentUnits ?? c.unit ?? '',
+              vendorUsage:
+                (typeof c.currentUsageCount !== 'undefined' && c.currentUsageCount !== null)
+                  ? Number(c.currentUsageCount)
+                  : (typeof c.currentLicenseCount !== 'undefined' && c.currentLicenseCount !== null)
+                  ? Number(c.currentLicenseCount)
+                  : undefined,
+            }))
+          : [];
+        setExistingContracts(mapped);
+      }
     } catch (err) {
       console.error('Error fetching existing contracts', err);
     } finally {
@@ -254,7 +263,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
       setProductName(found.productName);
       setVendorContractType(found.vendorContractType);
       setDueDate(found.vendorStartDate || '');
-      setCurrentEndDate(found.vendorEndDate || '');
       setRenewalDate(found.vendorEndDate || '');
       setAdditionalComment(found.additionalComment ?? '');
       if (found.requesterName) setRequesterName(found.requesterName);
@@ -489,6 +497,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
       additionalComment,
       requesterName,
       requesterMail,
+      department: userDepartmentName || '',
+      organization: userOrganizationName || '',
       contractMode: contractType,
       selectedExistingContractId: contractType === 'existing' ? selectedExistingContractId : undefined,
       renewalType: contractType === 'existing' ? renewalType || undefined : undefined,
@@ -498,6 +508,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
       renewalLicenseUnit: renewalLicenseUnit || undefined,
       attachments,
     };
+
+    // Log the vendor details to see what's being sent
+    console.log('📤 Vendor Details being sent:', vendorDetails);
+    console.log('📤 Department:', userDepartmentName);
+    console.log('📤 Organization:', userOrganizationName);
 
     try {
       const payload = { vendorDetails };
@@ -753,10 +768,18 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
                             <option value="credits">Credits</option>
                             <option value="minutes">Minutes</option>
                             <option value="others">Others</option>
+                            {/* Add option for custom units if they don't match predefined ones */}
+                            {currentUnits && !['credits', 'minutes', 'others', ''].includes(currentUnits) && (
+                              <option value={currentUnits}>{currentUnits}</option>
+                            )}
                           </select>
                         </div>
                       </div>
                       {currentUnits === 'others' && currentUnitsOther && <p className="mt-1 text-xs text-gray-500">Custom unit: {currentUnitsOther}</p>}
+                      {/* Display custom unit if it's not one of the predefined ones */}
+                      {currentUnits && !['credits', 'minutes', 'others', ''].includes(currentUnits) && (
+                        <p className="mt-1 text-xs text-gray-500">Unit: {currentUnits}</p>
+                      )}
 
                       <div className="mt-3">
                         <label htmlFor="renewalTypeUsage" className="block text-sm font-medium text-gray-700 mb-1">Renewal Type</label>
@@ -846,7 +869,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
 
                   <div>
                     <label htmlFor="renewalDate" className="block text-sm font-medium text-gray-700 mb-1">Renewal Date</label>
-                    <div className="flex items-center space-x-2">
+                                                                                                                                                                                                        <div className="flex items-center space-x-2">
                       <input id="renewalDate" ref={renewalDateRef} type="date" value={renewalDate} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                       <button type="button" onClick={focusRenewalDate} className="p-2 border rounded-md bg-white" aria-label="Open renewal date picker">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>

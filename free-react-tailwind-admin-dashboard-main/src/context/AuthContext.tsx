@@ -137,6 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsSuperAdmin(false);
         setIsApprover(false);
         setIsRequester(false);
+        // Clear login time when user logs out
+        localStorage.removeItem('loginTime');
       }
       setLoading(false);
     });

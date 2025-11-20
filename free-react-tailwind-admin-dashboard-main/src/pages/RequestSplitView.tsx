@@ -119,10 +119,26 @@ const IssueTypeIcon: React.FC<{ type: string; size?: 'sm' | 'md' | 'lg' }> = ({ 
 
 const RequestSplitView: React.FC = () => {
   const { issueKey } = useParams<{ issueKey: string }>();
-  const { userRole, canAccessDepartmentIssues, canEditIssue, canTransitionIssue } = usePermissions();
+  const { userRole, canAccessDepartmentIssues, canEditIssue: canEditIssueBase } = usePermissions();
+  
+  // Custom function to check if issue can be edited
+  // Issues with "Completed" or "Declined" status should be non-editable
+  const canEditIssue = () => {
+    // First check base permissions
+    if (!canEditIssueBase()) {
+      return false;
+    }
+    
+    // Check if issue is in a non-editable status
+    const currentStatus = selectedIssue?.fields?.status?.name || '';
+    if (currentStatus === 'Completed' || currentStatus === 'Declined') {
+      return false;
+    }
+    
+    return true;
+  };
   
   const navigate = useNavigate();
-
   // filters
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
@@ -139,7 +155,7 @@ const RequestSplitView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // dropdowns
-  const [projects, setProjects] = useState<Project[]>([]);
+  // const [projects, setProjects] = useState<Project[]>([]);
   const [assignees, setAssignees] = useState<{ id: string; name: string }[]>([]);
   const [issueTypes, setIssueTypes] = useState<JiraIssueType[]>([]);
   const [statuses, setStatuses] = useState<{ id: string; name: string }[]>([]);
@@ -162,7 +178,15 @@ const RequestSplitView: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // transitions
-  const [jiraTransitions, setJiraTransitions] = useState<IssueTransition[]>([]);
+  // const [jiraTransitions, setJiraTransitions] = useState<IssueTransition[]>([]); // Not used in custom implementation
+
+  // Add custom state for quote upload functionality
+  const [isUploadQuoteModalOpen, setIsUploadQuoteModalOpen] = useState(false);
+  const [isTransitionDropdownOpen, setIsTransitionDropdownOpen] = useState(false);
+  const [currentProposal, setCurrentProposal] = useState<'first' | 'second' | 'third' | 'final'>('first');
+  const [unitCost, setUnitCost] = useState('');
+  const [quoteAttachments, setQuoteAttachments] = useState<File[]>([]);
+  const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
 
   // split view
   const [leftPanelWidth, setLeftPanelWidth] = useState(30);
@@ -254,9 +278,9 @@ const RequestSplitView: React.FC = () => {
 
   useEffect(() => {
     if (selectedIssue?.key) {
-      jiraService.getIssueTransitions(selectedIssue.key)
-        .then((data) => { setJiraTransitions(data); })
-        .catch((err) => console.error("Error fetching transitions:", err));
+      // jiraService.getIssueTransitions(selectedIssue.key)
+        // .then((data) => { setJiraTransitions(data); })
+        // .catch((err) => console.error("Error fetching transitions:", err));
     }
   }, [selectedIssue]);
 
@@ -269,7 +293,7 @@ const RequestSplitView: React.FC = () => {
         const validProjects = projectsData.filter((p: Project) => p.id || p.key).map((project: Project) => ({
           id: project.id || project.key, key: project.key, name: project.name, description: project.description || "", projectTypeKey: project.projectTypeKey || ""
         }));
-        setProjects(validProjects);
+        // setProjects(validProjects);
 
         const issueTypesData = await jiraService.getIssueTypes();
         const validIssueTypes = issueTypesData.filter((t: JiraIssueType) => t.id && t.name).map((type: JiraIssueType) => ({
@@ -283,10 +307,30 @@ const RequestSplitView: React.FC = () => {
           setCustomFields(customFieldsData);
         } catch (err) { console.error('Error fetching Jira fields:', err); }
 
-        const issuesResponse = await jiraService.getAllIssues();
+        // Get only issues from the "Request Management" project
+        const requestManagementProject = validProjects.find((p: Project) => p.name === "Request Management");
         let allIssues: Issue[] = [];
-        if (Array.isArray(issuesResponse)) allIssues = issuesResponse;
-        else if (issuesResponse && Array.isArray(issuesResponse.issues)) allIssues = issuesResponse.issues;
+        
+        if (requestManagementProject) {
+          try {
+            // Fetch issues specifically for the Request Management project
+            const projectIssues = await jiraService.getIssuesForProject(requestManagementProject.key);
+            if (Array.isArray(projectIssues)) allIssues = projectIssues;
+            else if (projectIssues && Array.isArray(projectIssues.issues)) allIssues = projectIssues.issues;
+          } catch (projectErr) {
+            console.error("Error fetching issues for Request Management project:", projectErr);
+            // Fallback to all issues if project-specific fetch fails
+            const issuesResponse = await jiraService.getAllIssues();
+            if (Array.isArray(issuesResponse)) allIssues = issuesResponse;
+            else if (issuesResponse && Array.isArray(issuesResponse.issues)) allIssues = issuesResponse.issues;
+          }
+        } else {
+          // Fallback to all issues if Request Management project not found
+          const issuesResponse = await jiraService.getAllIssues();
+          if (Array.isArray(issuesResponse)) allIssues = issuesResponse;
+          else if (issuesResponse && Array.isArray(issuesResponse.issues)) allIssues = issuesResponse.issues;
+        }
+        
         setIssues(allIssues);
 
         const uniqueStatuses = Array.from(new Set(allIssues.filter((i: Issue) => i.fields?.status?.name).map((i: Issue) => i.fields?.status?.name || "")))
@@ -327,15 +371,32 @@ useEffect(() => {
 }, [issueKey]);
 
 
+  // Set default filters
+  useEffect(() => {
+    // Set default project to "Request Management"
+    if (!selectedProject) {
+      setSelectedProject("Request Management");
+    }
+    
+    // Set default status to "" (All Statuses)
+    if (selectedStatus === undefined) {
+      setSelectedStatus("");
+    }
+  }, [selectedProject, selectedStatus]);
+  
   // Filtering logic
   const filteredIssues = useMemo(() => {
     let result = issues.filter(issue => {
+      // Only show issues from the "Request Management" project
+      if (issue.fields?.project?.name !== "Request Management") {
+        return false;
+      }
+      
       // First apply the existing filters
       const passesBasicFilters = (
         (searchTerm === "" ||
           (issue.fields?.summary?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             issue.key?.toLowerCase().includes(searchTerm.toLowerCase()))) &&
-        (selectedProject === "" || issue.fields?.project?.name === selectedProject) &&
         (selectedAssignee === "" || issue.fields?.assignee?.displayName === selectedAssignee) &&
         (selectedIssueType === "" || issue.fields?.issuetype?.name === selectedIssueType) &&
         (selectedStatus === "" || issue.fields?.status?.name === selectedStatus)
@@ -370,7 +431,7 @@ useEffect(() => {
     }
 
     return result;
-  }, [issues, searchTerm, selectedProject, selectedAssignee, selectedIssueType, selectedStatus, sortField, sortDirection, userRole, canAccessDepartmentIssues]);
+  }, [issues, searchTerm, selectedAssignee, selectedIssueType, selectedStatus, sortField, sortDirection, userRole, canAccessDepartmentIssues]);
 
   // click issue
   const handleIssueClick = (issue: Issue) => {
@@ -469,6 +530,320 @@ useEffect(() => {
     else navigate('/issues-split');
   };
 
+  // Custom function to get available transitions based on user role and current status
+  const getCustomTransitions = (): IssueTransition[] => {
+    if (!selectedIssue) return [];
+    
+    const currentStatus = selectedIssue.fields?.status?.name || '';
+    
+    // Debugging: log the current status and user role
+    console.log('Current status:', currentStatus);
+    console.log('User role:', userRole);
+    
+    // Create custom transitions based on role and current status
+    const customTransitions: IssueTransition[] = [];
+    
+    switch (userRole) {
+      case 'REQUESTER':
+        // Requester cannot transition issues
+        return [];
+        
+      case 'APPROVER':
+        // Approver can transition from "Request Created" to "Pre-Approval"
+        if (currentStatus === 'Request Created') {
+          customTransitions.push({
+            id: 'approve-to-pre-approval',
+            name: 'Approve',
+            to: {
+              id: 'pre-approval',
+              name: 'Pre-Approval',
+              statusCategory: {
+                id: 1,
+                key: 'indeterminate',
+                colorName: 'yellow'
+              }
+            }
+          });
+          customTransitions.push({
+            id: 'decline-request-created',
+            name: 'Decline',
+            to: {
+              id: 'declined',
+              name: 'Declined',
+              statusCategory: {
+                id: 2,
+                key: 'done',
+                colorName: 'warm-red'
+              }
+            }
+          });
+        }
+        return customTransitions;
+        
+      case 'ADMIN':
+        // Admin can transition from "Pre-Approval" to "Request Review Stage"
+        if (currentStatus.trim().toLowerCase() === 'pre-approval') {
+          customTransitions.push({
+            id: 'approve-to-review',
+            name: 'Approve',
+            to: {
+              id: 'request-review-stage',
+              name: 'Request Review Stage',
+              statusCategory: {
+                id: 1,
+                key: 'indeterminate',
+                colorName: 'yellow'
+              }
+            }
+          });
+          customTransitions.push({
+            id: 'decline-pre-approval',
+            name: 'Decline',
+            to: {
+              id: 'declined',
+              name: 'Declined',
+              statusCategory: {
+                id: 2,
+                key: 'done',
+                colorName: 'warm-red'
+              }
+            }
+          });
+        }
+        return customTransitions;
+        
+      case 'SUPER_ADMIN':
+        // Super Admin can transition from "Pre-Approval" to "Request Review Stage"
+        if (currentStatus.trim().toLowerCase() === 'pre-approval') {
+          customTransitions.push({
+            id: 'approve-to-review',
+            name: 'Approve',
+            to: {
+              id: 'request-review-stage',
+              name: 'Request Review Stage',
+              statusCategory: {
+                id: 1,
+                key: 'indeterminate',
+                colorName: 'yellow'
+              }
+            }
+          });
+          customTransitions.push({
+            id: 'decline-pre-approval',
+            name: 'Decline',
+            to: {
+              id: 'declined',
+              name: 'Declined',
+              statusCategory: {
+                id: 2,
+                key: 'done',
+                colorName: 'warm-red'
+              }
+            }
+          });
+        }
+        // Super Admin can transition from "Request Review Stage" to "Negotiation Stage"
+        else if (currentStatus === 'Request Review Stage') {
+          customTransitions.push({
+            id: 'approve-to-negotiation',
+            name: 'Approve',
+            to: {
+              id: 'negotiation-stage',
+              name: 'Negotiation Stage',
+              statusCategory: {
+                id: 1,
+                key: 'indeterminate',
+                colorName: 'yellow'
+              }
+            }
+          });
+          customTransitions.push({
+            id: 'decline-request-review',
+            name: 'Decline',
+            to: {
+              id: 'declined',
+              name: 'Declined',
+              statusCategory: {
+                id: 2,
+                key: 'done',
+                colorName: 'warm-red'
+              }
+            }
+          });
+        }
+        // Super Admin can transition from "Negotiation Stage" to "Post Approval"
+        else if (currentStatus === 'Negotiation Stage') {
+          customTransitions.push({
+            id: 'approve-to-post-approval',
+            name: 'Approve',
+            to: {
+              id: 'post-approval',
+              name: 'Post Approval',
+              statusCategory: {
+                id: 1,
+                key: 'indeterminate',
+                colorName: 'yellow'
+              }
+            }
+          });
+          customTransitions.push({
+            id: 'decline-negotiation',
+            name: 'Decline',
+            to: {
+              id: 'declined',
+              name: 'Declined',
+              statusCategory: {
+                id: 2,
+                key: 'done',
+                colorName: 'warm-red'
+              }
+            }
+          });
+        }
+        // Super Admin can transition from "Post Approval" to "Completed"
+        else if (currentStatus === 'Post Approval') {
+          customTransitions.push({
+            id: 'approve-to-completed',
+            name: 'Approve',
+            to: {
+              id: 'completed',
+              name: 'Completed',
+              statusCategory: {
+                id: 3,
+                key: 'done',
+                colorName: 'green'
+              }
+            }
+          });
+          customTransitions.push({
+            id: 'decline-post-approval',
+            name: 'Decline',
+            to: {
+              id: 'declined',
+              name: 'Declined',
+              statusCategory: {
+                id: 2,
+                key: 'done',
+                colorName: 'warm-red'
+              }
+            }
+          });
+        }
+        return customTransitions;
+        
+      default:
+        return [];
+    }
+  };
+
+  const customTransitions = getCustomTransitions();
+
+  // Helper function to calculate total cost
+  const calculateTotalCost = () => {
+    const licenseCount = parseInt(getFieldValue(["customfield_10293", "customfield_10294"]) || '0');
+    const unitCostValue = parseFloat(unitCost || '0');
+    return (licenseCount * unitCostValue).toFixed(2);
+  };
+
+  // Helper function to handle quote submission
+  const handleSubmitQuote = async () => {
+    setIsSubmittingQuote(true);
+    try {
+      // Here you would implement the actual quote submission logic
+      // This could involve saving to your database and/or attaching to the Jira ticket
+      console.log('Submitting quote:', {
+        proposal: currentProposal,
+        unitCost,
+        totalCost: calculateTotalCost(),
+        attachments: quoteAttachments
+      });
+      
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // If this is the final proposal, close the modal and allow status transition
+      if (currentProposal === 'final') {
+        // Reset form
+        setUnitCost('');
+        setQuoteAttachments([]);
+        setIsUploadQuoteModalOpen(false);
+        setIsSubmittingQuote(false);
+        
+        alert('Final quote submitted successfully! You can now transition the status.');
+      } else {
+        // For other proposals, just reset the form but keep the modal open
+        setUnitCost('');
+        setQuoteAttachments([]);
+        setIsSubmittingQuote(false);
+        
+        alert('Quote submitted successfully! You can continue with other proposals or close the modal.');
+      }
+    } catch (error) {
+      console.error('Error submitting quote:', error);
+      alert('Failed to submit quote. Please try again.');
+      setIsSubmittingQuote(false);
+    }
+  };
+
+  // Helper function to handle custom transitions
+  const handleCustomTransition = async (transitionId: string) => {
+    try {
+      if (!selectedIssue?.key) {
+        throw new Error('No issue selected');
+      }
+      
+      // Map custom transition IDs to actual status names
+      const statusMap: Record<string, string> = {
+        'approve-to-pre-approval': 'Pre-Approval',
+        'decline-request-created': 'Declined',
+        'approve-to-negotiation': 'Negotiation Stage',
+        'decline-request-review': 'Declined',
+        'approve-to-review': 'Request Review Stage',
+        'decline-pre-approval': 'Declined',
+        'approve-to-post-approval': 'Post Approval',
+        'decline-negotiation': 'Declined',
+        'approve-to-completed': 'Completed',
+        'decline-post-approval': 'Declined'
+      };
+      
+      const newStatus = statusMap[transitionId];
+      if (!newStatus) {
+        throw new Error(`Unknown transition ID: ${transitionId}`);
+      }
+      
+      // For declined status, we want to make the issue non-editable for all users
+      // In a real implementation, you would set a flag or field to indicate this
+      
+      console.log(`Transitioning issue ${selectedIssue.key} to status: ${newStatus}`);
+      
+      // Try to update the issue status
+      // Note: In a real Jira implementation, you would use the transition API
+      // For now, we'll show an alert and simulate the update
+      alert(`Issue status would be updated to: ${newStatus}`);
+      
+      // In a real implementation, you would uncomment the following lines:
+      // await jiraService.updateIssue(selectedIssue.key, updateData);
+      // const updatedIssue = await jiraService.getIssueByIdOrKey(selectedIssue.key);
+      // setSelectedIssue(updatedIssue);
+      
+      // For now, just update the local state to reflect the change
+      setSelectedIssue({
+        ...selectedIssue,
+        fields: {
+          ...selectedIssue.fields,
+          status: {
+            ...selectedIssue.fields.status,
+            name: newStatus
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('Error handling custom transition:', error);
+      alert('Failed to update status. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <>
@@ -518,6 +893,7 @@ const newUnitsVal = getFieldValue(["customfield_10298"]);
 const requesterNameVal = getFieldValue(["customfield_10243"]);
 const requesterEmailVal = getFieldValue(["customfield_10246"]);
 const departmentVal = getFieldValue(["customfield_10244"]);
+const organizationVal = getFieldValue(["customfield_10337"]);
 
 // Contract metadata
 const contractTypeVal = getFieldValue(["customfield_10299"]);
@@ -553,9 +929,8 @@ return (
             </div>
 
             <select className="rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} aria-label="Filter by project">
-              <option value="">Type of Management</option>
-              {projects.filter(project => project.name === "Request Management").map(project => (<option key={project.id} value={project.name}>{project.name}</option>))}
+              value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} aria-label="Filter by project" disabled>
+              <option value="Request Management">Request Management</option>
             </select>
 
             <select className="rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -679,40 +1054,57 @@ return (
                       )}
                     </div>
 
-                    {canTransitionIssue() && (
-                      <div className="flex items-center gap-2">
-                        <div className="relative inline-block text-left">
-                          <button onClick={() => setIsMoreDropdownOpen((prev) => !prev)} className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full shadow-sm focus:outline-none" style={{ backgroundColor: getStatusColor(selectedIssue.fields.status?.statusCategory?.colorName), color: "white" }}>
-                            <span>{selectedIssue?.fields?.status?.name || "Select Status"}</span>
-                            <svg className="w-4 h-4 ml-2 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                          </button>
+                    {/* Custom Transition Dropdown */}
+                    <div className="flex items-center gap-2">
+                      <div className="relative inline-block text-left">
+                        <button 
+                          onClick={() => setIsTransitionDropdownOpen(!isTransitionDropdownOpen)} 
+                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full shadow-sm focus:outline-none" 
+                          style={{ backgroundColor: getStatusColor(selectedIssue?.fields?.status?.statusCategory?.colorName), color: "white" }}
+                          aria-label="Transition issue status"
+                        >
+                          <span>{selectedIssue?.fields?.status?.name || "Select Status"}</span>
+                          <svg className="w-4 h-4 ml-2 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                        </button>
 
-                          {isMoreDropdownOpen && (
-                            <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
-                              <div className="py-1 max-h-60 overflow-auto">
-                                {jiraTransitions.map((transition) => (
-                                  <button key={transition.id} onClick={() => {
-                                    setSelectedTransition(transition.id);
-                                    setIsMoreDropdownOpen(false);
-                                    jiraService.transitionIssue(selectedIssue.key, transition.id)
-                                      .then(() => { 
-                                        jiraService.getIssueByIdOrKey(selectedIssue.key).then(setSelectedIssue); 
-                                        jiraService.getIssueTransitions(selectedIssue.key).then(setJiraTransitions); 
-                                      })
-                                      .catch((err) => { 
-                                        console.error("Error updating status:", err); 
-                                        alert("Failed to update status"); 
-                                      });
-                                  }} className={`flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all ${selectedTransition === transition.id ? 'bg-blue-100 dark:bg-blue-900' : ''}`}>
+                        {isTransitionDropdownOpen && (
+                          <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
+                            <div className="py-1 max-h-60 overflow-auto">
+                              {customTransitions.length > 0 ? (
+                                customTransitions.map((transition: IssueTransition) => (
+                                  <button 
+                                    key={transition.id} 
+                                    onClick={() => {
+                                      setSelectedTransition(transition.id);
+                                      setIsTransitionDropdownOpen(false);
+                                      // Handle custom transitions based on transition ID
+                                      handleCustomTransition(transition.id);
+                                    }} 
+                                    className={`flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all ${selectedTransition === transition.id ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
+                                  >
                                     <span className="w-2.5 h-2.5 rounded-full mr-2" style={{ backgroundColor: getStatusColor(transition.to?.statusCategory?.colorName) }}></span>
                                     {transition.name}
                                   </button>
-                                ))}
-                              </div>
+                                ))
+                              ) : (
+                                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                  No transitions available
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
+                    </div>
+
+                    {/* Upload Quote Button for SUPER_ADMIN in Negotiation Stage */}
+                    {userRole === 'SUPER_ADMIN' && selectedIssue?.fields?.status?.name === 'Negotiation Stage' && (
+                      <button 
+                        onClick={() => setIsUploadQuoteModalOpen(true)}
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      >
+                        Upload Quote
+                      </button>
                     )}
                   </div>
                 </div>
@@ -806,6 +1198,11 @@ return (
                         <div>
                           <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Department</h4>
                           <div className="text-gray-900 dark:text-white">{departmentVal || '-'}</div>
+                        </div>
+
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Organization</h4>
+                          <div className="text-gray-900 dark:text-white">{organizationVal || '-'}</div>
                         </div>
 
                         <div>
@@ -1038,7 +1435,7 @@ return (
                               </div>
                             ) : (
                               <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                                <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                 <p>No transitions available</p>
                                 <p className="text-sm mt-1">Issue transitions will be shown here</p>
                               </div>
@@ -1138,6 +1535,108 @@ return (
           issue={convertIssueForEditModal(selectedIssue)}
         />
       )}
+
+      {/* Upload Quote Modal */}
+      {isUploadQuoteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Upload Quote</h3>
+                <button 
+                  onClick={() => setIsUploadQuoteModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-500 dark:text-gray-300 dark:hover:text-gray-200"
+                  aria-label="Close modal"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label htmlFor="proposalType" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Proposal Type</label>
+                <select
+                  id="proposalType"
+                  value={currentProposal}
+                  onChange={(e) => setCurrentProposal(e.target.value as 'first' | 'second' | 'third' | 'final')}
+                  className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="first">First Proposal</option>
+                  <option value="second">Second Proposal</option>
+                  <option value="third">Third Proposal</option>
+                  <option value="final">Final Proposal</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  License Count: {getFieldValue(["customfield_10293", "customfield_10294"]) || 'N/A'}
+                </label>
+              </div>
+              
+              <div>
+                <label htmlFor="unitCost" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Unit Cost</label>
+                <input
+                  id="unitCost"
+                  type="number"
+                  value={unitCost}
+                  onChange={(e) => setUnitCost(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter unit cost"
+                  aria-label="Unit cost"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Total Cost: {calculateTotalCost()}
+                </label>
+              </div>
+              
+              <div>
+                <label htmlFor="attachments" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Attachments</label>
+                <input
+                  id="attachments"
+                  type="file"
+                  multiple
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      setQuoteAttachments(Array.from(e.target.files));
+                    }
+                  }}
+                  className="w-full rounded-md border border-gray-300 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white py-2 px-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Select attachment files"
+                />
+                {quoteAttachments.length > 0 && (
+                  <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    {quoteAttachments.length} file(s) selected
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setIsUploadQuoteModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitQuote}
+                disabled={isSubmittingQuote}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {isSubmittingQuote ? 'Submitting...' : 'Submit Quote'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
     </>
   );
 };

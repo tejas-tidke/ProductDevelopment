@@ -182,6 +182,7 @@ export interface ContractIssuePayload {
     requesterName: string;
     requesterMail: string;
     department: string;
+    organization: string;
     additionalComment: string;
 
     contractMode: string; // "new" | "existing"
@@ -224,6 +225,14 @@ export const jiraService = {
 
   // 6️⃣ Get ALL existing contracts for dropdown
   getContracts: () => jiraApiCall("/api/jira/contracts"),
+
+  // New method to get contracts by contract type
+  getContractsByType: (contractType: string) => 
+    jiraApiCall(`/api/jira/contracts/type/${contractType}`),
+
+  // New method to get contracts by contract type as DTOs
+  getContractsByTypeAsDTO: (contractType: string) => 
+    jiraApiCall(`/api/jira/contracts/type/${contractType}/dto`),
 
   // 7️⃣ Get one contract by ID (used when selecting existing contract)
   getContractById: (id: string) =>
@@ -274,6 +283,7 @@ export const jiraService = {
       requesterMail: requesterMail,
 
       department: toText(vd.department),
+      organization: toText(vd.organization),
       additionalComment: toText(vd.additionalComment),
 
       contractMode: toText(vd.contractMode),
@@ -319,8 +329,28 @@ export const jiraService = {
   getIssuesForProject: (projectKey: string) => jiraApiCall(`/api/jira/projects/${projectKey}/issues`),
   
   // Get all issues across all projects
-  getAllIssues: () => jiraApiCall("/api/jira/issues"),
-  
+  getAllIssues: async (userRole?: string | null, userOrganizationId?: number | null, userDepartmentId?: number | null) => {
+    // Build query parameters
+    const params = new URLSearchParams();
+    
+    if (userRole) {
+      params.append('userRole', userRole);
+    }
+    
+    if (userOrganizationId) {
+      params.append('userOrganizationId', userOrganizationId.toString());
+    }
+    
+    if (userDepartmentId) {
+      params.append('userDepartmentId', userDepartmentId.toString());
+    }
+    
+    const queryString = params.toString();
+    const url = queryString ? `/api/jira/issues?${queryString}` : "/api/jira/issues";
+    
+    return jiraApiCall(url);
+  },
+
   // Get recent issues across all projects
   getRecentIssues: () => jiraApiCall("/api/jira/issues/recent"),
   
@@ -357,13 +387,14 @@ export const jiraService = {
   },
 
   // Transition an issue to a new status
-    // Transition an issue to a new status
   transitionIssue: async (issueIdOrKey: string, transitionId: string) => {
     console.log(`Transitioning issue: ${issueIdOrKey} with transition ID: ${transitionId}`);
     return jiraApiCall(`/api/jira/issues/${issueIdOrKey}/transitions`, {
       method: "POST",
       body: JSON.stringify({
-        transitionId: transitionId,
+        transition: {
+          id: transitionId
+        }
       }),
     });
   },
@@ -451,6 +482,7 @@ createIssueJira: async (payload: ContractIssuePayload) => {
       requesterName:            toText(vd.requesterName),
       requesterMail:            toText(vd.requesterMail),
       department:               toText(vd.department),
+      organization:             toText(vd.organization),
       additionalComment:        toText(vd.additionalComment),
 
       contractMode:             toText(vd.contractMode),

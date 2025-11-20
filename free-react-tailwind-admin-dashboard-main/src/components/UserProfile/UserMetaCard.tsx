@@ -9,7 +9,7 @@ import { useState, useRef, useEffect } from "react";
 import { userService } from "../../services/userService";
 
 export default function UserMetaCard() {
-  const { currentUser, userData, refreshUserData } = useAuth();
+  const { currentUser, userData, userOrganizationName, userDepartmentName, refreshUserData } = useAuth();
   const { isOpen, openModal, closeModal } = useModal();
   const [avatar, setAvatar] = useState<string>("/images/user/user-01.jpg");
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -163,6 +163,27 @@ export default function UserMetaCard() {
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {currentUser?.email || "user@example.com"}
                 </p>
+              </div>
+              {/* Organization and Department Information */}
+              <div className="flex flex-col items-center gap-1 mt-2 text-center xl:flex-row xl:gap-3 xl:text-left">
+                {userOrganizationName && (
+                  <>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
+                      {userOrganizationName}
+                    </span>
+                    <div className="hidden h-3.5 w-px bg-gray-300 dark:bg-gray-700 xl:block"></div>
+                  </>
+                )}
+                {userDepartmentName && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">
+                    {userDepartmentName}
+                  </span>
+                )}
+                {!userOrganizationName && !userDepartmentName && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                    No organization or department assigned
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex items-center order-2 gap-2 grow xl:order-3 xl:justify-end">

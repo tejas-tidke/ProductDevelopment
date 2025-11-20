@@ -71,11 +71,30 @@ export const userApi = {
   // Get all users
   getAllUsers: () => apiCall("/api/users"),
   
+  // Get users by organization and department
+  getUsersByOrganizationAndDepartment: (organizationId: number | null, departmentId: number | null) => {
+    if (organizationId && departmentId) {
+      return apiCall(`/api/users?organizationId=${organizationId}&departmentId=${departmentId}`);
+    } else if (organizationId) {
+      return apiCall(`/api/users?organizationId=${organizationId}`);
+    } else if (departmentId) {
+      return apiCall(`/api/users?departmentId=${departmentId}`);
+    }
+    return apiCall("/api/users");
+  },
+  
   // Get user by ID
   getUserById: (id: string) => apiCall(`/api/users/${id}`),
   
   // Create a new user in Firebase and sync to database
-  createFirebaseUser: (userData: { email: string; password: string; name: string; role: string }) => apiCall("/api/auth/create-user", {
+  createFirebaseUser: (userData: { 
+    email: string; 
+    password: string; 
+    name: string; 
+    role: string;
+    department?: { id: number } | null;
+    organization?: { id: number } | null;
+  }) => apiCall("/api/auth/create-user", {
     method: "POST",
     body: JSON.stringify(userData),
   }),
@@ -153,7 +172,7 @@ export const invitationApi = {
     email: string; 
     role: string; 
     departmentId: number | null; 
-    organizationId?: number 
+    organizationId?: number; 
   }) => apiCall("/api/invitations/create", {
     method: "POST",
     body: JSON.stringify(invitationData),

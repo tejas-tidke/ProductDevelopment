@@ -6,7 +6,7 @@ import Input from "../form/input/InputField";
 import Label from "../form/Label";
 
 export default function UserInfoCard() {
-  const { currentUser } = useAuth();
+  const { currentUser, userOrganizationName, userDepartmentName } = useAuth();
   const { isOpen, openModal, closeModal } = useModal();
   
   const handleSave = () => {
@@ -66,6 +66,25 @@ export default function UserInfoCard() {
               </p>
               <p className="text-sm font-medium text-gray-800 dark:text-white/90">
                 {currentUser?.displayName ? "User" : "Team Manager"}
+              </p>
+            </div>
+
+            {/* Added Department and Organization fields */}
+            <div>
+              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                Organization
+              </p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                {userOrganizationName || "Not assigned"}
+              </p>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+                Department
+              </p>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                {userDepartmentName || "Not assigned"}
               </p>
             </div>
           </div>
@@ -168,6 +187,19 @@ export default function UserInfoCard() {
                   <div className="col-span-2">
                     <Label>Bio</Label>
                     <Input type="text" value={currentUser?.displayName ? "User" : "Team Manager"} />
+                  </div>
+                </div>
+
+                {/* Added Department and Organization fields to the edit form */}
+                <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2 mt-5">
+                  <div className="col-span-2 lg:col-span-1">
+                    <Label>Organization</Label>
+                    <Input type="text" value={userOrganizationName || "Not assigned"} disabled={true} />
+                  </div>
+
+                  <div className="col-span-2 lg:col-span-1">
+                    <Label>Department</Label>
+                    <Input type="text" value={userDepartmentName || "Not assigned"} disabled={true} />
                   </div>
                 </div>
               </div>

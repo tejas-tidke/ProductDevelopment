@@ -3,8 +3,10 @@ package com.htc.productdevelopment.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.htc.productdevelopment.config.JiraConfig;
+import com.htc.productdevelopment.model.ContractDetails;
 import com.htc.productdevelopment.model.JiraProject;
 import com.htc.productdevelopment.repository.ContractDetailsRepository;
+import com.htc.productdevelopment.service.ContractDetailsService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +51,9 @@ public class JiraService {
     	
     @Autowired
     private ContractDetailsRepository contractDetailsRepository;
+    
+    @Autowired
+    private ContractDetailsService contractDetailsService;
     
     @Autowired
     private JiraFieldConfig jiraFieldConfig;
@@ -250,18 +255,85 @@ public class JiraService {
      * @return JsonNode containing all issues
      * @throws Exception if the API call fails
      */
-    public JsonNode getAllIssues() throws Exception {
+    public JsonNode getAllIssues(String userRole, Long userOrganizationId, Long userDepartmentId) throws Exception {
         try {
-            logger.info("Fetching all issues across all projects");
+            logger.info("Fetching all issues across all projects with user context - Role: {}, Organization ID: {}, Department ID: {}", 
+                userRole, userOrganizationId, userDepartmentId);
             
             // Build the API URL for searching all issues using the new JQL endpoint
             String url = jiraConfig.getBaseUrl() + "/rest/api/3/search/jql";
             
-            // Create the JQL query to get all issues with a reasonable limit
-            // Using "project is not EMPTY" as a search restriction to avoid unbounded queries
-            // Include all the fields we need for the frontend, including custom fields
+            // Create the base JQL query
+            StringBuilder jqlBuilder = new StringBuilder("project = \"Request Management\"");
+            
+            // Apply filtering based on user role
+            if (userRole != null) {
+                switch (userRole) {
+                    case "SUPER_ADMIN":
+                        // Super Admin can see all issues - no additional filtering needed
+                        logger.info("User is SUPER_ADMIN - no filtering applied");
+                        break;
+                        
+                    case "ADMIN":
+                        // Admin can only see issues within their organization and department
+                        if (userOrganizationId != null && userDepartmentId != null) {
+                            logger.info("User is ADMIN - filtering by Organization ID: {} and Department ID: {}", 
+                                userOrganizationId, userDepartmentId);
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getDepartment()).append("\" = ").append(userDepartmentId);
+                        } else if (userOrganizationId != null) {
+                            logger.info("User is ADMIN - filtering by Organization ID: {}", userOrganizationId);
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
+                        }
+                        break;
+                        
+                    case "APPROVER":
+                        // Approver can only see issues within their organization and department
+                        if (userOrganizationId != null && userDepartmentId != null) {
+                            logger.info("User is APPROVER - filtering by Organization ID: {} and Department ID: {}", 
+                                userOrganizationId, userDepartmentId);
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getDepartment()).append("\" = ").append(userDepartmentId);
+                        } else if (userOrganizationId != null) {
+                            logger.info("User is APPROVER - filtering by Organization ID: {}", userOrganizationId);
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
+                        }
+                        break;
+                        
+                    case "REQUESTER":
+                        // Requester can only see issues they created within their organization and department
+                        if (userOrganizationId != null && userDepartmentId != null) {
+                            logger.info("User is REQUESTER - filtering by Organization ID: {} and Department ID: {}", 
+                                userOrganizationId, userDepartmentId);
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getDepartment()).append("\" = ").append(userDepartmentId);
+                            // TODO: Add requester-specific filtering to only show issues they created
+                        } else if (userOrganizationId != null) {
+                            logger.info("User is REQUESTER - filtering by Organization ID: {}", userOrganizationId);
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
+                        }
+                        break;
+                        
+                    default:
+                        logger.warn("Unknown user role: {}", userRole);
+                        // For unknown roles, apply basic filtering
+                        if (userOrganizationId != null && userDepartmentId != null) {
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getDepartment()).append("\" = ").append(userDepartmentId);
+                        } else if (userOrganizationId != null) {
+                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
+                        }
+                        break;
+                }
+            }
+            
+            jqlBuilder.append(" ORDER BY key DESC");
+            
+            logger.info("Final JQL query: {}", jqlBuilder.toString());
+            
+            // Create the request body with JQL and fields
             Map<String, Object> requestBody = Map.of(
-                "jql", "project is not EMPTY ORDER BY key",
+                "jql", jqlBuilder.toString(),
                 "maxResults", 1000,
                 "fields", List.of(
                 	    "*all",
@@ -313,6 +385,11 @@ public class JiraService {
             logger.error("Error fetching all issues", e);
             throw e;
         }
+    }
+    
+    // Keep the original method for backward compatibility
+    public JsonNode getAllIssues() throws Exception {
+        return getAllIssues(null, null, null);
     }
 
     /**
@@ -1273,8 +1350,15 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
     public JsonNode createIssueJira(Map<String, Object> issueData) throws Exception {
 
         logger.info("📥 Received payload: {}", issueData);
-
+        
+        // Log the vendorDetails specifically to see if organization is present
         Map<String, Object> vendorDetails = (Map<String, Object>) issueData.get("vendorDetails");
+        if (vendorDetails != null) {
+            logger.info("📥 Vendor Details: {}", vendorDetails);
+            logger.info("📥 Department: {}", vendorDetails.get("department"));
+            logger.info("📥 Organization: {}", vendorDetails.get("organization"));
+        }
+
         if (vendorDetails == null) {
             throw new IllegalArgumentException("vendorDetails is required");
         }
@@ -1296,7 +1380,13 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
         put(fields, jiraFieldConfig.getRequesterName(), vendorDetails.get("requesterName"));
         put(fields, jiraFieldConfig.getRequesterEmail(), vendorDetails.get("requesterMail"));
         put(fields, jiraFieldConfig.getDepartment(), vendorDetails.get("department"));
+        put(fields, jiraFieldConfig.getOrganization(), vendorDetails.get("organization"));
         put(fields, jiraFieldConfig.getAdditionalComment(), vendorDetails.get("additionalComment"));
+
+        // Log the fields that are being set
+        logger.info("Fields being sent to Jira:");
+        logger.info("  Department field ({}): {}", jiraFieldConfig.getDepartment(), fields.get(jiraFieldConfig.getDepartment()));
+        logger.info("  Organization field ({}): {}", jiraFieldConfig.getOrganization(), fields.get(jiraFieldConfig.getOrganization()));
 
         put(fields, jiraFieldConfig.getDueDate(), vendorDetails.get("dueDate"));
         put(fields, jiraFieldConfig.getRenewalDate(), vendorDetails.get("renewalDate"));
@@ -1335,6 +1425,14 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
             throw new Exception("Jira error " + status + ": " + body);
         }
 
+        // Save contract details to database
+        try {
+            saveContractDetails(vendorDetails);
+        } catch (Exception e) {
+            logger.error("Failed to save contract details to database", e);
+            // Continue execution as we don't want to break the Jira issue creation
+        }
+
         ObjectMapper mapper = new ObjectMapper();
         return (body == null || body.isBlank()) ? mapper.readTree("{}") : mapper.readTree(body);
     }
@@ -1367,7 +1465,119 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
         return v.isEmpty() ? null : v;
     }
 
+    /**
+     * Save contract details to the database
+     * @param vendorDetails The vendor details map from the frontend
+     */
+    private void saveContractDetails(Map<String, Object> vendorDetails) {
+        try {
+            logger.info("Saving contract details to database: {}", vendorDetails);
+            
+            if (vendorDetails == null) {
+                logger.warn("Vendor details is null, skipping contract save");
+                return;
+            }
+            
+            ContractDetails contract = new ContractDetails();
+            
+            // Set contract type
+            String contractMode = clean(vendorDetails.get("contractMode"));
+            contract.setContractType(contractMode);
+            logger.info("Set contract type: {}", contractMode);
+            
+            // Set vendor and product details
+            contract.setNameOfVendor(clean(vendorDetails.get("vendorName")));
+            contract.setProductName(clean(vendorDetails.get("productName")));
+            
+            // Set billing details
+            contract.setVendorContractType(clean(vendorDetails.get("vendorContractType")));
+            
+            // Set requester details
+            contract.setRequesterName(clean(vendorDetails.get("requesterName")));
+            contract.setRequesterMail(clean(vendorDetails.get("requesterMail")));
+            contract.setRequesterDepartment(clean(vendorDetails.get("department")));
+            contract.setRequesterOrganization(clean(vendorDetails.get("organization")));
+            
+            // Log the values being set
+            logger.info("Saving contract details:");
+            logger.info("  Requester Name: {}", contract.getRequesterName());
+            logger.info("  Requester Mail: {}", contract.getRequesterMail());
+            logger.info("  Requester Department: {}", contract.getRequesterDepartment());
+            logger.info("  Requester Organization: {}", contract.getRequesterOrganization());
 
+            // Set comments
+            contract.setAdditionalComment(clean(vendorDetails.get("additionalComment")));
+            
+            // Set contract dates
+            String dueDateStr = clean(vendorDetails.get("dueDate"));
+            if (dueDateStr != null && !dueDateStr.isEmpty()) {
+                try {
+                    contract.setDueDate(java.time.LocalDate.parse(dueDateStr));
+                } catch (Exception e) {
+                    logger.warn("Failed to parse due date: {}", dueDateStr, e);
+                }
+            }
+            
+            String renewalDateStr = clean(vendorDetails.get("renewalDate"));
+            if (renewalDateStr != null && !renewalDateStr.isEmpty()) {
+                try {
+                    contract.setRenewalDate(java.time.LocalDate.parse(renewalDateStr));
+                } catch (Exception e) {
+                    logger.warn("Failed to parse renewal date: {}", renewalDateStr, e);
+                }
+            }
+            
+            // Set current values
+            try {
+                String currentLicenseCountStr = clean(vendorDetails.get("currentLicenseCount"));
+                if (currentLicenseCountStr != null && !currentLicenseCountStr.isEmpty()) {
+                    contract.setCurrentLicenseCount(Integer.parseInt(currentLicenseCountStr));
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to parse current license count", e);
+            }
+            
+            try {
+                String currentUsageCountStr = clean(vendorDetails.get("currentUsageCount"));
+                if (currentUsageCountStr != null && !currentUsageCountStr.isEmpty()) {
+                    contract.setCurrentUsageCount(Integer.parseInt(currentUsageCountStr));
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to parse current usage count", e);
+            }
+            
+            contract.setCurrentUnits(clean(vendorDetails.get("currentUnits")));
+            
+            // Set new values
+            try {
+                String newLicenseCountStr = clean(vendorDetails.get("newLicenseCount"));
+                if (newLicenseCountStr != null && !newLicenseCountStr.isEmpty()) {
+                    contract.setNewLicenseCount(Integer.parseInt(newLicenseCountStr));
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to parse new license count", e);
+            }
+            
+            try {
+                String newUsageCountStr = clean(vendorDetails.get("newUsageCount"));
+                if (newUsageCountStr != null && !newUsageCountStr.isEmpty()) {
+                    contract.setNewUsageCount(Integer.parseInt(newUsageCountStr));
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to parse new usage count", e);
+            }
+            
+            contract.setNewUnits(clean(vendorDetails.get("newUnits")));
+            
+            // Save to database
+            logger.info("Attempting to save contract to database: {}", contract);
+            ContractDetails savedContract = contractDetailsService.saveContract(contract);
+            logger.info("Contract saved successfully with ID: {}", savedContract.getId());
+        } catch (Exception e) {
+            logger.error("Error saving contract details to database", e);
+            // Don't throw exception as we don't want to break the Jira issue creation if DB save fails
+        }
+    }
 
     /**
      * Add an attachment to a Jira issue with the required X-Atlassian-Token header

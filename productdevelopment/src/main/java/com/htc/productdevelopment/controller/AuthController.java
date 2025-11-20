@@ -71,6 +71,8 @@ public class AuthController {
         	String password = userData.password;
         	String name = userData.name;
         	String roleStr = userData.role;
+            com.htc.productdevelopment.model.Department department = userData.department;
+            com.htc.productdevelopment.model.Organization organization = userData.organization;
 
             
             // Validate required fields
@@ -93,6 +95,25 @@ public class AuthController {
             
             // Create user in Firebase and sync to database
             User user = firebaseSyncService.createFirebaseUser(email, password, name, role);
+            
+            // Set department and organization if provided
+            if (department != null && department.getId() != null) {
+                com.htc.productdevelopment.model.Department dept = userService.getDepartmentFromId(department.getId());
+                user.setDepartment(dept);
+            }
+            
+            if (organization != null && organization.getId() != null) {
+                com.htc.productdevelopment.model.Organization org = userService.getOrganizationFromId(organization.getId());
+                user.setOrganization(org);
+            } else if (role == User.Role.SUPER_ADMIN) {
+                // If role is SUPER_ADMIN and no organization is provided, assign to "Cost Room"
+                com.htc.productdevelopment.model.Organization costRoomOrg = organizationService.getOrCreateCostRoomOrganization();
+                user.setOrganization(costRoomOrg);
+            }
+            
+            // Save the updated user
+            user = userService.updateUserById(user.getId(), user);
+            
             logger.info("Firebase user created and synced successfully: {}", user.getUid());
             return ResponseEntity.ok(user);
         } catch (Exception e) {
