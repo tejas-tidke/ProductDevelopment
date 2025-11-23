@@ -138,6 +138,7 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
   REQUESTER: [
     // Limited access - can only view issues in their department
     // Cannot create users, view dashboard, edit issues, or transition issues
+    Permission.VIEW_ISSUES,
     Permission.VIEW_DEPARTMENT_ISSUES,
   ]
 };
@@ -175,24 +176,33 @@ export const DEFAULT_DEPARTMENT_ACCESS: Record<string, DepartmentAccessRule> = {
 
 // Permission checking functions
 export const hasPermission = (userRole: string | null, permission: Permission): boolean => {
+  console.log('hasPermission: userRole=', userRole, 'permission=', permission);
   if (!userRole) return false;
   
   const permissions = ROLE_PERMISSIONS[userRole] || [];
-  return permissions.includes(permission);
+  const result = permissions.includes(permission);
+  console.log('hasPermission: result=', result);
+  return result;
 };
 
 export const hasAnyPermission = (userRole: string | null, permissions: Permission[]): boolean => {
+  console.log('hasAnyPermission: userRole=', userRole, 'permissions=', permissions);
   if (!userRole) return false;
   
   const userPermissions = ROLE_PERMISSIONS[userRole] || [];
-  return permissions.some(permission => userPermissions.includes(permission));
+  const result = permissions.some(permission => userPermissions.includes(permission));
+  console.log('hasAnyPermission: result=', result);
+  return result;
 };
 
 export const hasAllPermissions = (userRole: string | null, permissions: Permission[]): boolean => {
+  console.log('hasAllPermissions: userRole=', userRole, 'permissions=', permissions);
   if (!userRole) return false;
   
   const userPermissions = ROLE_PERMISSIONS[userRole] || [];
-  return permissions.every(permission => userPermissions.includes(permission));
+  const result = permissions.every(permission => userPermissions.includes(permission));
+  console.log('hasAllPermissions: result=', result);
+  return result;
 };
 
 // Check if user can access a specific department

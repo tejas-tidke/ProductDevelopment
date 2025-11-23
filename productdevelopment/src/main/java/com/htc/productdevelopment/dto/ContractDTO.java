@@ -7,11 +7,16 @@ public class ContractDTO {
 
     private Long id;
 
-    private String nameOfVendor;         // vendorName
+    // Original fields
+    private String contractType;     // new | existing
+    private String renewalStatus;    // ⭐ NEW → completed
+    private String jiraIssueKey;
+
+    private String nameOfVendor;
     private String productName;
 
     private String requesterName;
-    private String requesterEmail;       // requesterMail
+    private String requesterEmail;
     private String requesterDepartment;
     private String requesterOrganization;
 
@@ -28,4 +33,9 @@ public class ContractDTO {
 
     private String dueDate;
     private String renewalDate;
+
+    // Additional fields for RequestSplitView
+    private String licenseUpdateType;
+    private String existingContractId;
+    private String billingType;
 }

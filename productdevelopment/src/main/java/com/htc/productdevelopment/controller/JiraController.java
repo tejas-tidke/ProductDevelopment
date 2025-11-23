@@ -1,18 +1,44 @@
 package com.htc.productdevelopment.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+
+import com.htc.productdevelopment.model.ContractAttachment;
+import com.htc.productdevelopment.model.ContractDetails;
+import com.htc.productdevelopment.model.ContractProposal;
 import com.htc.productdevelopment.model.JiraProject;
+import com.htc.productdevelopment.model.Proposal;
+import com.htc.productdevelopment.repository.ContractAttachmentRepository;
+import com.htc.productdevelopment.repository.ContractDetailsRepository;
+import com.htc.productdevelopment.repository.ContractProposalRepository;
+import com.htc.productdevelopment.dto.ContractCompletedRequest;
+import com.htc.productdevelopment.dto.ContractDTO;
 import com.htc.productdevelopment.service.JiraService;
 import com.htc.productdevelopment.service.ContractDetailsService;
 import com.htc.productdevelopment.service.VendorDetailsService;
+import com.htc.productdevelopment.service.ProposalService;
+
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.RequestEntity;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpMethod;
+
+
+
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.beans.factory.annotation.Autowired;
 
-
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+
+import org.springframework.http.HttpEntity;  // ✔ CORRECT
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +59,18 @@ public class JiraController {
     private final JiraService jiraService;
     private final ContractDetailsService contractDetailsService;
     private final VendorDetailsService vendorDetailsService;
+
+    @Autowired
+    private ContractDetailsRepository contractDetailsRepository;
+
+    @Autowired
+    private ContractAttachmentRepository contractAttachmentRepository;
+
+    @Autowired
+    private ContractProposalRepository contractProposalRepository;
+    
+    @Autowired
+    private ProposalService proposalService;
 
     public JiraController(JiraService jiraService,
                           ContractDetailsService contractDetailsService,
@@ -141,14 +179,31 @@ public class JiraController {
     }
 
     /**
-     * Get all issues across all projects
+     * Get all issues across all projects with role-based filtering
      * @return All issues from all projects
      */
     @GetMapping("/issues")
-    public ResponseEntity<?> getAllIssues() {
+    public ResponseEntity<?> getAllIssues(
+            @RequestParam(required = false) String userRole,
+            @RequestParam(required = false) Long userOrganizationId,
+            @RequestParam(required = false) Long userDepartmentId,
+            @RequestParam(required = false) String userEmail){
         try {
-            logger.info("Received request for all issues across all projects");
-            JsonNode allIssues = jiraService.getAllIssues();
+            logger.info("Received request for all issues across all projects with user context - Role: {}, Organization ID: {}, Department ID: {}", 
+                userRole, userOrganizationId, userDepartmentId);
+            
+            // Add debug logging to see what values are actually received
+            if (userRole == null) {
+                logger.warn("User role is null");
+            }
+            if (userOrganizationId == null) {
+                logger.warn("User organization ID is null");
+            }
+            if (userDepartmentId == null) {
+                logger.warn("User department ID is null");
+            }
+            
+            JsonNode allIssues = jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId, userEmail);
             logger.info("Returning all issues");
             // Return the issues array directly instead of the full response
             if (allIssues.has("issues")) {
@@ -404,23 +459,35 @@ public class JiraController {
      * @param file The file to attach
      * @return Success or error response
      */
-    @PostMapping("/issues/{issueIdOrKey}/attachments")
-    public ResponseEntity<?> addAttachmentToIssue(@PathVariable String issueIdOrKey, @RequestParam("file") MultipartFile file) {
+    @PostMapping(
+            value = "/issues/{issueIdOrKey}/attachments",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
+    public ResponseEntity<?> uploadAttachment(
+            @PathVariable String issueIdOrKey,
+            @RequestPart("file") MultipartFile file
+    ) {
         try {
-            logger.info("Received request to add attachment to Jira issue: {}", issueIdOrKey);
-            byte[] fileContent = file.getBytes();
-            String fileName = file.getOriginalFilename();
-            
-            // ✅ Use Jira Cloud version that includes X-Atlassian-Token
-            JsonNode response = jiraService.addAttachmentToIssueJira(issueIdOrKey, fileContent, fileName);
-            
-            logger.info("Attachment added successfully to issue: {}", issueIdOrKey);
+            logger.info("📥 Received Jira attachment upload for issue {}", issueIdOrKey);
+
+            JsonNode response = jiraService.addAttachmentToIssue(
+                    issueIdOrKey,
+                    file.getBytes(),
+                    file.getOriginalFilename()
+            );
+
+            logger.info("📤 Attachment uploaded successfully to Jira!");
+
             return ResponseEntity.ok(response);
+
         } catch (Exception e) {
-            logger.error("Error adding attachment to Jira issue: {}", issueIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to add attachment: " + e.getMessage()));
+            logger.error("❌ Error uploading attachment to Jira", e);
+            return ResponseEntity.status(500)
+                    .body(Map.of("error", e.getMessage()));
         }
     }
+
+
 
     
     /**
@@ -615,6 +682,72 @@ public class JiraController {
         }
     }
     
+    /**
+     * Save proposal data with attachments
+     * @param proposalData The proposal data to save
+     * @return The saved proposal
+     */
+    @PostMapping("/proposals")
+    public ResponseEntity<?> saveProposal(@RequestBody Proposal proposalData) {
+        try {
+            logger.info("Received request to save proposal data: {}", proposalData);
+            
+            Proposal savedProposal = proposalService.saveProposal(proposalData);
+            logger.info("Proposal saved successfully with ID: {}", savedProposal.getId());
+            
+            return ResponseEntity.ok(savedProposal);
+        } catch (Exception e) {
+            logger.error("Error saving proposal", e);
+            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to save proposal: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * Get all proposals for a specific issue
+     * @param issueKey The issue key
+     * @return List of proposals for the issue
+     */
+    @GetMapping("/proposals/issue/{issueKey}")
+    public ResponseEntity<?> getProposalsByIssueKey(@PathVariable String issueKey) {
+        try {
+            logger.info("Received request to fetch proposals for issue: {}", issueKey);
+
+            if (issueKey == null || issueKey.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Issue key cannot be empty"));
+            }
+
+            String cleanedKey = issueKey.trim();
+
+            List<ContractProposal> proposals =
+                    contractProposalRepository.findByJiraIssueKeyIgnoreCaseOrderByProposalNumberAsc(cleanedKey);
+
+            logger.info("Found {} proposals for issue: {}", proposals.size(), cleanedKey);
+
+            return ResponseEntity.ok(
+            	    proposals.stream().map(p -> Map.of(
+            	        "id", p.getId(),
+            	        "jiraIssueKey", p.getJiraIssueKey(),
+            	        "proposalNumber", p.getProposalNumber(),
+            	        "licenseCount", p.getLicenseCount(),
+            	        "unitCost", p.getUnitCost(),
+            	        "totalCost", p.getTotalCost(),
+            	        "comment", p.getComment(),
+            	        "isFinal", p.isFinal(),
+            	        "proposalType", p.getProposalType(),
+            	        "createdAt", p.getCreatedAt() != null ? p.getCreatedAt().toString() : null
+            	    )).toList()
+            	);
+
+
+        } catch (Exception e) {
+            logger.error("Error fetching proposals for issue: {}", issueKey, e);
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "Failed to fetch proposals: " + e.getMessage()));
+        }
+    }
+
+
+
  // -------------------------------------------------------------------------
  // 📦 Vendor Details Endpoints
  // -------------------------------------------------------------------------
@@ -658,60 +791,401 @@ public class JiraController {
  @GetMapping("/contracts")
  public ResponseEntity<?> getAllContracts() {
      try {
-         logger.info("Received request to fetch all contracts");
-         return ResponseEntity.ok(contractDetailsService.getAllContracts());
-     } catch (Exception e) {
-         logger.error("Error fetching all contracts", e);
-         return (ResponseEntity<?>) ResponseEntity.internalServerError()
-                 .body(Map.of("message", "Failed to fetch contracts: " + e.getMessage()));
-     }
- }
+        logger.info("Received request to fetch all contracts");
+        return ResponseEntity.ok(contractDetailsService.getAllContracts());
+    } catch (Exception e) {
+        logger.error("Error fetching all contracts", e);
+        return (ResponseEntity<?>) ResponseEntity.internalServerError()
+                .body(Map.of("message", "Failed to fetch contracts: " + e.getMessage()));
+    }
+}
 
- @PostMapping("/contracts/create")
- public ResponseEntity<?> createContractIssue(@RequestBody Map<String,Object> issueData) {
-     try {
-         JsonNode result = jiraService.createIssueJira(issueData);
-         return ResponseEntity.ok(result);
-     } catch (Exception ex) {
-         return ResponseEntity.status(500).body(Map.of("error", ex.getMessage()));
-     }
- }
+// Add this new endpoint for fetching contracts by type as DTOs
+@GetMapping("/contracts/type/{contractType}/dto")
+public ResponseEntity<?> getContractsByTypeAsDTO(@PathVariable String contractType) {
+    try {
+        logger.info("Received request to fetch contracts by type: {}", contractType);
+        List<ContractDTO> contracts = contractDetailsService.getContractsByTypeAsDTO(contractType);
+        logger.info("Returning {} contracts", contracts.size());
+        return ResponseEntity.ok(contracts);
+    } catch (Exception e) {
+        logger.error("Error fetching contracts by type: {}", contractType, e);
+        return ResponseEntity.internalServerError()
+                .body(Map.of("message", "Failed to fetch contracts: " + e.getMessage()));
+    }
+}
 
- // 4️⃣ Fetch existing license count (for upgrade/downgrade/flat renewal logic)
- @GetMapping("/contracts/vendor/{vendorName}/licenses")
- public ResponseEntity<?> getLicenseCount(@PathVariable String vendorName,
+@PostMapping("/contracts/create")
+public ResponseEntity<?> createContractIssue(@RequestBody Map<String,Object> issueData) {
+    try {
+        JsonNode result = jiraService.createIssueJira(issueData);
+        return ResponseEntity.ok(result);
+    } catch (Exception ex) {
+        return ResponseEntity.status(500).body(Map.of("error", ex.getMessage()));
+    }
+}
+
+// 4️⃣ Fetch existing license count (for upgrade/downgrade/flat renewal logic)
+@GetMapping("/contracts/vendor/{vendorName}/licenses")
+public ResponseEntity<?> getLicenseCount(@PathVariable String vendorName,
                                           @RequestParam(required = false) String productName) {
-     try {
-         Integer count = contractDetailsService.getExistingLicenseCount(vendorName, productName);
-         return ResponseEntity.ok(Map.of("existingLicenseCount", count != null ? count : 0));
-     } catch (Exception e) {
-         return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch license count: " + e.getMessage()));
-     }
+    try {
+        Integer count = contractDetailsService.getExistingLicenseCount(vendorName, productName);
+        return ResponseEntity.ok(Map.of("existingLicenseCount", count != null ? count : 0));
+    } catch (Exception e) {
+        return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch license count: " + e.getMessage()));
+    }
  }
 
     
- @GetMapping("/projects/request-management")
- public ResponseEntity<?> getRequestManagementProject() {
-     try {
-         JsonNode project = jiraService.getRequestManagementProject();
-         return ResponseEntity.ok(project);
-     } catch (Exception e) {
-         return ResponseEntity.internalServerError()
-             .body(Map.of("message", "Failed to fetch Request Management project: " + e.getMessage()));
-     }
- }
- 
- @GetMapping("/issues/{issueIdOrKey}/statuses")
- public ResponseEntity<?> getIssueStatuses(@PathVariable String issueIdOrKey) {
-     try {
-         logger.info("Received request for statuses of issue: {}", issueIdOrKey);
-         JsonNode statuses = jiraService.getIssueStatuses(issueIdOrKey);
-         return ResponseEntity.ok(statuses);
-     } catch (Exception e) {
-         logger.error("Error fetching statuses for issue {}", issueIdOrKey, e);
-         return ResponseEntity.internalServerError()
-                 .body(Map.of("message", "Failed to fetch statuses: " + e.getMessage()));
-     }
- }
+@GetMapping("/projects/request-management")
+public ResponseEntity<?> getRequestManagementProject() {
+    try {
+        JsonNode project = jiraService.getRequestManagementProject();
+        return ResponseEntity.ok(project);
+    } catch (Exception e) {
+        return ResponseEntity.internalServerError()
+            .body(Map.of("message", "Failed to fetch Request Management project: " + e.getMessage()));
+    }
+}
 
+/**
+ * Get all completed contract details for procurement renewal page
+ * @return List of completed contract details
+ */
+@GetMapping("/contracts/completed")
+public ResponseEntity<?> getCompletedContracts() {
+    try {
+        logger.info("Fetching COMPLETED contracts (renewalStatus=completed)");
+
+        List<ContractDetails> completed = 
+                contractDetailsService.getContractsByRenewalStatus("completed");
+
+        List<ContractDTO> dtoList = completed.stream().map(c -> {
+            ContractDTO dto = new ContractDTO();
+
+            dto.setId(c.getId());
+            dto.setContractType(c.getContractType());
+            dto.setRenewalStatus(c.getRenewalStatus());   // ⭐ IMPORTANT
+            dto.setJiraIssueKey(c.getJiraIssueKey());
+
+            dto.setNameOfVendor(c.getNameOfVendor());
+            dto.setProductName(c.getProductName());
+            dto.setRequesterName(c.getRequesterName());
+            dto.setRequesterEmail(c.getRequesterMail());
+            dto.setRequesterDepartment(c.getRequesterDepartment());
+            dto.setRequesterOrganization(c.getRequesterOrganization());
+
+            dto.setVendorContractType(c.getVendorContractType());
+            dto.setAdditionalComment(c.getAdditionalComment());
+            dto.setBillingType(c.getBillingType());
+            dto.setLicenseUpdateType(c.getLicenseUpdateType());
+            dto.setExistingContractId(c.getExistingContractId());
+
+            dto.setCurrentLicenseCount(c.getCurrentLicenseCount());
+            dto.setCurrentUsageCount(c.getCurrentUsageCount());
+            dto.setCurrentUnits(c.getCurrentUnits());
+
+            dto.setNewLicenseCount(c.getNewLicenseCount());
+            dto.setNewUsageCount(c.getNewUsageCount());
+            dto.setNewUnits(c.getNewUnits());
+
+            dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
+            dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
+
+            return dto;
+        }).toList();
+
+        return ResponseEntity.ok(dtoList);
+
+    } catch (Exception e) {
+        logger.error("Error fetching completed contracts", e);
+        return ResponseEntity.status(500)
+                .body(Map.of("message", e.getMessage()));
+    }
+}
+
+
+//@GetMapping("/contracts/test")
+//public ResponseEntity<?> testContractData() {
+//    try {
+//        logger.info("Testing contract data retrieval");
+//        List<ContractDetails> allContracts = contractDetailsService.getAllContracts();
+//        logger.info("Total contracts in database: {}", allContracts.size());
+//        
+////        List<ContractDetails> completedContracts = contractDetailsService.getContractsByTypeIgnoreCase("completed");
+//        logger.info("Completed contracts in database: {}", completedContracts.size());
+//        
+//        return ResponseEntity.ok(Map.of(
+//            "totalContracts", allContracts.size(),
+//            "completedContracts", completedContracts.size(),
+//            "sampleContracts", completedContracts.size() > 0 ? completedContracts.subList(0, Math.min(3, completedContracts.size())) : "No contracts found"
+//        ));
+//    } catch (Exception e) {
+//        logger.error("Error testing contract data", e);
+//        return ResponseEntity.internalServerError()
+//                .body(Map.of("message", "Failed to test contract data: " + e.getMessage()));
+//    }
+//}
+
+//@GetMapping("/contracts/debug-completed")
+//public ResponseEntity<?> debugCompletedContracts() {
+//    try {
+//        logger.info("Debug: Received request to fetch completed contracts");
+//        List<ContractDetails> contracts = contractDetailsService.getContractsByTypeIgnoreCase("completed");
+//
+//        logger.info("Debug: Found {} completed contracts", contracts.size());
+//        
+//        // Log details of each contract
+//        for (int i = 0; i < contracts.size(); i++) {
+//            ContractDetails c = contracts.get(i);
+//            logger.info("Debug: Contract {}: ID={}, Vendor={}, Product={}", 
+//                i, c.getId(), c.getNameOfVendor(), c.getProductName());
+//            
+//            // Check for potential null issues
+//            try {
+//                logger.debug("Debug: Contract {} dates: Due={}, Renewal={}", 
+//                    i, c.getDueDate(), c.getRenewalDate());
+//            } catch (Exception e) {
+//                logger.error("Debug: Error accessing dates for contract {}: {}", i, e.getMessage());
+//            }
+//            
+//            // Log all fields for debugging
+//            try {
+//                logger.debug("Debug: Contract {} full data: {}", i, c.toString());
+//            } catch (Exception e) {
+//                logger.error("Debug: Error converting contract {} to string: {}", i, e.getMessage());
+//            }
+//        }
+//        
+//        return ResponseEntity.ok(Map.of(
+//            "message", "Debug completed",
+//            "contractCount", contracts.size(),
+//            "contracts", contracts.size() > 0 ? contracts.subList(0, Math.min(3, contracts.size())) : "No contracts"
+//        ));
+//    } catch (Exception e) {
+//        logger.error("Debug: Error fetching completed contracts", e);
+//        return ResponseEntity.internalServerError()
+//                .body(Map.of(
+//                    "message", "Debug failed: " + e.getMessage(), 
+//                    "error", e.getClass().getName(),
+//                    "stackTrace", e.getStackTrace().length > 0 ? e.getStackTrace()[0].toString() : "No stack trace"
+//                ));
+//    }
+//}
+
+//----------------------------------------------------------
+//⭐ NEW API — Save contract as COMPLETED
+//----------------------------------------------------------
+@PostMapping("/contracts/mark-completed")
+public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedRequest request) {
+    try {
+        logger.info("Received request to mark contract as completed: {}", request);
+
+        if (request.getIssueKey() == null || request.getTransitionKey() == null) {
+            return ResponseEntity.badRequest().body("Missing issueKey or transitionKey");
+        }
+
+        // ⭐ 1. CHECK CURRENT STATUS FIRST
+        String currentStatus = jiraService.getIssueStatus(request.getIssueKey());
+        logger.info("Current Jira status for {} is: {}", request.getIssueKey(), currentStatus);
+
+        // If already completed → SKIP Jira transition
+        if (currentStatus != null && currentStatus.equalsIgnoreCase("completed")) {
+            logger.warn("Skipping Jira transition — issue already completed.");
+        } else {
+            // ⭐ 2. TRANSITION ONLY IF NOT COMPLETED
+            boolean success = jiraService.transitionIssueByKey(
+                    request.getIssueKey(),
+                    request.getTransitionKey()
+            );
+
+            if (!success) {
+                return ResponseEntity.badRequest().body("Transition failed");
+            }
+        }
+
+        // ⭐ 3. SAVE CONTRACT DATA
+        ContractDetails contract = contractDetailsService.findByJiraIssueKey(request.getIssueKey());
+        if (contract == null) {
+            contract = new ContractDetails();
+        }
+
+        contract.setRenewalStatus("completed");
+        contract.setJiraIssueKey(request.getIssueKey());
+        contract.setContractType("existing");
+        contract.setNameOfVendor(request.getNameOfVendor());
+        contract.setProductName(request.getProductName());
+        contract.setRequesterName(request.getRequesterName());
+        contract.setRequesterMail(request.getRequesterMail());
+        contract.setRequesterDepartment(request.getRequesterDepartment());
+        contract.setRequesterOrganization(request.getRequesterOrganization());
+        contract.setCurrentLicenseCount(request.getCurrentLicenseCount());
+        contract.setCurrentUsageCount(request.getCurrentUsageCount());
+        contract.setCurrentUnits(request.getCurrentUnits());
+        contract.setNewLicenseCount(request.getNewLicenseCount());
+        contract.setNewUsageCount(request.getNewUsageCount());
+        contract.setNewUnits(request.getNewUnits());
+        contract.setAdditionalComment(request.getAdditionalComment());
+        contract.setVendorContractType(request.getVendorContractType());
+        contract.setLicenseUpdateType(request.getLicenseUpdateType());
+        contract.setExistingContractId(request.getExistingContractId());
+        contract.setBillingType(request.getBillingType());
+
+        if (request.getDueDate() != null && !request.getDueDate().trim().isEmpty()) {
+            contract.setDueDate(LocalDate.parse(request.getDueDate()));
+        }
+
+        if (request.getRenewalDate() != null && !request.getRenewalDate().trim().isEmpty()) {
+            contract.setRenewalDate(LocalDate.parse(request.getRenewalDate()));
+        }
+
+        ContractDetails saved = contractDetailsService.saveCompletedContract(contract);
+        logger.info("Completed contract saved with ID: {}", saved.getId());
+
+        return ResponseEntity.ok(Map.of("message", "Contract saved successfully!"));
+
+    } catch (Exception e) {
+        logger.error("Error saving completed contract", e);
+        return ResponseEntity.status(500)
+                .body(Map.of("message", e.getMessage()));
+    }
+}
+
+
+
+@PostMapping("/contracts/save-attachment")
+public ResponseEntity<?> saveAttachmentToContract(@RequestBody Map<String, Object> payload) {
+
+    try {
+        String issueKey = (String) payload.get("issueKey");
+        Map<String, Object> metadata = (Map<String, Object>) payload.get("metadata");
+
+        if (metadata == null) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "metadata object missing in request"));
+        }
+
+        String fileName = metadata.get("fileName") != null ? metadata.get("fileName").toString() : "";
+        String fileUrl = metadata.get("content") != null ? metadata.get("content").toString() : "";
+        Long fileSize = metadata.get("size") != null ? Long.valueOf(metadata.get("size").toString()) : 0L;
+        String mimeType = metadata.get("mimeType") != null ? metadata.get("mimeType").toString() : "";
+
+        logger.info("Saving attachment in DB for issueKey={} file={}", issueKey, fileName);
+
+        // ❌ DO NOT CREATE CONTRACT
+        ContractDetails contract = null;
+
+        ContractAttachment attachment = new ContractAttachment();
+        attachment.setContract(null);
+        attachment.setJiraIssueKey(issueKey);
+        attachment.setFileName(fileName);
+        attachment.setFileUrl(fileUrl);
+        attachment.setFileSize(fileSize);
+        attachment.setMimeType(mimeType);
+        attachment.setUploadedBy("system");
+        attachment.setStage("CREATION");
+
+        contractAttachmentRepository.save(attachment);
+
+        return ResponseEntity.ok(Map.of("message", "Attachment saved successfully"));
+
+    } catch (Exception e) {
+        logger.error("Failed saving attachment: ", e);
+        return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+    }
+}
+
+
+@PostMapping("/contracts/add-proposal")
+public ResponseEntity<?> addProposal(@RequestBody Map<String, Object> payload) {
+
+    try {
+    	String issueKey = (String) payload.get("jiraIssueKey");
+
+    	if (issueKey == null) {
+    	    issueKey = (String) payload.get("issueKey"); // fallback
+    	}
+        Integer licenseCount = payload.get("licenseCount") != null
+                ? Integer.valueOf(payload.get("licenseCount").toString()) : null;
+
+        Double unitCost = payload.get("unitCost") != null
+                ? Double.valueOf(payload.get("unitCost").toString()) : null;
+
+        Double totalCost = payload.get("totalCost") != null
+                ? Double.valueOf(payload.get("totalCost").toString())
+                : (unitCost != null && licenseCount != null ? unitCost * licenseCount : null);
+
+        String comment = (String) payload.get("comment");
+        boolean isFinal = payload.get("isFinal") != null && (Boolean) payload.get("isFinal");
+
+        // ❌ DO NOT CREATE CONTRACT HERE
+        ContractDetails contract = contractDetailsRepository.findByJiraIssueKey(issueKey);
+        // If null, keep null (contract is created only at COMPLETED status)
+
+        ContractProposal last = contractProposalRepository
+        		.findTopByJiraIssueKeyIgnoreCaseOrderByProposalNumberDesc(issueKey);
+
+
+        int proposalNumber = last == null ? 1 : last.getProposalNumber() + 1;
+
+        ContractProposal proposal = new ContractProposal();
+        proposal.setContract(contract);  // can be null
+        proposal.setJiraIssueKey(issueKey);
+        proposal.setProposalNumber(proposalNumber);
+        proposal.setLicenseCount(licenseCount);
+        proposal.setUnitCost(unitCost);
+        proposal.setTotalCost(totalCost);
+        proposal.setComment(comment);
+        proposal.setFinal(isFinal);
+        proposal.setProposalType(isFinal ? "FINAL" : "PROPOSAL " + proposalNumber);
+
+        contractProposalRepository.save(proposal);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Proposal saved",
+                "proposalId", proposal.getId()
+        ));
+
+    } catch (Exception e) {
+        return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+    }
+}
+
+@GetMapping("/proposals/{proposalId}")
+public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
+    try {
+        ContractProposal proposal = contractProposalRepository.findById(proposalId)
+                .orElse(null);
+
+        if (proposal == null) {
+            return ResponseEntity.status(404)
+                    .body(Map.of("message", "Proposal not found"));
+        }
+
+        // Return the proposal data in the format expected by the frontend
+        Map<String, Object> responseData = Map.of(
+            "id", proposal.getId(),
+            "jiraIssueKey", proposal.getJiraIssueKey(),
+            "proposalNumber", proposal.getProposalNumber(),
+            "proposalType", proposal.getProposalType(),
+            "licenseCount", proposal.getLicenseCount(),
+            "unitCost", proposal.getUnitCost(),
+            "totalCost", proposal.getTotalCost(),
+            "comment", proposal.getComment(),
+            "final", proposal.isFinal(),
+            "createdAt", proposal.getCreatedAt() != null ? proposal.getCreatedAt().toString() : null
+        );
+
+        return ResponseEntity.ok(responseData);
+
+    } catch (Exception e) {
+        return ResponseEntity.badRequest()
+                .body(Map.of("message", "Failed to fetch proposal: " + e.getMessage()));
+    }
+}
+
+
+
+}
 

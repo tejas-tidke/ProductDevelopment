@@ -7,7 +7,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import java.time.Duration;
 import org.springframework.context.annotation.Profile;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.htc.productdevelopment.service.JiraService;
 
 @Configuration
 @Profile("!test")
@@ -52,5 +53,15 @@ public class JiraConfig {
             .setConnectTimeout(Duration.ofSeconds(30))
             .setReadTimeout(Duration.ofSeconds(30))
             .build();
+    }
+    
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
+    
+    @Bean
+    public JiraService jiraService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+        return new JiraService(this, restTemplate, objectMapper);
     }
 }

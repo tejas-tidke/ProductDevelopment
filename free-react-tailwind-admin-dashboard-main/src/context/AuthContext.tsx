@@ -77,7 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshUserData = useCallback(async () => {
     if (currentUser?.uid) {
       try {
+        console.log('AuthContext: Refreshing user data for uid=', currentUser.uid);
         const userData = await userService.getUserData(currentUser.uid);
+        console.log('AuthContext: User data received=', userData);
         setUserData(userData);
         setUserRole(userData.role);
         setUserDepartmentId(userData.department?.id || null);
@@ -88,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsSuperAdmin(userData.role === 'SUPER_ADMIN');
         setIsApprover(userData.role === 'APPROVER');
         setIsRequester(userData.role === 'REQUESTER');
+        console.log('AuthContext: User role set to=', userData.role);
       } catch (error) {
         console.error("Error refreshing user data:", error);
       }
@@ -102,29 +105,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const memoizedHasAllPermissions = useCallback((permissions: Permission[]) => hasAllPermissions(userRole, permissions), [userRole]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    console.log('AuthContext: Setting up onAuthStateChanged listener');
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      console.log('AuthContext: onAuthStateChanged called with user=', user);
       if (user) {
         setCurrentUser(user);
-        try {
-          // Auto-sync user with default role if not already in database
-          await userService.autoSyncUser(user.uid);
-          
-          // Get user role and data from backend
-          await refreshUserData();
-        } catch (error) {
-          console.error("Error fetching user data:", error);
-          // Set default values if sync fails
-          setUserRole('REQUESTER');
-          setUserDepartmentId(null);
-          setUserDepartmentName(null);
-          setUserOrganizationId(null);
-          setUserOrganizationName(null);
-          setUserData(null);
-          setIsAdmin(false);
-          setIsSuperAdmin(false);
-          setIsApprover(false);
-          setIsRequester(true);
-        }
+        // Handle async operations without making the callback itself async
+        (async () => {
+          try {
+            // Auto-sync user with default role if not already in database
+            await userService.autoSyncUser(user.uid);
+            
+            // Get user role and data from backend
+            await refreshUserData();
+          } catch (error) {
+            console.error("Error fetching user data:", error);
+            // Set default values if sync fails
+            setUserRole('REQUESTER');
+            setUserDepartmentId(null);
+            setUserDepartmentName(null);
+            setUserOrganizationId(null);
+            setUserOrganizationName(null);
+            setUserData(null);
+            setIsAdmin(false);
+            setIsSuperAdmin(false);
+            setIsApprover(false);
+            setIsRequester(true);
+          } finally {
+            // Only set loading to false after everything is done
+            console.log('AuthContext: Setting loading to false');
+            setLoading(false);
+          }
+        })();
       } else {
         setCurrentUser(null);
         setUserRole(null);
@@ -139,8 +151,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsRequester(false);
         // Clear login time when user logs out
         localStorage.removeItem('loginTime');
+        // Also set loading to false for logged out users
+        console.log('AuthContext: Setting loading to false');
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return unsubscribe;
@@ -169,7 +183,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {loading ? (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-lg">Loading...</div>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }

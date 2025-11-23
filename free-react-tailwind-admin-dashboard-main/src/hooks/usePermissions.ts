@@ -52,7 +52,9 @@ export const usePermissions = () => {
 
   // Check if user can transition an issue
   const canTransitionIssue = useCallback((): boolean => {
-    return hasPermission(Permission.TRANSITION_ISSUE);
+    const result = hasPermission(Permission.TRANSITION_ISSUE);
+    console.log('usePermissions: canTransitionIssue result=', result);
+    return result;
   }, [hasPermission]);
 
   // Check if user can view the dashboard

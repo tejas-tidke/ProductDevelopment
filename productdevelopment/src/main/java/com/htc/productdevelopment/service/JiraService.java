@@ -5,8 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.htc.productdevelopment.config.JiraConfig;
 import com.htc.productdevelopment.model.ContractDetails;
 import com.htc.productdevelopment.model.JiraProject;
+import com.htc.productdevelopment.model.Organization;
+import com.htc.productdevelopment.model.Department;
 import com.htc.productdevelopment.repository.ContractDetailsRepository;
+import com.htc.productdevelopment.repository.DepartmentRepository;
 import com.htc.productdevelopment.service.ContractDetailsService;
+import com.htc.productdevelopment.service.OrganizationService;
+import com.htc.productdevelopment.model.User;
+import com.htc.productdevelopment.repository.UserRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +24,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import com.htc.productdevelopment.config.JiraFieldConfig;
 import com.htc.productdevelopment.dto.ContractDTO;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -32,6 +39,25 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+//import org.json.JSONArray;
+//import org.json.JSONObject;
+ 
+//import okhttp3.MediaType;
+//import okhttp3.OkHttpClient;
+//import okhttp3.Request;
+//import okhttp3.RequestBody;
+//import okhttp3.Response;
+// 
 
 /**
  * Service class for handling Jira API operations
@@ -48,7 +74,7 @@ public class JiraService {
     
     // HTTP client for making API calls
     private final RestTemplate restTemplate;
-    	
+    
     @Autowired
     private ContractDetailsRepository contractDetailsRepository;
     
@@ -57,7 +83,15 @@ public class JiraService {
     
     @Autowired
     private JiraFieldConfig jiraFieldConfig;
-
+    
+    @Autowired
+    private OrganizationService organizationService;
+    
+    @Autowired
+    private DepartmentRepository departmentRepository;
+    
+    @Autowired
+    private UserRepository userRepository;
     
     // JSON parser for handling API responses
     private final ObjectMapper objectMapper;
@@ -78,7 +112,14 @@ public class JiraService {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
     }
-
+    
+    public String getAuthHeader() {
+        String auth = jiraConfig.getEmail() + ":" + jiraConfig.getApiToken();
+        String encoded = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encoded;
+    }
+    
+    
     /**
      * Get recent Jira projects (max 3)
      * @return List of recent Jira projects
@@ -255,10 +296,17 @@ public class JiraService {
      * @return JsonNode containing all issues
      * @throws Exception if the API call fails
      */
-    public JsonNode getAllIssues(String userRole, Long userOrganizationId, Long userDepartmentId) throws Exception {
+    public JsonNode getAllIssues(String userRole, Long userOrganizationId, Long userDepartmentId, String userEmail)
+ throws Exception {
         try {
             logger.info("Fetching all issues across all projects with user context - Role: {}, Organization ID: {}, Department ID: {}", 
                 userRole, userOrganizationId, userDepartmentId);
+            
+            // Add detailed logging for debugging
+            logger.info("=== DEBUG INFO ===");
+            logger.info("User Role: {}", userRole);
+            logger.info("User Organization ID: {}", userOrganizationId);
+            logger.info("User Department ID: {}", userDepartmentId);
             
             // Build the API URL for searching all issues using the new JQL endpoint
             String url = jiraConfig.getBaseUrl() + "/rest/api/3/search/jql";
@@ -266,64 +314,112 @@ public class JiraService {
             // Create the base JQL query
             StringBuilder jqlBuilder = new StringBuilder("project = \"Request Management\"");
             
+            // Convert organization and department IDs to names if they exist
+            String organizationName = null;
+            String departmentName = null;
+            
+            if (userOrganizationId != null) {
+                try {
+                    Organization org = organizationService.getOrganizationById(userOrganizationId)
+                            .orElse(null);
+                    if (org != null) {
+                        organizationName = org.getName();
+                        logger.info("Resolved organization ID {} to name: {}", userOrganizationId, organizationName);
+                    } else {
+                        logger.warn("Organization not found for ID: {}", userOrganizationId);
+                    }
+                } catch (Exception e) {
+                    logger.warn("Failed to resolve organization ID {}: {}", userOrganizationId, e.getMessage());
+                }
+            }
+            
+            if (userDepartmentId != null) {
+                try {
+                    Department dept = departmentRepository.findById(userDepartmentId)
+                            .orElse(null);
+                    if (dept != null) {
+                        departmentName = dept.getName();
+                        logger.info("Resolved department ID {} to name: {}", userDepartmentId, departmentName);
+                    } else {
+                        logger.warn("Department not found for ID: {}", userDepartmentId);
+                    }
+                } catch (Exception e) {
+                    logger.warn("Failed to resolve department ID {}: {}", userDepartmentId, e.getMessage());
+                }
+            }
+            
+            logger.info("Organization Name: {}", organizationName);
+            logger.info("Department Name: {}", departmentName);
+            
             // Apply filtering based on user role
+         // Apply filtering based on user role
             if (userRole != null) {
+
+                String orgField = jiraFieldConfig.getOrganizationName();   // "Organization"
+                String deptField = jiraFieldConfig.getDepartmentName();    // "Department"
+
                 switch (userRole) {
+
                     case "SUPER_ADMIN":
-                        // Super Admin can see all issues - no additional filtering needed
-                        logger.info("User is SUPER_ADMIN - no filtering applied");
+                        logger.info("SUPER_ADMIN → No filtering");
                         break;
-                        
+
                     case "ADMIN":
-                        // Admin can only see issues within their organization and department
-                        if (userOrganizationId != null && userDepartmentId != null) {
-                            logger.info("User is ADMIN - filtering by Organization ID: {} and Department ID: {}", 
-                                userOrganizationId, userDepartmentId);
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getDepartment()).append("\" = ").append(userDepartmentId);
-                        } else if (userOrganizationId != null) {
-                            logger.info("User is ADMIN - filtering by Organization ID: {}", userOrganizationId);
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
-                        }
-                        break;
-                        
                     case "APPROVER":
-                        // Approver can only see issues within their organization and department
-                        if (userOrganizationId != null && userDepartmentId != null) {
-                            logger.info("User is APPROVER - filtering by Organization ID: {} and Department ID: {}", 
-                                userOrganizationId, userDepartmentId);
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getDepartment()).append("\" = ").append(userDepartmentId);
-                        } else if (userOrganizationId != null) {
-                            logger.info("User is APPROVER - filtering by Organization ID: {}", userOrganizationId);
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
-                        }
+                        logger.info("ADMIN/APPROVER → Filter by org + dept");
+
+                        if (organizationName != null)
+                            jqlBuilder.append(" AND \"").append(orgField).append("\" = \"").append(organizationName).append("\"");
+
+                        if (departmentName != null)
+                            jqlBuilder.append(" AND \"").append(deptField).append("\" = \"").append(departmentName).append("\"");
+
                         break;
-                        
+
                     case "REQUESTER":
-                        // Requester can only see issues they created within their organization and department
-                        if (userOrganizationId != null && userDepartmentId != null) {
-                            logger.info("User is REQUESTER - filtering by Organization ID: {} and Department ID: {}", 
-                                userOrganizationId, userDepartmentId);
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getDepartment()).append("\" = ").append(userDepartmentId);
-                            // TODO: Add requester-specific filtering to only show issues they created
-                        } else if (userOrganizationId != null) {
-                            logger.info("User is REQUESTER - filtering by Organization ID: {}", userOrganizationId);
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
+                        logger.info("REQUESTER → Filter by Org + Dept + Requester Email");
+
+                        if (organizationName != null)
+                            jqlBuilder.append(" AND \"").append(orgField).append("\" = \"").append(organizationName).append("\"");
+
+                        if (departmentName != null)
+                            jqlBuilder.append(" AND \"").append(deptField).append("\" = \"").append(departmentName).append("\"");
+
+                        // 🔥 Add requester email filter (mandatory for requester role)
+                        String requesterEmailField = jiraFieldConfig.getRequesterEmail();
+
+                        User requesterUser = null;
+                        if (userEmail != null) {
+                            requesterUser = userRepository.findByEmail(userEmail).orElse(null);
                         }
-                        break;
-                        
+
+                        if (requesterUser != null && requesterUser.getEmail() != null) {
+                            jqlBuilder.append(" AND \"")
+                                      .append(requesterEmailField)
+                                      .append("\" = \"")
+                                      .append(requesterUser.getEmail())
+                                      .append("\"");
+                        }
+
+
+
                     default:
-                        logger.warn("Unknown user role: {}", userRole);
-                        // For unknown roles, apply basic filtering
-                        if (userOrganizationId != null && userDepartmentId != null) {
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getDepartment()).append("\" = ").append(userDepartmentId);
-                        } else if (userOrganizationId != null) {
-                            jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = ").append(userOrganizationId);
-                        }
-                        break;
+                        logger.warn("Unknown role → basic filtering");
+                        if (organizationName != null)
+                            jqlBuilder.append(" AND \"").append(orgField).append("\" = \"").append(organizationName).append("\"");
+                        if (departmentName != null)
+                            jqlBuilder.append(" AND \"").append(deptField).append("\" = \"").append(departmentName).append("\"");
+                }
+            
+        
+            } else {
+                logger.warn("User role is null, applying default filtering");
+                // If no user role, apply basic filtering if org/dept are available
+                if (organizationName != null && departmentName != null) {
+                    jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = \"").append(organizationName).append("\"");
+                    jqlBuilder.append(" AND \"").append(jiraFieldConfig.getDepartment()).append("\" = \"").append(departmentName).append("\"");
+                } else if (organizationName != null) {
+                    jqlBuilder.append(" AND \"").append(jiraFieldConfig.getOrganization()).append("\" = \"").append(organizationName).append("\"");
                 }
             }
             
@@ -336,43 +432,44 @@ public class JiraService {
                 "jql", jqlBuilder.toString(),
                 "maxResults", 1000,
                 "fields", List.of(
-                	    "*all",
+                    "*all",
 
-                	    "summary",
-                	    "project",
-                	    "assignee",
-                	    "issuetype",
-                	    "status",
-                	    "priority",
-                	    "created",
-                	    "updated",
-                	    "reporter",
-                	    "description",
-                	    "duedate",
+                    "summary",
+                    "project",
+                    "assignee",
+                    "issuetype",
+                    "status",
+                    "priority",
+                    "created",
+                    "updated",
+                    "reporter",
+                    "description",
+                    "duedate",
 
-                	    // --- Contract custom fields ---
-                	    jiraFieldConfig.getVendorName(),
-                	    jiraFieldConfig.getProductName(),
-                	    jiraFieldConfig.getBillingType(),
-                	    jiraFieldConfig.getContractType(),
-                	    jiraFieldConfig.getRequesterName(),
-                	    jiraFieldConfig.getRequesterEmail(),
-                	    jiraFieldConfig.getDepartment(),
-                	    jiraFieldConfig.getAdditionalComment(),
-                	    jiraFieldConfig.getDueDate(),
-                	    jiraFieldConfig.getRenewalDate(),
+                    // --- Contract custom fields ---
+                    jiraFieldConfig.getVendorName(),
+                    jiraFieldConfig.getProductName(),
+                    jiraFieldConfig.getBillingType(),
+                    jiraFieldConfig.getContractType(),
+                    jiraFieldConfig.getRequesterName(),
+                    jiraFieldConfig.getRequesterEmail(),
+                    jiraFieldConfig.getDepartment(),
+                    jiraFieldConfig.getAdditionalComment(),
+                    jiraFieldConfig.getDueDate(),
+                    jiraFieldConfig.getRenewalDate(),
 
-                	    jiraFieldConfig.getCurrentLicenseCount(),
-                	    jiraFieldConfig.getCurrentUsageCount(),
-                	    jiraFieldConfig.getCurrentUnit(),
+                    jiraFieldConfig.getCurrentLicenseCount(),
+                    jiraFieldConfig.getCurrentUsageCount(),
+                    jiraFieldConfig.getCurrentUnit(),
 
-                	    jiraFieldConfig.getNewLicenseCount(),
-                	    jiraFieldConfig.getNewUsageCount(),
-                	    jiraFieldConfig.getNewUnit(),
+                    jiraFieldConfig.getNewLicenseCount(),
+                    jiraFieldConfig.getNewUsageCount(),
+                    jiraFieldConfig.getNewUnit(),
 
-                	    jiraFieldConfig.getLicenseUpdateType(),
-                	    jiraFieldConfig.getExistingContractId()
-                	)
+                    jiraFieldConfig.getLicenseUpdateType(),
+                    jiraFieldConfig.getExistingContractId(),
+                    jiraFieldConfig.getOrganization() // Include organization field
+                )
 
             );
             
@@ -389,7 +486,7 @@ public class JiraService {
     
     // Keep the original method for backward compatibility
     public JsonNode getAllIssues() throws Exception {
-        return getAllIssues(null, null, null);
+        return getAllIssues(null, null, null, null);
     }
 
     /**
@@ -498,9 +595,11 @@ public class JiraService {
                 	    jiraFieldConfig.getNewUnit(),
 
                 	    jiraFieldConfig.getLicenseUpdateType(),
-                	    jiraFieldConfig.getExistingContractId()
-                	)
-
+                	    jiraFieldConfig.getExistingContractId(),
+                	    jiraFieldConfig.getOrganization(),
+                	    jiraFieldConfig.getDepartment()
+                	    
+)
             );
             
             // Make the API call with POST method
@@ -893,17 +992,19 @@ public class JiraService {
         // Create request entity
         RequestEntity<?> requestEntity;
         if (body != null) {
+            // For multipart requests (attachments)
             if (body instanceof org.springframework.util.MultiValueMap) {
-                // For multipart requests (attachments), use the MultiValueMap directly
-                requestEntity = new RequestEntity<>((org.springframework.util.MultiValueMap<String, Object>) body, headers, method, uri);
+                requestEntity = new RequestEntity<>(
+                    (org.springframework.util.MultiValueMap<String, Object>) body,
+                    headers,
+                    method,
+                    uri
+                );
             } else {
-                // If there's a body, convert it to JSON and include it in the request
-                String jsonBody = objectMapper.writeValueAsString(body);
-                logger.info("JSON request body: {}", jsonBody);
-                requestEntity = new RequestEntity<>(jsonBody, headers, method, uri);
+                // 👉 Send body as JSON object (NOT stringified)
+                requestEntity = new RequestEntity<>(body, headers, method, uri);
             }
         } else {
-            // If no body, create request with headers only
             requestEntity = new RequestEntity<>(headers, method, uri);
         }
         
@@ -1216,6 +1317,26 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
      * @return JsonNode containing the available transitions for the issue
      * @throws Exception if the API call fails
      */
+    
+ // 🔥 UI → Jira Transition ID Mapping
+    private static final Map<String, String> TRANSITION_MAP = Map.ofEntries(
+        Map.entry("approve-request-created", "3"),
+        Map.entry("decline-request-created", "6"),
+
+        Map.entry("approve-pre-approval", "2"),
+        Map.entry("decline-pre-approval", "6"),
+
+        Map.entry("approve-request-review", "4"),
+        Map.entry("decline-request-review", "6"),
+
+        Map.entry("approve-negotiation-stage", "5"),
+        Map.entry("decline-negotiation", "6"),
+
+        Map.entry("approve-post-approval", "7"),
+        Map.entry("decline-post-approval", "6")
+    );
+
+    
     public JsonNode getIssueTransitions(String issueIdOrKey) throws Exception {
         try {
             logger.info("Fetching transitions for Jira issue: {}", issueIdOrKey);
@@ -1229,7 +1350,21 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
             logger.info("Raw transitions response type: {}", response.getClass().getName());
             logger.info("Raw transitions response: {}", response.toString());
             
-            return response;
+            JsonNode transitionsNode = response.get("transitions");
+
+         // Case 1: Normal Jira response: { transitions: [] }
+         if (transitionsNode != null && transitionsNode.isArray()) {
+             return transitionsNode;
+         }
+
+         // Case 2: If Jira directly returns an array
+         if (response.isArray()) {
+             return response;
+         }
+
+         // Case 3: No transitions
+         return objectMapper.readTree("[]");
+
         } catch (Exception e) {
             logger.error("Error fetching transitions for issue: {}", issueIdOrKey, e);
             throw e;
@@ -1243,31 +1378,124 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
      * @return JsonNode containing the response
      * @throws Exception if the API call fails
      */
-    public JsonNode transitionIssue(String issueIdOrKey, String transitionId) throws Exception {
+    private static String encodeCredentials(String username, String apiToken) {
+        String credentials = username + ":" + apiToken;
+        return Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public boolean transitionIssue(String issueKey, String transitionId) {
         try {
-            logger.info("Transitioning Jira issue: {} with transition ID: {}", issueIdOrKey, transitionId);
+            String user = jiraConfig.getEmail();
+            String apiToken = jiraConfig.getApiToken();
+            String url = jiraConfig.getBaseUrl() 
+                    + "/rest/api/3/issue/" + issueKey + "/transitions";
 
-            // Build the API URL for transitioning an issue
-            String url = jiraConfig.getBaseUrl() + "/rest/api/3/issue/" + issueIdOrKey + "/transitions";
+            HttpClient httpClient = HttpClients.createDefault();
+            HttpPost httpPost = new HttpPost(url);
 
-            // ✅ Jira expects this exact payload structure
-            Map<String, Object> requestBody = new HashMap<>();
-            Map<String, Object> transitionMap = new HashMap<>();
-            transitionMap.put("id", transitionId);
-            requestBody.put("transition", transitionMap);
+            httpPost.setHeader("Authorization", "Basic " + encodeCredentials(user, apiToken));
+            httpPost.setHeader("Accept", "application/json");
+            httpPost.setHeader("Content-Type", "application/json");
 
-            logger.info("Transition request payload: {}", requestBody);
+            // 🔥 Using Jackson to build JSON
+            ObjectMapper mapper = new ObjectMapper();
+            ObjectNode root = mapper.createObjectNode();
+            ObjectNode transitionObj = mapper.createObjectNode();
+            transitionObj.put("id", transitionId);
+            root.set("transition", transitionObj);
 
-            // Make the API call directly (no need to stringify manually)
-            JsonNode response = makeJiraApiCall(url, HttpMethod.POST, requestBody);
-            logger.info("Transition successful for issue {} to transition ID {}", issueIdOrKey, transitionId);
+            httpPost.setEntity(new StringEntity(mapper.writeValueAsString(root)));
 
-            return response;
+            HttpResponse response = httpClient.execute(httpPost);
+            int status = response.getStatusLine().getStatusCode();
+            String responseBody = EntityUtils.toString(response.getEntity());
+
+            logger.info("➡️ TRANSITION CALL → {}", url);
+            logger.info("➡️ PAYLOAD → {}", mapper.writeValueAsString(root));
+            logger.info("⬅️ STATUS = {}", status);
+            logger.info("⬅️ RESPONSE = {}", responseBody);
+
+            if (status == 204 || status == 201) {
+                logger.info("✅ Jira transition SUCCESS → {} -> {}", issueKey, transitionId);
+                
+                // Check if the issue status is now "Completed" and save contract details if so
+                try {
+                    String currentStatus = getIssueStatus(issueKey);
+                    logger.info("Current status after transition: {}", currentStatus);
+                    
+                    if ("Completed".equals(currentStatus)) {
+                        logger.info("Issue {} is now completed, checking for contract details to save", issueKey);
+                        
+                        // Get the issue details to extract vendor details
+                        JsonNode issue = getIssueByIdOrKey(issueKey);
+                        JsonNode fields = issue.path("fields");
+                        
+                        // Extract vendor details from custom fields
+                        Map<String, Object> vendorDetails = new HashMap<>();
+                        
+                        // Extract basic information
+                        vendorDetails.put("vendorName", getTextValue(fields, jiraFieldConfig.getVendorName()));
+                        vendorDetails.put("productName", getTextValue(fields, jiraFieldConfig.getProductName()));
+                        vendorDetails.put("vendorContractType", getTextValue(fields, jiraFieldConfig.getBillingType()));
+                        vendorDetails.put("billingType", getTextValue(fields, jiraFieldConfig.getBillingType()));
+                        vendorDetails.put("contractMode", getTextValue(fields, jiraFieldConfig.getContractType()));
+                        vendorDetails.put("requesterName", getTextValue(fields, jiraFieldConfig.getRequesterName()));
+                        vendorDetails.put("requesterMail", getTextValue(fields, jiraFieldConfig.getRequesterEmail()));
+                        vendorDetails.put("department", getTextValue(fields, jiraFieldConfig.getDepartment()));
+                        vendorDetails.put("organization", getTextValue(fields, jiraFieldConfig.getOrganization()));
+                        vendorDetails.put("additionalComment", getTextValue(fields, jiraFieldConfig.getAdditionalComment()));
+                        vendorDetails.put("dueDate", getTextValue(fields, jiraFieldConfig.getDueDate()));
+                        vendorDetails.put("renewalDate", getTextValue(fields, jiraFieldConfig.getRenewalDate()));
+                        vendorDetails.put("currentLicenseCount", getTextValue(fields, jiraFieldConfig.getCurrentLicenseCount()));
+                        vendorDetails.put("currentUsageCount", getTextValue(fields, jiraFieldConfig.getCurrentUsageCount()));
+                        vendorDetails.put("currentUnits", getTextValue(fields, jiraFieldConfig.getCurrentUnit()));
+                        vendorDetails.put("newLicenseCount", getTextValue(fields, jiraFieldConfig.getNewLicenseCount()));
+                        vendorDetails.put("newUsageCount", getTextValue(fields, jiraFieldConfig.getNewUsageCount()));
+                        vendorDetails.put("newUnits", getTextValue(fields, jiraFieldConfig.getNewUnit()));
+                        // Additional fields for RequestSplitView
+                        vendorDetails.put("licenseUpdateType", getTextValue(fields, jiraFieldConfig.getLicenseUpdateType()));
+                        vendorDetails.put("existingContractId", getTextValue(fields, jiraFieldConfig.getExistingContractId()));
+
+                        logger.info("Saving contract details for completed issue: {}", issueKey);
+                        saveContractDetailsForCompletedIssue(vendorDetails);
+                    }
+                } catch (Exception e) {
+                    logger.error("Error checking status or saving contract details for issue: {}", issueKey, e);
+                }
+                
+                return true;
+            } else {
+                logger.error("❌ Jira transition FAILED → {} (id={}), status={}, body={}", 
+                             issueKey, transitionId, status, responseBody);
+                return false;
+            }
+
         } catch (Exception e) {
-            logger.error("Error transitioning issue: {} with transition ID: {}", issueIdOrKey, transitionId, e);
-            throw new Exception("Failed to transition issue: " + e.getMessage(), e);
+            logger.error("❌ Jira transition FAILED with exception", e);
+            return false;
         }
     }
+
+    
+    public boolean transitionIssueByKey(String issueKey, String transitionKey) throws Exception {
+        logger.info("Received UI transition key: {}", transitionKey);
+
+        String transitionId = TRANSITION_MAP.get(transitionKey);
+        
+        // If not found in map, check if it's a direct transition ID
+        if (transitionId == null) {
+            // Check if transitionKey is a numeric ID
+            if (transitionKey != null && transitionKey.matches("\\d+")) {
+                transitionId = transitionKey;
+            } else {
+                throw new Exception("Invalid transition key: " + transitionKey);
+            }
+        }
+
+        return transitionIssue(issueKey, transitionId);
+    }
+
+
 
 
     /**
@@ -1425,13 +1653,9 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
             throw new Exception("Jira error " + status + ": " + body);
         }
 
-        // Save contract details to database
-        try {
-            saveContractDetails(vendorDetails);
-        } catch (Exception e) {
-            logger.error("Failed to save contract details to database", e);
-            // Continue execution as we don't want to break the Jira issue creation
-        }
+        // ⭐ REMOVED: Do not save contract details immediately when creating an issue
+        // Contract details will only be saved when status is transitioned to "Completed"
+        // saveContractDetails(vendorDetails);
 
         ObjectMapper mapper = new ObjectMapper();
         return (body == null || body.isBlank()) ? mapper.readTree("{}") : mapper.readTree(body);
@@ -1495,9 +1719,31 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
             // Set requester details
             contract.setRequesterName(clean(vendorDetails.get("requesterName")));
             contract.setRequesterMail(clean(vendorDetails.get("requesterMail")));
+            
+         // store text (good)
             contract.setRequesterDepartment(clean(vendorDetails.get("department")));
             contract.setRequesterOrganization(clean(vendorDetails.get("organization")));
-            
+
+            // 🔥 FIX: also store real IDs for filtering
+            try {
+                String email = clean(vendorDetails.get("requesterMail"));
+                if (email != null) {
+                    User requester = userRepository.findByEmail(email).orElse(null);
+                    if (requester != null) {
+                        contract.setRequester(requester);
+                        if (requester.getDepartment() != null) {
+                            contract.setRequesterDepartmentId(requester.getDepartment().getId());
+                        }
+
+                        if (requester.getOrganization() != null) {
+                            contract.setRequesterOrganizationId(requester.getOrganization().getId());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to resolve requester ID from email", e);
+            }
+
             // Log the values being set
             logger.info("Saving contract details:");
             logger.info("  Requester Name: {}", contract.getRequesterName());
@@ -1569,6 +1815,9 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
             
             contract.setNewUnits(clean(vendorDetails.get("newUnits")));
             
+            // Set attachments
+            contract.setAttachments(clean(vendorDetails.get("attachments")));
+            
             // Save to database
             logger.info("Attempting to save contract to database: {}", contract);
             ContractDetails savedContract = contractDetailsService.saveContract(contract);
@@ -1578,7 +1827,164 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
             // Don't throw exception as we don't want to break the Jira issue creation if DB save fails
         }
     }
+    
+    /**
+     * Save contract details to the database
+     * @param vendorDetails The vendor details map from the frontend
+     */
+    private void saveContractDetails(Map<String, Object> vendorDetails) {
+        // ⭐ MODIFIED: Do not save contract details immediately when creating an issue
+        // Contract details will only be saved when status is transitioned to "Completed"
+        logger.info("Skipping immediate contract details save. Contract details will be saved on status completion.");
+        return;
+    }
+    
+    /**
+     * Save contract details for a completed issue to the database
+     * @param vendorDetails The vendor details map from the frontend
+     */
+    private void saveContractDetailsForCompletedIssue(Map<String, Object> vendorDetails) {
+        try {
+            logger.info("Saving contract details for completed issue to database: {}", vendorDetails);
+            
+            if (vendorDetails == null) {
+                logger.warn("Vendor details is null, skipping contract save");
+                return;
+            }
+            
+            ContractDetails contract = new ContractDetails();
+            
+            // Set contract type to "completed" for completed issues
+            contract.setContractType("completed");
+            logger.info("Set contract type to completed");
+            
+            // Set vendor and product details
+            contract.setNameOfVendor(clean(vendorDetails.get("vendorName")));
+            contract.setProductName(clean(vendorDetails.get("productName")));
+            
+            // Set billing details
+            contract.setVendorContractType(clean(vendorDetails.get("vendorContractType")));
+            contract.setBillingType(clean(vendorDetails.get("billingType")));
+            
+            // Set requester details
+            contract.setRequesterName(clean(vendorDetails.get("requesterName")));
+            contract.setRequesterMail(clean(vendorDetails.get("requesterMail")));
+            
+            // store text (good)
+            contract.setRequesterDepartment(clean(vendorDetails.get("department")));
+            contract.setRequesterOrganization(clean(vendorDetails.get("organization")));
 
+            // 🔥 FIX: also store real IDs for filtering
+            try {
+                String email = clean(vendorDetails.get("requesterMail"));
+                if (email != null) {
+                    User requester = userRepository.findByEmail(email).orElse(null);
+                    if (requester != null) {
+                        contract.setRequester(requester);
+                        if (requester.getDepartment() != null) {
+                            contract.setRequesterDepartmentId(requester.getDepartment().getId());
+                        }
+                        
+                        if (requester.getOrganization() != null) {
+                            contract.setRequesterOrganizationId(requester.getOrganization().getId());
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to resolve requester ID from email", e);
+            }
+
+            // Log the values being set
+            logger.info("Saving contract details for completed issue:");
+            logger.info("  Requester Name: {}", contract.getRequesterName());
+            logger.info("  Requester Mail: {}", contract.getRequesterMail());
+            logger.info("  Requester Department: {}", contract.getRequesterDepartment());
+            logger.info("  Requester Organization: {}", contract.getRequesterOrganization());
+
+            // Set comments
+            contract.setAdditionalComment(clean(vendorDetails.get("additionalComment")));
+            
+            // Set contract dates
+            String dueDateStr = clean(vendorDetails.get("dueDate"));
+            if (dueDateStr != null && !dueDateStr.isEmpty()) {
+                try {
+                    contract.setDueDate(java.time.LocalDate.parse(dueDateStr));
+                } catch (Exception e) {
+                    logger.warn("Failed to parse due date: {}", dueDateStr, e);
+                }
+            }
+            
+            String renewalDateStr = clean(vendorDetails.get("renewalDate"));
+            if (renewalDateStr != null && !renewalDateStr.isEmpty()) {
+                try {
+                    contract.setRenewalDate(java.time.LocalDate.parse(renewalDateStr));
+                } catch (Exception e) {
+                    logger.warn("Failed to parse renewal date: {}", renewalDateStr, e);
+                }
+            }
+            
+            // Set current values
+            try {
+                String currentLicenseCountStr = clean(vendorDetails.get("currentLicenseCount"));
+                if (currentLicenseCountStr != null && !currentLicenseCountStr.isEmpty()) {
+                    contract.setCurrentLicenseCount(Integer.parseInt(currentLicenseCountStr));
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to parse current license count", e);
+            }
+            
+            try {
+                String currentUsageCountStr = clean(vendorDetails.get("currentUsageCount"));
+                if (currentUsageCountStr != null && !currentUsageCountStr.isEmpty()) {
+                    contract.setCurrentUsageCount(Integer.parseInt(currentUsageCountStr));
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to parse current usage count", e);
+            }
+            
+            contract.setCurrentUnits(clean(vendorDetails.get("currentUnits")));
+            
+            // Set new values
+            try {
+                String newLicenseCountStr = clean(vendorDetails.get("newLicenseCount"));
+                if (newLicenseCountStr != null && !newLicenseCountStr.isEmpty()) {
+                    contract.setNewLicenseCount(Integer.parseInt(newLicenseCountStr));
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to parse new license count", e);
+            }
+            
+            try {
+                String newUsageCountStr = clean(vendorDetails.get("newUsageCount"));
+                if (newUsageCountStr != null && !newUsageCountStr.isEmpty()) {
+                    contract.setNewUsageCount(Integer.parseInt(newUsageCountStr));
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to parse new usage count", e);
+            }
+            
+            contract.setNewUnits(clean(vendorDetails.get("newUnits")));
+            
+            // Set additional fields for RequestSplitView
+            contract.setLicenseUpdateType(clean(vendorDetails.get("licenseUpdateType")));
+            contract.setExistingContractId(clean(vendorDetails.get("existingContractId")));
+            
+            // Set attachments
+            contract.setAttachments(clean(vendorDetails.get("attachments")));
+            
+            // Log the contract before saving
+            logger.info("Contract details before saving: {}", contract);
+
+            // Save to database
+            logger.info("Attempting to save contract for completed issue to database: {}", contract);
+            ContractDetails savedContract = contractDetailsService.saveContract(contract);
+            logger.info("Contract for completed issue saved successfully with ID: {}", savedContract.getId());
+        } catch (Exception e) {
+            logger.error("Error saving contract details for completed issue to database", e);
+            // Don't throw exception as we don't want to break the Jira issue creation if DB save fails
+        }
+    }
+    
     /**
      * Add an attachment to a Jira issue with the required X-Atlassian-Token header
      * @param issueKey The issue key
@@ -1712,6 +2118,34 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
         } catch (Exception e) {
             logger.error("Error fetching statuses", e);
             throw new Exception("Failed to fetch statuses: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Get the current status of a Jira issue
+     * @param issueIdOrKey The issue ID or key
+     * @return The current status name
+     * @throws Exception if the API call fails
+     */
+    public String getIssueStatus(String issueIdOrKey) throws Exception {
+        try {
+            logger.info("Fetching current status for issue: {}", issueIdOrKey);
+            
+            // Get the full issue details
+            JsonNode issue = getIssueByIdOrKey(issueIdOrKey);
+            
+            // Extract the status from the fields
+            JsonNode fields = issue.path("fields");
+            JsonNode status = fields.path("status");
+            JsonNode statusName = status.path("name");
+            
+            String statusValue = statusName.asText();
+            logger.info("Current status for issue {}: {}", issueIdOrKey, statusValue);
+            
+            return statusValue;
+        } catch (Exception e) {
+            logger.error("Error fetching status for issue: {}", issueIdOrKey, e);
+            throw new Exception("Failed to fetch status for issue " + issueIdOrKey + ": " + e.getMessage(), e);
         }
     }
     

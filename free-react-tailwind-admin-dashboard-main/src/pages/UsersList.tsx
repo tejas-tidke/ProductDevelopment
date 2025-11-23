@@ -83,20 +83,24 @@ export default function UsersList() {
       // For Super Admin, fetch all users
       let usersData;
       if (isAdmin && !isSuperAdmin) {
-        // Check if user has organization and department assigned
-        console.log("Fetching users for Admin with orgId:", userOrganizationId, "deptId:", userDepartmentId);
-        
-        // For Admin users, we need both organization and department to be assigned
-        if (userOrganizationId !== null && userDepartmentId !== null) {
-          usersData = await userApi.getUsersByOrganizationAndDepartment(userOrganizationId, userDepartmentId);
-        } else {
-          // If admin doesn't have department or organization assigned, show empty list with message
-          usersData = [];
-        }
-      } else {
-        console.log("Fetching all users for Super Admin or non-Admin");
-        usersData = await userApi.getAllUsers();
-      }
+  console.log("Fetching users for Admin with orgId:", userOrganizationId, "deptId:", userDepartmentId);
+
+  if (userOrganizationId !== null && userDepartmentId !== null) {
+    usersData = await userApi.getUsersByOrganizationAndDepartment(userOrganizationId, userDepartmentId);
+
+    // 🚀 FILTER HERE → Admin should only see REQUESTER + APPROVER
+    usersData = usersData.filter((u: UserData) =>
+      u.role === "REQUESTER" || u.role === "APPROVER"
+    );
+  } else {
+    usersData = [];
+  }
+
+} else {
+  console.log("Fetching all users for Super Admin or non-Admin");
+  usersData = await userApi.getAllUsers();
+}
+
 
       console.log("Users data fetched:", usersData);
 

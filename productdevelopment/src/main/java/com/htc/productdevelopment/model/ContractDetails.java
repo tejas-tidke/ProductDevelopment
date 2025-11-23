@@ -7,9 +7,9 @@ import lombok.AllArgsConstructor;
 
 import java.time.LocalDate;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Data
 @NoArgsConstructor
@@ -30,6 +30,14 @@ public class ContractDetails {
     @Column(name = "contract_type", length = 20)
     private String contractType; // "new" or "existing"
 
+ // NEW FIELD — Used for Procurement-Renewal filtering
+    @Column(name = "renewal_status", length = 50)
+    private String renewalStatus;
+
+    
+    @Column(name = "jira_issue_key")
+    private String jiraIssueKey;
+    
     // -------------------------
     // Vendor & Product
     // -------------------------
@@ -40,7 +48,7 @@ public class ContractDetails {
     private String productName;
 
     // -------------------------
-    // Contract Dates (Existing)
+    // Contract Dates
     // -------------------------
     @Column(name = "contract_start_date")
     private LocalDate contractStartDate;
@@ -49,16 +57,16 @@ public class ContractDetails {
     private LocalDate contractEndDate;
 
     // -------------------------
-    // Billing Details (Existing)
+    // Billing Details
     // -------------------------
     @Column(name = "quantity")
     private Integer quantity;
 
     @Column(name = "unit", length = 50)
-    private String unit; // credits/minutes/others
+    private String unit;
 
     @Column(name = "vendor_contract_type", length = 50)
-    private String vendorContractType; // usage or license
+    private String vendorContractType;
 
     // -------------------------
     // Comments
@@ -80,7 +88,6 @@ public class ContractDetails {
     @JsonIgnore
     private User requester;
 
-
     @Column(name = "requester_department")
     private String requesterDepartment;
 
@@ -88,10 +95,18 @@ public class ContractDetails {
     private String requesterOrganization;
 
     // ============================================
-    // ✅ NEW FIELDS REQUIRED BY JiraService + DTO
+    // 🔥 NEW FIELDS — Required for Filtering Logic
     // ============================================
 
-    // ---- Current Contract Values ----
+    @Column(name = "requester_department_id")
+    private Long requesterDepartmentId;
+
+    @Column(name = "requester_organization_id")
+    private Long requesterOrganizationId;
+
+    // ============================================
+    // Current Contract Values
+    // ============================================
     @Column(name = "current_license_count")
     private Integer currentLicenseCount;
 
@@ -101,7 +116,9 @@ public class ContractDetails {
     @Column(name = "current_units")
     private String currentUnits;
 
-    // ---- New/Requested Values ----
+    // ============================================
+    // New/Requested Values
+    // ============================================
     @Column(name = "new_license_count")
     private Integer newLicenseCount;
 
@@ -111,10 +128,57 @@ public class ContractDetails {
     @Column(name = "new_units")
     private String newUnits;
 
-    // ---- Dates used in Vendor Module ----
+    // ============================================
+    // Dates for Vendor Module
+    // ============================================
     @Column(name = "due_date")
     private LocalDate dueDate;
 
     @Column(name = "renewal_date")
     private LocalDate renewalDate;
+
+    @Column(name = "attachments", columnDefinition = "TEXT")
+    private String attachments;
+    
+ // ⭐ New field to store attachment metadata JSON
+    @Column(name = "attachment_metadata", columnDefinition = "TEXT")
+    private String attachmentMetadata;
+    
+    // ============================================
+    // Additional Fields for RequestSplitView
+    // ============================================
+    
+    @Column(name = "license_update_type")
+    private String licenseUpdateType;
+    
+    @Column(name = "existing_contract_id")
+    private String existingContractId;
+    
+    @Column(name = "billing_type")
+    private String billingType;
+    
+    public String getJiraIssueKey() {
+        return jiraIssueKey;
+    }
+
+    public void setJiraIssueKey(String jiraIssueKey) {
+        this.jiraIssueKey = jiraIssueKey;
+    }
+    
+    public Integer getQuantity() {
+        return quantity;
+    }
+    
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
+    }
+    
+    public String getContractType() {
+        return contractType;
+    }
+
+    public void setContractType(String contractType) {
+        this.contractType = contractType;
+    }
+
 }

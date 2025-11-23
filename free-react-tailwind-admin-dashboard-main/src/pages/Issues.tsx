@@ -10,6 +10,7 @@ import CreateIssueModal from "../components/modals/CreateIssueModal";
 import { CustomFilterDropdown } from "../components/filters/CustomFilterDropdown";
 import ColumnSelector from "../components/tables/ColumnSelector";
 import { usePermissions } from "../hooks/usePermissions";
+import { useAuth } from "../context/AuthContext";
 
 // Define types based on actual Jira API response
 interface Project {
@@ -77,6 +78,9 @@ interface Column {
 }
 
 const Issues: React.FC = () => {
+  // Get user context from AuthContext
+  const { userRole, userOrganizationId, userDepartmentId } = useAuth();
+  
   // State for filters
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
@@ -391,7 +395,12 @@ const Issues: React.FC = () => {
         
         // Fetch all issues from backend using the new endpoint
         try {
-          const issuesResponse = await jiraService.getAllIssues();
+          // Get user context from AuthContext
+          const userRole = userRoleFromContext || null;
+          const userOrganizationId = userOrganizationIdFromContext || null;
+          const userDepartmentId = userDepartmentIdFromContext || null;
+          
+          const issuesResponse = await jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId);
           console.log("Raw issues response:", issuesResponse); // Debug log to see the actual structure
           
           // Handle the simplified Jira API response structure (just the issues array)

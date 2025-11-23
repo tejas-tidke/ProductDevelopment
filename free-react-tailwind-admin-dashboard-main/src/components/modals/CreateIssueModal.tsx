@@ -1,5 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { jiraService } from '../../services/jiraService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -40,7 +41,15 @@ interface ProductItem {
 
 const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onIssueCreated }) => {
   // Get user data from context
-  const { userDepartmentName, userOrganizationName } = useAuth();
+  const { 
+  currentUser, 
+  userData,
+  userDepartmentName, 
+  userOrganizationName 
+} = useAuth();
+
+
+  const navigate = useNavigate();
   
   // Log the auth context values
   console.log('🔐 Auth Context - Department:', userDepartmentName);
@@ -139,6 +148,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   const [errorMessage, setErrorMessage] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const dueDateRef = useRef<HTMLInputElement | null>(null);
@@ -147,21 +157,18 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   // ------------------------------------------------------------------
   // Load logged in user (from backend jiraService.myself)
   // ------------------------------------------------------------------
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        if (typeof jiraService.getCurrentUser === 'function') {
-          const user = await jiraService.getCurrentUser();
-          setRequesterName(user?.displayName ?? user?.name ?? '');
-          setRequesterMail(user?.emailAddress ?? user?.email ?? '');
-        }
-      } catch (err) {
-        console.error('Error fetching current user', err);
-      }
-    };
+  // ------------------------------------------------------------------
+// Load logged in user (from backend jiraService.myself)
+// ------------------------------------------------------------------
 
-    if (isOpen) loadUser();
-  }, [isOpen]);
+
+useEffect(() => {
+  if (isOpen && userData && currentUser) {
+    setRequesterName(userData.user.name || "");
+    setRequesterMail(currentUser.email || "");
+  }
+}, [isOpen, userData, currentUser]);
+
 
   // ------------------------------------------------------------------
   // Load existing contracts when needed
@@ -479,6 +486,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
+    // Show loader
+    setIsSubmitting(true);
+    setSuccessMessage('');
+    setErrorMessage('');
+
     const vendorDetails: any = {
       vendorName,
       productName,
@@ -518,32 +530,76 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
       const payload = { vendorDetails };
       console.log('🚀 Submitting payload to Jira:', payload);
 
-    const created = await jiraService.createContractIssue(payload);
+      const created = await jiraService.createContractIssue(payload);
 
-    if (attachments.length > 0 && created.key) {
-      try {
-        for (const file of attachments) {
-          await jiraService.addAttachmentToIssue(created.key, file);
+      if (attachments.length > 0 && created.key) {
+        try {
+          for (const file of attachments) {
+            await jiraService.addAttachmentToIssue(created.key, file);
+          }
+        } catch (err) {
+          console.error('Error uploading attachments:', err);
+          // Optionally, set a warning message here if needed
         }
-      } catch (err) {
-        console.error('Error uploading attachments:', err);
-        // Optionally, set a warning message here if needed
       }
+
+      // ⭐ SAVE ATTACHMENTS IN DB AS "CREATION" STAGE
+// ⭐ SAVE ATTACHMENTS IN DB AS "CREATION" STAGE
+if (attachments.length > 0) {
+  try {
+    
+
+    for (const file of attachments) {
+      const meta = await jiraService.getLastUploadedAttachment(created.key, file.name);
+
+      await fetch("http://localhost:8080/api/jira/contracts/save-attachment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issueKey: created.key,
+
+          // 📌 Backend expects metadata object
+          metadata: {
+            fileName: meta.filename,
+            content: meta.content,
+            size: meta.size,
+            mimeType: meta.mimeType || file.type || "application/octet-stream"
+          }
+        })
+      });
     }
 
-    setSuccessMessage('Request successfully created');
+    console.log("📁 Attachments saved in DB successfully");
+  } catch (err) {
+    console.error("❌ Error saving attachment in DB: ", err);
+  }
+}
+
+
+
+      setSuccessMessage('Request successfully created');
       setErrorMessage('');
       setShowSuccess(true);
+      
+      // Dispatch a custom event to notify other components to refresh the issue list
+      window.dispatchEvent(new CustomEvent('requestCreated'));
 
       setTimeout(() => setShowSuccess(false), 1800);
 
       onIssueCreated?.(created as CreatedIssue);
       resetForm();
-      onClose();
+      
+      // Redirect to AllOpen page after successful submission
+      setTimeout(() => {
+        onClose();
+        navigate('/request-management/all-open');
+      }, 2000);
     } catch (err) {
       console.error('Create failed', err);
       setErrorMessage('Failed to create request. Please try again.');
       setSuccessMessage('');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -923,8 +979,32 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
             </div>
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
-              <button onClick={() => { resetForm(); onClose(); }} className="px-4 py-2 text-sm bg-white border rounded-md">Cancel</button>
-              <button onClick={handleSubmit} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md">Create</button>
+              <button 
+                onClick={() => { resetForm(); onClose(); }} 
+                className="px-4 py-2 text-sm bg-white border rounded-md"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSubmit} 
+                className={`px-4 py-2 text-sm text-white rounded-md flex items-center ${
+                  isSubmitting ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Creating...
+                  </>
+                ) : (
+                  'Create'
+                )}
+              </button>
             </div>
           </div>
         </div>

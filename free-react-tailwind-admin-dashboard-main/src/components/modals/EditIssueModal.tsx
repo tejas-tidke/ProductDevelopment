@@ -333,242 +333,276 @@ const EditIssueModal: React.FC<EditIssueModalProps> = ({ isOpen, onClose, onSubm
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Vendor & Product */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Vendor Name
-                  </label>
-                  <input
-                    type="text"
-                    value={vendorName}
-                    onChange={(e) => setVendorName(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {vendorName && vendorName !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Vendor Name
+                    </label>
+                    <input
+                      type="text"
+                      value={vendorName}
+                      onChange={(e) => setVendorName(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Product Name
-                  </label>
-                  <input
-                    type="text"
-                    value={productName}
-                    onChange={(e) => setProductName(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {productName && productName !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Product Name
+                    </label>
+                    <input
+                      type="text"
+                      value={productName}
+                      onChange={(e) => setProductName(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Billing Type
-                  </label>
-                  <input
-                    type="text"
-                    value={billingType}
-                    onChange={(e) => setBillingType(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {billingType && billingType !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Billing Type
+                    </label>
+                    <input
+                      type="text"
+                      value={billingType}
+                      onChange={(e) => setBillingType(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Contract Type
-                  </label>
-                  <input
-                    type="text"
-                    value={contractType}
-                    onChange={(e) => setContractType(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {contractType && contractType !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Contract Type
+                    </label>
+                    <input
+                      type="text"
+                      value={contractType}
+                      onChange={(e) => setContractType(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
                 {/* Current counts */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Current License Count
-                  </label>
-                  <input
-                    type="text"
-                    value={currentLicenseCount}
-                    onChange={(e) => setCurrentLicenseCount(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {currentLicenseCount && currentLicenseCount !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Current License Count
+                    </label>
+                    <input
+                      type="text"
+                      value={currentLicenseCount}
+                      onChange={(e) => setCurrentLicenseCount(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Current Usage Count
-                  </label>
-                  <input
-                    type="text"
-                    value={currentUsageCount}
-                    onChange={(e) => setCurrentUsageCount(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {currentUsageCount && currentUsageCount !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Current Usage Count
+                    </label>
+                    <input
+                      type="text"
+                      value={currentUsageCount}
+                      onChange={(e) => setCurrentUsageCount(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Current Units
-                  </label>
-                  <input
-                    type="text"
-                    value={currentUnits}
-                    onChange={(e) => setCurrentUnits(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {currentUnits && currentUnits !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Current Units
+                    </label>
+                    <input
+                      type="text"
+                      value={currentUnits}
+                      onChange={(e) => setCurrentUnits(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
                 {/* New counts */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    New License Count
-                  </label>
-                  <input
-                    type="text"
-                    value={newLicenseCount}
-                    onChange={(e) => setNewLicenseCount(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {newLicenseCount && newLicenseCount !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      New License Count
+                    </label>
+                    <input
+                      type="text"
+                      value={newLicenseCount}
+                      onChange={(e) => setNewLicenseCount(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    New Usage Count
-                  </label>
-                  <input
-                    type="text"
-                    value={newUsageCount}
-                    onChange={(e) => setNewUsageCount(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {newUsageCount && newUsageCount !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      New Usage Count
+                    </label>
+                    <input
+                      type="text"
+                      value={newUsageCount}
+                      onChange={(e) => setNewUsageCount(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    New Units
-                  </label>
-                  <input
-                    type="text"
-                    value={newUnits}
-                    onChange={(e) => setNewUnits(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {newUnits && newUnits !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      New Units
+                    </label>
+                    <input
+                      type="text"
+                      value={newUnits}
+                      onChange={(e) => setNewUnits(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
                 {/* Requester info */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Requester Name
-                  </label>
-                  <input
-                    type="text"
-                    value={requesterName}
-                    onChange={(e) => setRequesterName(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {requesterName && requesterName !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Requester Name
+                    </label>
+                    <input
+                      type="text"
+                      value={requesterName}
+                      onChange={(e) => setRequesterName(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Requester Email
-                  </label>
-                  <input
-                    type="text"
-                    value={requesterEmail}
-                    onChange={(e) => setRequesterEmail(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {requesterEmail && requesterEmail !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Requester Email
+                    </label>
+                    <input
+                      type="text"
+                      value={requesterEmail}
+                      onChange={(e) => setRequesterEmail(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Department
-                  </label>
-                  <input
-                    type="text"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {department && department !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Department
+                    </label>
+                    <input
+                      type="text"
+                      value={department}
+                      onChange={(e) => setDepartment(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    License Update Type
-                  </label>
-                  <input
-                    type="text"
-                    value={licenseUpdateType}
-                    onChange={(e) => setLicenseUpdateType(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {licenseUpdateType && licenseUpdateType !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      License Update Type
+                    </label>
+                    <input
+                      type="text"
+                      value={licenseUpdateType}
+                      onChange={(e) => setLicenseUpdateType(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Existing Contract ID
-                  </label>
-                  <input
-                    type="text"
-                    value={existingContractId}
-                    onChange={(e) => setExistingContractId(e.target.value)}
-                    className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  />
-                </div>
+                {existingContractId && existingContractId !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Existing Contract ID
+                    </label>
+                    <input
+                      type="text"
+                      value={existingContractId}
+                      onChange={(e) => setExistingContractId(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    />
+                  </div>
+                )}
 
                 {/* Dates */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Due Date
-                  </label>
-                  <div className="relative">
-                    <input
-                      ref={dateInputRef}
-                      type="date"
-                      value={dueDate}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        setDueDate(e.target.value);
-                      }}
-                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                      aria-label="Due Date"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleCalendarClick}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3"
-                      aria-label="Open calendar"
-                    >
-                      <svg
-                        className="w-5 h-5 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                        xmlns="http://www.w3.org/2000/svg"
+                {dueDate && dueDate !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Due Date
+                    </label>
+                    <div className="relative">
+                      <input
+                        ref={dateInputRef}
+                        type="date"
+                        value={dueDate}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          setDueDate(e.target.value);
+                        }}
+                        className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        aria-label="Due Date"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCalendarClick}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3"
+                        aria-label="Open calendar"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        ></path>
-                      </svg>
-                    </button>
+                        <svg
+                          className="w-5 h-5 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          ></path>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Renewal Date
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      value={renewalDate}
-                      onChange={(e) => setRenewalDate(e.target.value)}
-                      className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    />
+                {renewalDate && renewalDate !== '' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Renewal Date
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={renewalDate}
+                        onChange={(e) => setRenewalDate(e.target.value)}
+                        className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Additional Comments */}
@@ -586,7 +620,7 @@ const EditIssueModal: React.FC<EditIssueModalProps> = ({ isOpen, onClose, onSubm
               </div>
 
               {/* Assignee */}
-              <div>
+              {/* <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Assignee (Custom Field - customfield_10200)
                 </label>
@@ -600,10 +634,10 @@ const EditIssueModal: React.FC<EditIssueModalProps> = ({ isOpen, onClose, onSubm
                   className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   aria-label="Assignee Custom"
                 />
-              </div>
+              </div> */}
 
               {/* Description */}
-              <div>
+              {/* <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Description
                 </label>
@@ -617,7 +651,7 @@ const EditIssueModal: React.FC<EditIssueModalProps> = ({ isOpen, onClose, onSubm
                   className="w-full rounded-md border border-gray-300 bg-white py-2 px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   aria-label="Description"
                 />
-              </div>
+              </div> */}
 
               {/* Attachments Section */}
               <div>

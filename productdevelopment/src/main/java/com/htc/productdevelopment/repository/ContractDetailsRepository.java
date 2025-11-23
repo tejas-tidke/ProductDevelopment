@@ -1,6 +1,7 @@
 package com.htc.productdevelopment.repository;
 
 import com.htc.productdevelopment.model.ContractDetails;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -39,8 +40,19 @@ public interface ContractDetailsRepository extends JpaRepository<ContractDetails
     // Fetch contracts by contract type
     List<ContractDetails> findByContractType(String contractType);
 
-    // ⭐ ADD THESE (Fix your error)
+    // ⭐ NEW — Fix case sensitivity (needed for procurement-renewal)
+    List<ContractDetails> findByContractTypeIgnoreCase(String contractType);
+
+    // vendor → existing contracts
     List<ContractDetails> findByNameOfVendorIgnoreCase(String vendorName);
 
     ContractDetails findByNameOfVendorAndProductNameIgnoreCase(String vendorName, String productName);
+    
+ // ⭐ NEW — Fetch completed/renewed contracts using renewalStatus
+    List<ContractDetails> findByRenewalStatusIgnoreCase(String renewalStatus);
+
+ 
+    ContractDetails findByJiraIssueKey(String jiraIssueKey);
+    
+
 }

@@ -3,92 +3,58 @@
 import { auth } from "../firebase";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
+export const jiraTransitionMap: Record<string, string> = {
+  // Approve Transitions
+  "approve-request-created": "3",
+  "approve-pre-approval": "2",
+  "approve-request-review": "4",
+  "approve-negotiation-stage": "5",
+  "approve-post-approval": "7",
+
+  // Decline transitions (always ID 6)
+  "decline-request-created": "6",
+  "decline-pre-approval": "6",
+  "decline-request-review": "6",
+  "decline-negotiation": "6",
+  "decline-post-approval": "6",
+};
+
 // Generic API call function for Jira endpoints
 async function jiraApiCall(endpoint: string, options: RequestInit = {}) {
-  // Configure request headers
-  const config: RequestInit = {
-    headers: {
-  "Accept": "application/json",
-  ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-  ...options.headers,
-  },
-    // Add timeout to prevent hanging requests
-    signal: AbortSignal.timeout(30000), // 30 second timeout
-    ...options,
+
+  const isFormData = options.body instanceof FormData;
+
+  const headers: any = {
+    Accept: "application/json",
+    ...(options.headers || {})
   };
 
-  try {
-    console.log(`Making API call to ${endpoint} with config:`, config);
-    // Make the API call
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    console.log(`API call to ${endpoint}:`, response.status, response.statusText);
-    
-    // Handle errors
-    if (!response.ok) {
-      let errorMessage = `API call failed: ${response.statusText} (${response.status})`;
-      try {
-        const errorData = await response.json().catch(() => ({}));
-        errorMessage = errorData.message || errorMessage;
-        console.error(`Error response from ${endpoint}:`, errorData);
-      } catch {
-        // If we can't parse the error response as JSON, try to get text
-        try {
-          const errorText = await response.text();
-          errorMessage = errorText || errorMessage;
-          console.error(`Error response text from ${endpoint}:`, errorText);
-        } catch {
-          // If we can't get text either, use the status text
-          console.error("Error parsing error response");
-        }
-      }
-      throw new Error(errorMessage);
-    }
-    
-    // Handle empty responses (204 No Content)
-    const contentLength = response.headers.get('content-length');
-    if (contentLength === '0' || response.status === 204) {
-      return {}; // Return empty object for no-content responses
-    }
-    
-    // Try to parse JSON response
-    try {
-      const data = await response.json();
-      console.log(`Successful response from ${endpoint}:`, data);
-      return data;
-    } catch {
-      // If JSON parsing fails, try to get text response
-      try {
-        const textResponse = await response.text();
-        console.log(`Text response from ${endpoint}:`, textResponse);
-        // If text response is empty, return empty object
-        if (!textResponse.trim()) {
-          return {};
-        }
-        // Otherwise, return the text response
-        return textResponse;
-      } catch {
-        console.error(`Error getting text response from ${endpoint}`);
-        return {}; // Return empty object as fallback
-      }
-    }
-  } catch (error) {
-    console.error(`Error making API call to ${endpoint}:`, error);
-    // Provide more detailed error information
-    if (error instanceof Error) {
-      // Check if it's a timeout error
-      if (error.name === 'AbortError') {
-        throw new Error('Request timeout: The server took too long to respond. Please try again later.');
-      }
-      // Check if it's a network error
-      if (error.message.includes('Failed to fetch')) {
-        throw new Error('Network error: Unable to connect to the server. Please check your internet connection and try again.');
-      }
-      throw new Error(`Failed to connect to Jira API: ${error.message}`);
-    } else {
-      throw new Error(`Failed to connect to Jira API: Unknown error occurred`);
-    }
+  // ❌ DO NOT SET CONTENT-TYPE FOR FORMDATA
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
   }
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: options.method || "GET",
+    body: options.body,
+    headers,
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.message || response.statusText);
+  }
+
+  if (response.status === 204) return {};
+
+  return response.json().catch(() => response.text());
 }
+
+async function getProposalById(id: number) {
+  return jiraApiCall(`/api/jira/proposals/${id}`);
+}
+
 
 // Define the project data type
 export interface ProjectData {
@@ -201,6 +167,42 @@ export interface ProductItem {
   productType?: 'license' | 'usage'; // New field to indicate if product is license-based or usage-based
 }
 
+// Define the proposal data interface
+export interface ProposalData {
+  proposalType: string;
+  licenseCount: string;
+  unitCost: string;
+  totalCost: string;
+  attachmentIds: string | null;
+  issueKey: string | undefined;
+}
+
+async function getLastUploadedAttachment(issueKey: string, fileName: string) {
+  // Fetch issue with attachment field
+  const issue = await jiraApiCall(`/api/jira/issues/${issueKey}?expand=fields`);
+
+  const attachments = issue?.fields?.attachment || [];
+
+  // Find attachment by filename
+  const latest = attachments.find((a: any) => a.filename === fileName);
+
+  if (!latest) {
+    console.warn(`⚠ No attachment found for filename: ${fileName}`);
+    return null;
+  }
+
+  return {
+    id: latest.id,
+    filename: latest.filename,
+    size: latest.size,
+    content: latest.content,
+    mimeType: latest.mimeType,
+    created: latest.created,
+    author: latest.author?.displayName,
+  };
+}
+
+
 // Jira API functions
 export const jiraService = {
 
@@ -244,61 +246,15 @@ export const jiraService = {
       `/api/jira/contracts/license-count?vendor=${vendorName}&product=${productName}`
     ),
 
+    
+    
   // 9️⃣ Create Contract Issue (NEW API)
-  createContractIssue: async (payload: ContractIssuePayload) => {
-  const user = auth.currentUser;
-
-  // Auto-fill requester fields from logged-in Firebase user
-  const requesterName = user?.displayName || "Unknown User";
-  const requesterMail = user?.email || "";
-
-  console.log("📡 Sending Contract Issue to backend with auto-filled user:", {
-    requesterName,
-    requesterMail,
-  });
-
-  const vd = payload.vendorDetails;
-
-  const toText = (v: unknown): string =>
-    v === null || v === undefined ? "" : String(v);
-
-  const finalPayload: ContractIssuePayload = {
-    vendorDetails: {
-      vendorName: toText(vd.vendorName),
-      productName: toText(vd.productName),
-      vendorContractType: toText(vd.vendorContractType),
-      currentUsageCount: toText(vd.currentUsageCount),
-      currentUnits: toText(vd.currentUnits),
-      currentLicenseCount: toText(vd.currentLicenseCount),
-
-      newUsageCount: toText(vd.newUsageCount),
-      newUnits: toText(vd.newUnits),
-      newLicenseCount: toText(vd.newLicenseCount),
-
-      dueDate: toText(vd.dueDate),
-      renewalDate: toText(vd.renewalDate),
-
-      // 🔥 Auto-filled
-      requesterName: requesterName,
-      requesterMail: requesterMail,
-
-      department: toText(vd.department),
-      organization: toText(vd.organization),
-      additionalComment: toText(vd.additionalComment),
-
-      contractMode: toText(vd.contractMode),
-      selectedExistingContractId: toText(vd.selectedExistingContractId),
-
-      licenseUpdateType: toText(vd.licenseUpdateType),
-    },
-  };
-
+  createContractIssue: async (payload: any) => {
   return jiraApiCall("/api/jira/contracts/create", {
     method: "POST",
-    body: JSON.stringify(finalPayload),
+    body: JSON.stringify(payload),
   });
 },
-
 
 
 
@@ -333,20 +289,26 @@ export const jiraService = {
     // Build query parameters
     const params = new URLSearchParams();
     
+    console.log("getAllIssues called with:", { userRole, userOrganizationId, userDepartmentId });
+    
     if (userRole) {
       params.append('userRole', userRole);
     }
     
-    if (userOrganizationId) {
+    // Ensure the values are properly converted to strings
+    if (userOrganizationId !== null && userOrganizationId !== undefined) {
       params.append('userOrganizationId', userOrganizationId.toString());
     }
     
-    if (userDepartmentId) {
+    if (userDepartmentId !== null && userDepartmentId !== undefined) {
       params.append('userDepartmentId', userDepartmentId.toString());
     }
     
     const queryString = params.toString();
     const url = queryString ? `/api/jira/issues?${queryString}` : "/api/jira/issues";
+    
+    console.log("Final URL:", url);
+    console.log("Query parameters being sent:", { userRole, userOrganizationId, userDepartmentId });
     
     return jiraApiCall(url);
   },
@@ -387,29 +349,80 @@ export const jiraService = {
   },
 
   // Transition an issue to a new status
-  transitionIssue: async (issueIdOrKey: string, transitionId: string) => {
-    console.log(`Transitioning issue: ${issueIdOrKey} with transition ID: ${transitionId}`);
-    return jiraApiCall(`/api/jira/issues/${issueIdOrKey}/transitions`, {
-      method: "POST",
-      body: JSON.stringify({
-        transition: {
-          id: transitionId
-        }
-      }),
-    });
-  },
+  // Transition using predefined mapping
+transitionIssue: async (issueIdOrKey: string, transitionKey: string) => {
+  const realTransitionId = jiraTransitionMap[transitionKey];
+
+  if (!realTransitionId) {
+    throw new Error(`Invalid transition key: ${transitionKey}`);
+  }
+
+  return jiraApiCall(`/api/jira/issues/${issueIdOrKey}/transitions`, {
+    method: "POST",
+    body: JSON.stringify({
+      transition: { id: realTransitionId },
+    }),
+  });
+},
+
+// Transition using raw ID (used in your UI)
+transitionIssueCustom: async (issueKey: string, transitionId: string) => {
+  return jiraApiCall(`/api/jira/issues/${issueKey}/transitions`, {
+    method: "POST",
+    body: JSON.stringify({
+      transition: { id: transitionId },
+    }),
+  });
+},
+
+
 
   // Add an attachment to an issue
-  addAttachmentToIssue: (issueIdOrKey: string, file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
+  addAttachmentToIssue: async (issueIdOrKey: string, file: File) => {
 
-    return jiraApiCall(`/api/jira/issues/${issueIdOrKey}/attachments`, {
-      method: "POST",
-      body: formData,
-      headers: {},
-    });
-  },
+  const formData = new FormData();
+  formData.append("file", file);
+
+  // ❗ MUST use raw fetch — NOT jiraApiCall()
+  const response = await fetch(`${API_BASE_URL}/api/jira/issues/${issueIdOrKey}/attachments`, {
+    method: "POST",
+    body: formData,
+    headers: {
+      "X-Atlassian-Token": "no-check"   // Jira-required header
+      // DO NOT SET CONTENT-TYPE HERE
+    },
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Upload failed: ${err}`);
+  }
+
+  const jiraResponse = await response.json();
+
+  // Extract Jira metadata
+  const attachmentInfo = jiraResponse[0];
+  const metadata = {
+    fileName: attachmentInfo.filename,
+    content: attachmentInfo.content,
+    size: attachmentInfo.size,
+    mimeType: attachmentInfo.mimeType,
+  };
+
+  // Save to your backend DB
+  await jiraApiCall("/api/jira/contracts/save-attachment", {
+    method: "POST",
+    body: JSON.stringify({
+      issueKey: issueIdOrKey,
+      metadata,
+    }),
+  });
+
+  return jiraResponse;
+},
+
+
+
 
   // Test Jira API connectivity
   testJiraConnectivity: () => jiraApiCall("/api/jira/test-connectivity"),
@@ -499,21 +512,6 @@ createIssueJira: async (payload: ContractIssuePayload) => {
 },
 
 
-
-
-  addAttachmentToIssueJira: async (issueKey: string, file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    return jiraApiCall(`/api/jira/issues/${issueKey}/attachments`, {
-      method: "POST",
-      body: formData,
-      headers: {
-        "X-Atlassian-Token": "no-check",
-      },
-    });
-  },
-
   getCurrentUser: () => jiraApiCall("/api/jira/myself"),
 
   addCommentToIssue: (issueIdOrKey: string, commentBody: string) =>
@@ -522,6 +520,21 @@ createIssueJira: async (payload: ContractIssuePayload) => {
       body: JSON.stringify({ body: commentBody }),
     }),
 
+  // Save proposal data with attachments
+  saveProposal: (proposalData: ProposalData) => {
+    return jiraApiCall("/api/jira/proposals", {
+      method: "POST",
+      body: JSON.stringify(proposalData),
+    });
+  },
+
+  // Get all proposals for a specific issue
+  getProposalsByIssueKey: (issueKey: string) => {
+    return jiraApiCall(`/api/jira/proposals/issue/${issueKey}`);
+  },
+  getLastUploadedAttachment,
+
+  getProposalById,
 }; // END OF OBJECT
 
 export default jiraService;

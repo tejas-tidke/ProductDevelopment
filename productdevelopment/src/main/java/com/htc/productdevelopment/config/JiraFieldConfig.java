@@ -8,6 +8,9 @@ import lombok.Getter;
 @Getter
 public class JiraFieldConfig {
 
+	 private final String organizationName = "Organization";  // Used in JQL only
+	 private final String departmentName = "Department";  
+	
     // 🔹 Contract-level metadata
     @Value("${jira.customfield.contractType}")
     private String contractType;               // new / existing
@@ -61,4 +64,12 @@ public class JiraFieldConfig {
     // 🔹 Comments (paragraph field)
     @Value("${jira.customfield.additionalComment}")
     private String additionalComment;
+    
+    public String getOrganizationName() {
+        return organizationName;
+    }
+
+    public String getDepartmentName() {
+        return departmentName;
+    }
 }

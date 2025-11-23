@@ -219,7 +219,7 @@
   const IssueDetail: React.FC = () => {
     const { issueKey } = useParams<{ issueKey: string }>();
     const navigate = useNavigate();
-    const { canEditIssue } = usePermissions();
+    const { canEditIssue, userRole } = usePermissions();
     const [issue, setIssue] = useState<Issue | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -322,6 +322,42 @@
         console.error("Error changing issue status:", error);
         alert("Failed to change issue status. Please try again later.");
       }
+    };
+
+    // Check if a transition is allowed based on user role and current status
+    const isTransitionAllowed = (userRole: string | null, currentStatus: string, targetStatus: string): boolean => {
+      // REQUESTER cannot transition anything
+      if (userRole === 'REQUESTER') {
+        return false;
+      }
+
+      // APPROVER can only transition from "Request Created" to "Pre-Approval" or "Declined"
+      if (userRole === 'APPROVER') {
+        if (currentStatus === 'Request Created' && (targetStatus === 'Pre-Approval' || targetStatus === 'Declined')) {
+          return true;
+        }
+        // Cannot transition from any other status
+        return false;
+      }
+
+      // ADMIN can transition from "Pre-Approval" to "Request Review" and from "Request Review" to "Approved" or "Declined"
+      if (userRole === 'ADMIN') {
+        if (currentStatus === 'Pre-Approval' && targetStatus === 'Request Review') {
+          return true;
+        }
+        if (currentStatus === 'Request Review' && (targetStatus === 'Approved' || targetStatus === 'Declined')) {
+          return true;
+        }
+        return false;
+      }
+
+      // SUPER_ADMIN can transition everything
+      if (userRole === 'SUPER_ADMIN') {
+        return true;
+      }
+
+      // Default: no transitions allowed
+      return false;
     };
 
     // Handle add comment
@@ -712,9 +748,14 @@
                           (t) => t.to.name === e.target.value
                         );
                         if (selectedTransition) {
-                          await jiraService.transitionIssue(issueKey!, selectedTransition.id);
-                          setCurrentStatus(e.target.value);
-                          alert(`Status updated to ${e.target.value}`);
+                          // Check if transition is allowed
+                          if (isTransitionAllowed(userRole, currentStatus, selectedTransition.to.name)) {
+                            await jiraService.transitionIssue(issueKey!, selectedTransition.id);
+                            setCurrentStatus(e.target.value);
+                            alert(`Status updated to ${e.target.value}`);
+                          } else {
+                            alert(`You are not allowed to transition to ${e.target.value}`);
+                          }
                         }
                       }}
                       className="border border-gray-300 rounded-md px-3 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-200"
@@ -723,11 +764,19 @@
                       <option value={currentStatus} disabled>
                         {currentStatus}
                       </option>
-                      {availableTransitions.map((t) => (
-                        <option key={t.id} value={t.to.name}>
-                          {t.to.name}
-                        </option>
-                      ))}
+                      {availableTransitions.map((t) => {
+                        const allowed = isTransitionAllowed(userRole, currentStatus, t.to.name);
+                        return (
+                          <option 
+                            key={t.id} 
+                            value={t.to.name}
+                            disabled={!allowed}
+                            style={{ opacity: allowed ? 1 : 0.5 }}
+                          >
+                            {t.to.name}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 )}
@@ -1214,19 +1263,24 @@
                           <div className="flex flex-wrap gap-2">
                             {availableTransitions.length > 0 ? (
                               <>
-                                {availableTransitions.map((transition) => (
-                                  <button
-                                    key={transition.id}
-                                    onClick={() => handleStatusChange(transition.id, transition.to.name)}
-                                    className={`px-3 py-1.5 text-sm rounded-md ${
-                                      currentStatus === transition.to.name
-                                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
-                                        : 'bg-white text-gray-700 dark:bg-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500'
-                                    }`}
-                                  >
-                                    {transition.name}
-                                  </button>
-                                ))}
+                                {availableTransitions.map((transition) => {
+                                  const allowed = isTransitionAllowed(userRole, currentStatus, transition.to.name);
+                                  return (
+                                    <button
+                                      key={transition.id}
+                                      onClick={() => handleStatusChange(transition.id, transition.to.name)}
+                                      className={`px-3 py-1.5 text-sm rounded-md ${
+                                        currentStatus === transition.to.name
+                                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
+                                          : 'bg-white text-gray-700 dark:bg-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500'
+                                      }`}
+                                      disabled={!allowed}
+                                      style={{ opacity: allowed ? 1 : 0.5, cursor: allowed ? 'pointer' : 'not-allowed' }}
+                                    >
+                                      {transition.name}
+                                    </button>
+                                  );
+                                })}
                               </>
                             ) : (
                               <p className="text-gray-500 dark:text-gray-400">No transitions available.</p>

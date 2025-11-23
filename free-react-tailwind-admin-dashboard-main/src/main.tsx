@@ -9,6 +9,7 @@ import { ThemeProvider } from "./context/ThemeContext.tsx";
 // Initialize Firebase
 import "./firebase.ts";
 import { AuthProvider } from "./context/AuthContext.tsx";
+import { NotificationProvider } from "./context/NotificationContext.tsx";
 
 // Ensure the root element exists
 const rootElement = document.getElementById("root");
@@ -20,9 +21,11 @@ createRoot(rootElement).render(
   <StrictMode>
     <ThemeProvider>
       <AuthProvider>
+        <NotificationProvider>
         <AppWrapper>
           <App />
         </AppWrapper>
+        </NotificationProvider>
       </AuthProvider>
     </ThemeProvider>
   </StrictMode>,

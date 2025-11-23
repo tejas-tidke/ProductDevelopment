@@ -76,4 +76,16 @@ public class User {
     protected void onUpdate() {
         this.updatedAt = new Date();
     }
+
+    // 🔥 Convenience helper getters for filtering
+    public Long getDepartmentId() {
+        return department != null ? department.getId() : null;
+    }
+
+    public Long getOrganizationId() {
+        return organization != null ? organization.getId() : null;
+    }
 }
+
+
+    

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, Link } from "react-router";
 import { useAuth } from "../../context/AuthContext";
+import { Permission } from "../../config/permissions";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { useDrag, useDrop } from "react-dnd";
@@ -72,24 +73,24 @@ interface Column {
 }
 
 const AllOpen: React.FC = () => {
-  const { userRole, userOrganizationId, userDepartmentId } = useAuth();
+  const { userRole, userOrganizationId, userDepartmentId, userDepartmentName, userOrganizationName } = useAuth();
   // --- UI / filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedIssueType, setSelectedIssueType] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
-  const [sortField, setSortField] = useState<string>("");
+  const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-
-  // --- data state
-  const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // --- Data state
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [issueTypes, setIssueTypes] = useState<{id: string, name: string}[]>([]);
+  const [statuses, setStatuses] = useState<{id: string, name: string}[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [issueTypes, setIssueTypes] = useState<JiraIssueType[]>([]);
-  const [statuses, setStatuses] = useState<{ id: string; name: string }[]>([]);
   const [customFields, setCustomFields] = useState<JiraField[]>([]);
-
-  // modals / selection
+  
+  const navigate = useNavigate();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
 
@@ -118,13 +119,6 @@ const AllOpen: React.FC = () => {
   ]);
 
   const visibleColumns = allColumns.filter(c => c.isSelected);
-
-  const navigate = useNavigate();
-
-  // helper: toggle column
-  // const toggleColumn = (columnKey: string) => {
-  //   setAllColumns(prev => prev.map(col => col.key === columnKey ? { ...col, isSelected: !col.isSelected } : col));
-  // };
 
   // helper: safe field reader (tries many key variants)
   const getFieldValue = (issue: Issue, keys: string[]): string => {
@@ -181,13 +175,18 @@ const AllOpen: React.FC = () => {
     return d.toLocaleDateString();
   };
 
-  // Fetching data on mount
+  // Fetching data on mount and when user context changes
   useEffect(() => {
     const fetch = async () => {
       try {
         setLoading(true);
         setError(null);
-
+        
+        console.log("=== AllOpen.tsx DEBUG INFO ===");
+        console.log("User context:", { userRole, userOrganizationId, userDepartmentId });
+        console.log("User department name:", userDepartmentName);
+        console.log("User organization name:", userOrganizationName);
+        
         // projects
         try {
           const projectsData = await jiraService.getAllProjects();
@@ -214,12 +213,21 @@ const AllOpen: React.FC = () => {
 
         // issues
         try {
-          const resp = await jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId); // Pass user context
+          console.log("Calling getAllIssues with:", { userRole, userOrganizationId, userDepartmentId });
+          const resp = await jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId);
+          console.log("Received response from getAllIssues:", resp);
+          
           const allIssues: Issue[] = Array.isArray(resp) ? resp : (resp && Array.isArray(resp.issues) ? resp.issues : []);
-
-          // filter to Request Management project only
-          const projectNameToShow = "Request Management";
-          const filtered = allIssues.filter(i => i.fields?.project?.name === projectNameToShow);
+          console.log("Processed issues count:", allIssues.length);
+          
+          // Filter by project name
+          const filtered = allIssues.filter(i => {
+            const projectName = i.fields?.project?.name;
+            console.log("Issue project name:", projectName);
+            return projectName === "Request Management";
+          });
+          
+          console.log("Filtered issues count:", filtered.length);
           setIssues(filtered);
 
           // derive statuses & assignees
@@ -227,7 +235,6 @@ const AllOpen: React.FC = () => {
           setStatuses(uniqueStatuses);
 
         } catch (err) {
-
           console.error("Failed fetch issues", err);
           setError("Failed to load requests.");
         }
@@ -237,7 +244,18 @@ const AllOpen: React.FC = () => {
     };
 
     fetch();
-  }, []);
+    
+    // Add event listener for new requests
+    const handleRequestCreated = () => {
+      fetch();
+    };
+    
+    window.addEventListener('requestCreated', handleRequestCreated);
+    
+    return () => {
+      window.removeEventListener('requestCreated', handleRequestCreated);
+    };
+  }, [userRole, userOrganizationId, userDepartmentId]);
 
   // Filtering & sorting
   const filteredIssues = useMemo(() => {
@@ -282,6 +300,9 @@ const AllOpen: React.FC = () => {
   const ActionsDropdown: React.FC<{ issue: Issue }> = ({ issue }) => {
     const [open, setOpen] = useState(false);
     const ref = React.useRef<HTMLDivElement | null>(null);
+    const { hasPermission } = useAuth();
+    
+    const canEditOrDelete = hasPermission(Permission.EDIT_ISSUE) && hasPermission(Permission.DELETE_ISSUE);
 
     useEffect(() => {
       const handler = (e: MouseEvent) => {
@@ -298,9 +319,9 @@ const AllOpen: React.FC = () => {
       if (!confirm(`Delete ${issue.key}?`)) return;
       try {
         await jiraService.deleteIssue(issue.key);
-        // refresh
-        const resp = await jiraService.getAllIssues();
-        let allIssues: Issue[] = Array.isArray(resp) ? resp : (resp && Array.isArray(resp.issues) ? resp.issues : []);
+        // refresh with user context
+        const resp = await jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId);
+        const allIssues: Issue[] = Array.isArray(resp) ? resp : (resp && Array.isArray(resp.issues) ? resp.issues : []);
         const filtered = allIssues.filter(i => i.fields?.project?.name === "Request Management");
         setIssues(filtered);
         alert('Deleted');
@@ -328,8 +349,12 @@ const AllOpen: React.FC = () => {
           <div className="absolute right-0 mt-1 w-44 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-20">
             <div className="py-1">
               <button onClick={view} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">View</button>
-              <button onClick={edit} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Edit</button>
-              <button onClick={remove} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-gray-700">Delete</button>
+              {canEditOrDelete && (
+                <>
+                  <button onClick={edit} className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700">Edit</button>
+                  <button onClick={remove} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-gray-700">Delete</button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -601,7 +626,7 @@ case 'additionalComments':
           <div className="mt-3 text-sm text-gray-500">Showing {filteredIssues.length} of {issues.length} requests</div>
 
           {/* Modals */}
-          {selectedIssue && <EditIssueModal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setSelectedIssue(null); }} onSubmit={async (key, data) => { await jiraService.updateIssue(key, data); /* Refresh simplified */ }} issue={selectedIssue as any} />}
+          {selectedIssue && <EditIssueModal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setSelectedIssue(null); }} onSubmit={async (key, data) => { await jiraService.updateIssue(key, data); /* Refresh simplified */ }} issue={selectedIssue} />}
 
         </div>
         </div>

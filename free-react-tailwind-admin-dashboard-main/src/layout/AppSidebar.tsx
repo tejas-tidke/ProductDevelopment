@@ -337,6 +337,14 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
   },
 ];
 
+const isPrivileged = isAdmin || isSuperAdmin;
+
+const filteredNavItems = navItems.filter(item => {
+  if (item.name === "Dashboard" && !isPrivileged) return false;
+  return true;
+});
+
+
 const othersItems: NavItem[] = [
   {
     name: "Request",
@@ -741,7 +749,7 @@ onMouseLeave={() => {
                   <HorizontaLDots className="size-6" />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
+              {renderMenuItems(filteredNavItems, "main")}
             </div>
             <div>
               <h2
@@ -764,22 +772,21 @@ onMouseLeave={() => {
         {/* Account section now part of the scrollable content */}
         <div className="flex flex-col gap-2">
   {/* Notification */}
-  <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
+  {/* <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
     <div className="flex items-center">
-      <div className="relative">
-        <NotificationDropdown
-          isOpen={openBottomDropdown === 'notifications'}
-          onToggle={() => {
-           
-            setOpenBottomDropdown(openBottomDropdown === 'notifications' ? null : 'notifications');
-          }}
-        />
-      </div>
+      <div>
+  <NotificationDropdown
+    isOpen={openBottomDropdown === 'notifications'}
+    onToggle={() => {
+      setOpenBottomDropdown(openBottomDropdown === 'notifications' ? null : 'notifications');
+    }}
+  />
+</div>
       {(isExpanded || isHovered || isMobileOpen) && (
         <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Notifications</span>
       )}
     </div>
-  </div>
+  </div> */}
 
   {/* Settings - Only visible for Admin and Super Admin */}
   {(isAdmin || isSuperAdmin) && (

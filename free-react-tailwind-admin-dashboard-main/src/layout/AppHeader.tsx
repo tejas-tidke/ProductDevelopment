@@ -201,11 +201,11 @@ const AppHeader: React.FC = () => {
             <ThemeToggleButton />
             {/* <!-- Dark Mode Toggler --> */}
             <NotificationDropdown />
-            <SettingsDropdown />
+            {/* <SettingsDropdown /> */}
             {/* <!-- Notification Menu Area --> */}
           </div>
           {/* <!-- User Area --> */}
-          <UserDropdown />
+          {/* <UserDropdown /> */}
         </div>
       </div>
 

@@ -1,61 +1,23 @@
 // src/components/auth/ProtectedRoute.tsx
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router";
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  console.log('ProtectedRoute: Component mounted');
   const { currentUser, loading } = useAuth();
   const navigate = useNavigate();
-  const [loginTime, setLoginTime] = useState<number | null>(null);
 
   useEffect(() => {
+    console.log('ProtectedRoute: useEffect called - loading=', loading, 'currentUser=', currentUser);
     // Check if user is authenticated
+    // Only redirect if we're done loading and there's definitely no user
     if (!loading && !currentUser) {
+      console.log('ProtectedRoute: Redirecting to signin because no user');
       // Redirect to sign in page if user is not authenticated
       navigate("/signin");
-      return;
     }
-
-    // Set login time when user is authenticated
-    if (currentUser && !loginTime) {
-      const currentTime = Date.now();
-      setLoginTime(currentTime);
-      // Store login time in localStorage
-      localStorage.setItem('loginTime', currentTime.toString());
-    } else if (!loginTime) {
-      // Try to get login time from localStorage
-      const storedLoginTime = localStorage.getItem('loginTime');
-      if (storedLoginTime) {
-        setLoginTime(parseInt(storedLoginTime, 10));
-      }
-    }
-  }, [currentUser, loading, navigate, loginTime]);
-
-  useEffect(() => {
-    // Check for 30-minute timeout
-    if (loginTime) {
-      const checkTimeout = () => {
-        const currentTime = Date.now();
-        const timeElapsed = currentTime - loginTime;
-        const thirtyMinutes = 30 * 60 * 1000; // 30 minutes in milliseconds
-
-        if (timeElapsed > thirtyMinutes) {
-          // Clear login time from localStorage
-          localStorage.removeItem('loginTime');
-          // Redirect to sign in page
-          navigate("/signin");
-        }
-      };
-
-      // Check immediately
-      checkTimeout();
-
-      // Set up interval to check every minute
-      const interval = setInterval(checkTimeout, 60000); // Check every minute
-
-      return () => clearInterval(interval);
-    }
-  }, [loginTime, navigate]);
+  }, [currentUser, loading, navigate]);
 
   // Show loading state while checking auth status
   if (loading) {
