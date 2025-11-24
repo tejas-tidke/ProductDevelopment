@@ -307,7 +307,6 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
     icon: <DocsIcon />,
     subItems: [
       { name: "Renewal", path: "/procurement/renewal", pro: false, new: true },
-      { name: "New Request", path: "/procurement/new", pro: false, new: true },
     ],
   },
   {
@@ -341,6 +340,7 @@ const isPrivileged = isAdmin || isSuperAdmin;
 
 const filteredNavItems = navItems.filter(item => {
   if (item.name === "Dashboard" && !isPrivileged) return false;
+  if (item.name === "Procurement Request" && !isSuperAdmin) return false;
   return true;
 });
 
@@ -361,15 +361,15 @@ const othersItems: NavItem[] = [
     name: "Calendar",
     path: "/calendar",
   },
-  {
-    name: "Pages",
-    icon: <FileIcon />,
-    subItems: [
-      { name: "Create New User", path: "/blank", pro: false },
-      { name: "Send Invitation", path: "/send-invitation", pro: false },
-      { name: "404 Error", path: "/error-404", pro: false },
-    ],
-  },
+  // {
+  //   name: "Pages",
+  //   icon: <FileIcon />,
+  //   subItems: [
+  //     { name: "Create New User", path: "/blank", pro: false },
+  //     { name: "Send Invitation", path: "/send-invitation", pro: false },
+  //     { name: "404 Error", path: "/error-404", pro: false },
+  //   ],
+  // },
   // {
   //   icon: <PieChartIcon />,
   //   name: "Charts",
@@ -731,104 +731,89 @@ onMouseLeave={() => {
           )}
         </Link>
       </div>
-      {/* Make entire sidebar content scrollable */}
-      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar flex-1">
-        <nav className="mb-6 px-5">
-          <div className="flex flex-col gap-4">
-            <div>
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Menu"
-                ) : (
-                  <HorizontaLDots className="size-6" />
-                )}
-              </h2>
-              {renderMenuItems(filteredNavItems, "main")}
+      {/* Make entire sidebar content scrollable except for bottom items */}
+      <div className="flex flex-col h-full">
+        <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar flex-1">
+          <nav className="mb-6 px-5">
+            <div className="flex flex-col gap-4">
+              <div>
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                    !isExpanded && !isHovered
+                      ? "lg:justify-center"
+                      : "justify-start"
+                  }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    "Menu"
+                  ) : (
+                    <HorizontaLDots className="size-6" />
+                  )}
+                </h2>
+                {renderMenuItems(filteredNavItems, "main")}
+              </div>
+              <div>
+                <h2
+                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                    !isExpanded && !isHovered
+                      ? "lg:justify-center"
+                      : "justify-start"
+                  }`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    "Others"
+                  ) : (
+                    <HorizontaLDots className="size-6" />
+                  )}
+                </h2>
+                {renderMenuItems(othersItems, "others")}
+              </div>
             </div>
-            <div>
-              <h2
-                className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
-                  !isExpanded && !isHovered
-                    ? "lg:justify-center"
-                    : "justify-start"
-                }`}
-              >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  "Others"
-                ) : (
-                  <HorizontaLDots className="size-6" />
+          </nav>
+        </div>
+        
+        {/* Fixed bottom items */}
+        <div className="flex-shrink-0 pb-4 px-5">
+          <div className="flex flex-col gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+            {/* Settings - Only visible for Admin and Super Admin */}
+            {(isAdmin || isSuperAdmin) && (
+              <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center">
+                  <div className="relative">
+                    <SettingsDropdown
+                      isOpen={openBottomDropdown === 'settings'}
+                      onToggle={() => {
+                        setIsInteractingWithDropdown(true);
+                        setOpenBottomDropdown(openBottomDropdown === 'settings' ? null : 'settings');
+                      }}
+                    />
+                  </div>
+                  {(isExpanded || isHovered || isMobileOpen) && (
+                    <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Settings</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Profile */}
+            <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center">
+                <div className="relative">
+                  <UserDropdown
+                    isOpen={openBottomDropdown === 'profile'}
+                    onToggle={() => {
+                      setOpenBottomDropdown(openBottomDropdown === 'profile' ? null : 'profile');
+                    }}
+                  />
+                </div>
+                {(isExpanded || isHovered || isMobileOpen) && (
+                  <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Profile</span>
                 )}
-              </h2>
-              {renderMenuItems(othersItems, "others")}
+              </div>
             </div>
           </div>
-        </nav>
-        {/* Account section now part of the scrollable content */}
-        <div className="flex flex-col gap-2">
-  {/* Notification */}
-  {/* <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
-    <div className="flex items-center">
-      <div>
-  <NotificationDropdown
-    isOpen={openBottomDropdown === 'notifications'}
-    onToggle={() => {
-      setOpenBottomDropdown(openBottomDropdown === 'notifications' ? null : 'notifications');
-    }}
-  />
-</div>
-      {(isExpanded || isHovered || isMobileOpen) && (
-        <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Notifications</span>
-      )}
-    </div>
-  </div> */}
-
-  {/* Settings - Only visible for Admin and Super Admin */}
-  {(isAdmin || isSuperAdmin) && (
-    <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center">
-        <div className="relative">
-          <SettingsDropdown
-    isOpen={openBottomDropdown === 'settings'}
-    onToggle={() => {
-      setIsInteractingWithDropdown(true);
-      setOpenBottomDropdown(openBottomDropdown === 'settings' ? null : 'settings');
-    }}
-  />
         </div>
-        {(isExpanded || isHovered || isMobileOpen) && (
-          <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Settings</span>
-        )}
       </div>
-    </div>
-  )}
-
-  {/* Profile */}
-  <div className="menu-item group relative" onClick={(e) => e.stopPropagation()}>
-    <div className="flex items-center">
-      <div className="relative">
-        <UserDropdown
-          isOpen={openBottomDropdown === 'profile'}
-          onToggle={() => {
-            
-            setOpenBottomDropdown(openBottomDropdown === 'profile' ? null : 'profile');
-          }}
-        />
-      </div>
-      {(isExpanded || isHovered || isMobileOpen) && (
-        <span className="menu-item-text ml-3 text-gray-900 dark:text-white">Profile</span>
-      )}
-    </div>
-  </div>
-</div>
-
-        </div>
-      {/* </div> */}
     </aside>
   );
 };

@@ -290,9 +290,9 @@ const RequestSplitView: React.FC = () => {
 
   // Custom function to check if issue can be edited
   const canEditIssue = () => {
-    if (!canEditIssueBase()) {
-      return false;
-    }
+    // if (!canEditIssueBase()) {
+    //   return false;
+    // }
     const currentStatus = selectedIssue?.fields?.status?.name || "";
     if (currentStatus === "Completed" || currentStatus === "Declined") {
       return false;
@@ -1605,7 +1605,7 @@ await Promise.all(
                       Comment
                     </button>
 
-                    <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
+                    {/* <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
                       <svg
                         className="w-4 h-4 mr-2"
                         fill="none"
@@ -1620,9 +1620,9 @@ await Promise.all(
                         ></path>
                       </svg>
                       Assign
-                    </button>
+                    </button> */}
 
-                    <div className="relative more-dropdown">
+                    {/* <div className="relative more-dropdown">
                       <button
                         className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
                         onClick={() =>
@@ -1656,7 +1656,7 @@ await Promise.all(
                           </div>
                         </div>
                       )}
-                    </div>
+                    </div> */}
 
                     {/* Custom Transition Dropdown */}
                     <div className="flex items-center gap-2">
@@ -2700,7 +2700,7 @@ await Promise.all(
       UPLOAD QUOTE MODAL
 ================================ */} 
 {isUploadQuoteModalOpen && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
 
       {/* Header */}
@@ -3002,8 +3002,31 @@ await Promise.all(
   </div>
 )}
 
-
+      {/* Edit Issue Modal */}
+      {selectedIssue && (
+        <EditIssueModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSubmit={async (issueIdOrKey: string, issueData: any) => {
+            try {
+              await jiraService.updateIssue(issueIdOrKey, issueData);
+              // Refresh the selected issue after update
+              const updatedIssue = await jiraService.getIssueByIdOrKey(issueIdOrKey);
+              setSelectedIssue(updatedIssue);
+              setIsEditModalOpen(false);
+              // Show success message
+              alert('Issue updated successfully');
+            } catch (error) {
+              console.error('Error updating issue:', error);
+              alert('Failed to update issue');
+            }
+          }}
+          issue={convertIssueForEditModal(selectedIssue)}
+        />
+      )}
     </>
+
+    
   );
 };
 

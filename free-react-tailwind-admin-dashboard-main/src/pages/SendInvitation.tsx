@@ -164,8 +164,8 @@ export default function SendInvitation() {
           </h3>
           {userRole === "SUPER_ADMIN" && (
             <div className="mb-4 rounded-md bg-yellow-100 p-2 text-center text-sm text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-              SUPER_ADMIN: You can assign users to specific organizations
-            </div>
+              SUPER ADMIN: You can assign users.
+              </div>
           )}
           
           {message && (
@@ -178,7 +178,7 @@ export default function SendInvitation() {
             </div>
           )}
           
-          <div className="mb-6 rounded-lg bg-blue-100 p-4 dark:bg-blue-900">
+          {/* <div className="mb-6 rounded-lg bg-blue-100 p-4 dark:bg-blue-900">
             <h4 className="mb-2 font-medium text-blue-800 dark:text-blue-100">Security Notice</h4>
             <p className="text-sm text-blue-700 dark:text-blue-200">
               Invite new users to sign up using their Google or Microsoft account. 
@@ -189,7 +189,7 @@ export default function SendInvitation() {
                 <strong>Note:</strong> As a SUPER_ADMIN, you can assign users to specific organizations.
               </p>
             )}
-          </div>
+          </div> */}
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>

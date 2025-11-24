@@ -429,13 +429,17 @@ export default function App() {
               } 
             />
 
-            <Route 
-              path="/complete-invitation" 
-              element={
-                <CompleteInvitation />
-              } 
-            />
           </Route>
+
+          {/* Complete Invitation Page - Outside of AppLayout to hide header/sidebar */}
+          <Route 
+            path="/complete-invitation" 
+            element={
+              <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+                <CompleteInvitation />
+              </div>
+            } 
+          />
 
           {/* Auth Layout */}
           <Route path="/signin" element={<SignIn />} />

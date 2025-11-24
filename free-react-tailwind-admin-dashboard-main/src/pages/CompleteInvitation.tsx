@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import { invitationApi } from "../services/api";
 import { useNavigate, useLocation } from "react-router";
@@ -218,7 +217,6 @@ export default function CompleteInvitation() {
           title="Complete Invitation - Admin Dashboard"
           description="Complete your invitation to join the platform"
         />
-        <PageBreadcrumb pageTitle="Complete Invitation" />
         <div className="min-h-screen rounded-2xl border border-gray-200 bg-white px-5 py-7 dark:border-gray-800 dark:bg-white/[0.03] xl:px-10 xl:py-12">
           <div className="mx-auto w-full max-w-[630px]">
             <div className="flex justify-center items-center h-64">
@@ -236,7 +234,6 @@ export default function CompleteInvitation() {
         title="Complete Invitation - Admin Dashboard"
         description="Complete your invitation to join the platform"
       />
-      <PageBreadcrumb pageTitle="Complete Invitation" />
       <div className="min-h-screen rounded-2xl border border-gray-200 bg-white px-5 py-7 dark:border-gray-800 dark:bg-white/[0.03] xl:px-10 xl:py-12">
         <div className="mx-auto w-full max-w-[630px]">
           <h3 className="mb-6 text-center font-semibold text-gray-800 text-theme-xl dark:text-white/90 sm:text-2xl">
@@ -259,8 +256,8 @@ export default function CompleteInvitation() {
               <ul className="text-sm text-blue-700 dark:text-blue-200">
                 <li><strong>Email:</strong> {invitationData.email}</li>
                 <li><strong>Role:</strong> {invitationData.role}</li>
-                {invitationData.departmentId && <li><strong>Department ID:</strong> {invitationData.departmentId}</li>}
-                {invitationData.organizationId && <li><strong>Organization ID:</strong> {invitationData.organizationId}</li>}
+                {/* {invitationData.departmentId && <li><strong>Department ID:</strong> {invitationData.departmentId}</li>}
+                {invitationData.organizationId && <li><strong>Organization ID:</strong> {invitationData.organizationId}</li>} */}
               </ul>
             </div>
           )}
@@ -284,7 +281,7 @@ export default function CompleteInvitation() {
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"></path>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"></path>
                 </svg>
-                Sign in with Google
+                Sign up with Google
               </button>
               
               <button
@@ -298,7 +295,7 @@ export default function CompleteInvitation() {
                   <path fill="#05A6F0" d="M13 1h10v10H13z"></path>
                   <path fill="#FFBA08" d="M13 13h10v10H13z"></path>
                 </svg>
-                Sign in with Microsoft
+                Sign up with Microsoft
               </button>
             </div>
             

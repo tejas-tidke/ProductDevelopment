@@ -1,11 +1,15 @@
 import { SidebarProvider, useSidebar } from "../context/SidebarContext";
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import AppHeader from "./AppHeader";
 import Backdrop from "./Backdrop";
 import AppSidebar from "./AppSidebar";
 
 const LayoutContent: React.FC = () => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const location = useLocation();
+  
+  // Check if we're on the request split view page and the upload quote modal is likely open
+  const isUploadQuoteModalOpen = location.pathname.includes('/requests/') && location.hash === '#upload-quote';
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -16,7 +20,7 @@ const LayoutContent: React.FC = () => {
           isExpanded || isHovered ? "lg:ml-[290px]" : "lg:ml-[90px]"
         } ${isMobileOpen ? "ml-0" : ""}`}
       >
-        <AppHeader />
+        {!isUploadQuoteModalOpen && <AppHeader />}
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           <div className="mx-auto max-w-screen-2xl">
             <Outlet />
