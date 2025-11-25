@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef} from "react";
 import { useNavigate } from "react-router";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
@@ -53,6 +53,9 @@ export default function UsersList() {
   const [selectedOrganization, setSelectedOrganization] = useState<string>("All");
   const navigate = useNavigate();
   const { isSuperAdmin, isAdmin, userDepartmentId, userOrganizationId, userOrganizationName } = useAuth();
+  // store refs for each user's action button
+const actionRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+
   
   // Debug logging
   useEffect(() => {
@@ -465,9 +468,12 @@ export default function UsersList() {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
-                            <div className="relative inline-block">
+                            <div className="relative inline-block text-left">
+
                               <button
-                                onClick={() => toggleDropdown(user.id)}
+  ref={(el) => (actionRefs.current[user.id] = el)}
+  onClick={() => toggleDropdown(user.id)}
+
                                 className="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                                 aria-label="User actions"
                               >
@@ -482,10 +488,16 @@ export default function UsersList() {
                               </button>
                               
                               <Dropdown
-                                isOpen={dropdownOpen === user.id}
-                                onClose={closeDropdown}
-                                className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-2xl border border-gray-200 bg-white py-2 shadow-lg dark:border-gray-800 dark:bg-gray-900"
-                              >
+  isOpen={dropdownOpen === user.id}
+  onClose={closeDropdown}
+  anchorRef={{ current: actionRefs.current[user.id] || null }}
+  placement="right"
+  offsetX={8}
+  offsetY={4}
+  className="w-48"
+>
+
+
                                 <ul>
                                   {user.active ? (
                                     <li>

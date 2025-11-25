@@ -4,10 +4,14 @@ import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.model.Organization;
 import com.htc.productdevelopment.repository.UserRepository;
 import com.google.firebase.auth.UserRecord;
+import com.google.firebase.auth.ExportedUserRecord;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.UserRecord.CreateRequest;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.firebase.auth.ExportedUserRecord;
+
 
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -209,16 +213,17 @@ public class FirebaseSyncService {
      * Sync all users from Firebase to local database
      * @return List of users stored in local database
      */
-    public List<User> syncAllUsers() throws Exception {
+    public List<User> syncAllFirebaseUsers() throws Exception {
         logger.info("Syncing all Firebase users to local database");
         
         try {
             // Fetch all users from Firebase (limited to 1000 for now)
-            List<UserRecord> firebaseUsers = FirebaseAuth.getInstance().listUsersAsync(null).get().getValues();
+        	Iterable<ExportedUserRecord> firebaseUsersIterable = FirebaseAuth.getInstance().listUsersAsync(null).get().getValues();
+        	List<ExportedUserRecord> firebaseUsers = com.google.common.collect.Lists.newArrayList(firebaseUsersIterable);
             logger.debug("Fetched {} users from Firebase", firebaseUsers.size());
             
             // Sync each user to local database
-            for (UserRecord firebaseUser : firebaseUsers) {
+            for (ExportedUserRecord firebaseUser : firebaseUsers) { 
                 try {
                     syncUser(firebaseUser.getUid(), firebaseUser.getEmail(), firebaseUser.getDisplayName());
                 } catch (Exception e) {
@@ -235,4 +240,4 @@ public class FirebaseSyncService {
             throw new Exception("Error fetching users from Firebase", e);
         }
     }
-}
+}	

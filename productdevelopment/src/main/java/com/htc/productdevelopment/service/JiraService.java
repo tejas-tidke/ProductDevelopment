@@ -1832,13 +1832,13 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
      * Save contract details to the database
      * @param vendorDetails The vendor details map from the frontend
      */
-    private void saveContractDetails(Map<String, Object> vendorDetails) {
-        // ⭐ MODIFIED: Do not save contract details immediately when creating an issue
-        // Contract details will only be saved when status is transitioned to "Completed"
-        logger.info("Skipping immediate contract details save. Contract details will be saved on status completion.");
-        return;
-    }
-    
+//    private void saveContractDetails(Map<String, Object> vendorDetails) {
+//        // ⭐ MODIFIED: Do not save contract details immediately when creating an issue
+//        // Contract details will only be saved when status is transitioned to "Completed"
+//        logger.info("Skipping immediate contract details save. Contract details will be saved on status completion.");
+//        return;
+//    }
+//    
     /**
      * Save contract details for a completed issue to the database
      * @param vendorDetails The vendor details map from the frontend

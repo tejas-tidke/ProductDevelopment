@@ -706,6 +706,8 @@ if (data.length > 1) {
     }
   }, [selectedProject, selectedStatus]);
 
+  
+
   // Filtering logic
   const filteredIssues = useMemo(() => {
     let result = issues.filter((issue) => {
@@ -2700,7 +2702,7 @@ await Promise.all(
       UPLOAD QUOTE MODAL
 ================================ */} 
 {isUploadQuoteModalOpen && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-99999 p-4">
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
 
       {/* Header */}
