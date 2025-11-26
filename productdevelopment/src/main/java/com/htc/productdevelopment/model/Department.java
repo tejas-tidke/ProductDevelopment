@@ -3,6 +3,7 @@ package com.htc.productdevelopment.model;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.Date;
 
 @Entity
 @Table(name = "departments")
@@ -19,6 +20,7 @@ public class Department {
     @Column(nullable = false, unique = true)
     private String name;
     
+    @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "created_at")
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private Date createdAt;
 }

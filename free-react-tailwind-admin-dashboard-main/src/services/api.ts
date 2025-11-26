@@ -111,8 +111,13 @@ export const userApi = {
     body: JSON.stringify(userData),
   }),
   
-  // Delete user
+  // Delete user by numeric database ID
   deleteUser: (id: string) => apiCall(`/api/users/${id}`, {
+    method: "DELETE",
+  }),
+
+  // Delete user by Firebase UID (Auth route)
+  deleteUserByUid: (uid: string) => apiCall(`/api/auth/users/${uid}`, {
     method: "DELETE",
   }),
   

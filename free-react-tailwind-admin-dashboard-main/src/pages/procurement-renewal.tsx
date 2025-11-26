@@ -225,7 +225,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
     useEffect(() => {
       // whenever selectedRow or action changes, reset errors
       setError(null);
-    }, [expandedRowId, rowActionType]);
+    }, [expandedRowId]);
 
     function selectRow(id: string) {
       setExpandedRowId((prev) => (prev === id ? null : id));
@@ -411,6 +411,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
             <table className="min-w-[1800px] w-full table-auto border-separate border-spacing-0">
               <thead className="bg-green-50 sticky top-0 z-10">
                 <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700"></th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">#</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">EEID</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Requester Name</th>
@@ -434,7 +435,6 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">License Update Type</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Existing Contract ID</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Additional Comment</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold text-green-700">Action</th>
                 </tr>
               </thead>
 
@@ -446,6 +446,16 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
   onClick={() => selectRow(r.id)}
   className={`cursor-pointer ${expandedRowId === r.id ? "bg-indigo-50" : idx % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
 >
+  <td className="px-3 py-2 text-center border-b border-r border-gray-200">
+    <input
+      type="radio"
+      name="renewalRowSelect"
+      checked={expandedRowId === r.id}
+      onChange={(e) => { e.stopPropagation(); selectRow(r.id); }}
+      onClick={(e) => e.stopPropagation()}
+      aria-label={`Select ${r.vendorName} — ${r.productName}`}
+    />
+  </td>
   <td className="px-3 py-2 text-sm text-gray-600 border-b border-r border-gray-200">{idx + 1}</td>
   <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.id}</td>
 
@@ -479,23 +489,6 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
   <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.existingContractId ?? "N/A"}</td>
 
   <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.additionalComment ?? "N/A"}</td>
-
-  <td className="px-3 py-2 text-sm text-right border-b border-gray-200">
-    <button
-      type="button"
-      onClick={(e) => { 
-        e.stopPropagation(); 
-        if (expandedRowId === r.id) {
-          closeForm(r.id);
-        } else {
-          openActionForRow(r, "flat");
-        }
-      }}
-      className="px-3 py-1.5 rounded-md border text-xs font-medium"
-    >
-      {expandedRowId === r.id ? "Close" : "Action"}
-    </button>
-  </td>
 </tr>
 
                     </React.Fragment>
@@ -512,7 +505,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
           </div>
 
           {/* Global options panel below the list */}
-          {showGlobalPanel && selectedRow && (
+          {false && selectedRow && (
             <div className="border-t bg-white/60 backdrop-blur-sm">
               <div className="max-w-8xl mx-auto p-5">
                 <div className="flex items-start gap-4">
@@ -750,12 +743,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
     </div>
   </div>
 )}
-                      </div>
-
-                      
-
-                      
-
+ </div>
                       {/* Additional comment */}
                       <div className="mt-4">
                         <label className="flex flex-col">
@@ -838,7 +826,24 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
             </div>
           )}
 
-          <div className="p-4 bg-gray-50 text-sm text-gray-500 border-t">Use the Action button in any row to open options below the list. Current usage is read-only; upgrade/downgrade have validation to prevent invalid numbers.</div>
+          <div className="p-4 border-t bg-gray-50 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              disabled={!expandedRowId}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!expandedRowId) return;
+                const row = rows.find(r => r.id === expandedRowId);
+                const contractId = row?.id?.replace('C','') || row?.existingContractId || null;
+                if (contractId) {
+                  window.dispatchEvent(new CustomEvent('openCreateModal', { detail: { existingContractId: contractId } }));
+                }
+              }}
+              className={`px-4 py-2 rounded-lg font-medium ${expandedRowId ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
+            >
+              Renewal
+            </button>
+          </div>
         </div>
       </div>
     );

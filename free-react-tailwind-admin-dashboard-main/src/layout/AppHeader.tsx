@@ -11,6 +11,8 @@ import { jiraService } from "../services/jiraService";
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [initialContractType, setInitialContractType] = useState<'new' | 'existing' | undefined>(undefined);
+  const [initialExistingContractId, setInitialExistingContractId] = useState<string | undefined>(undefined);
 
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
 
@@ -25,6 +27,23 @@ const AppHeader: React.FC = () => {
   const toggleApplicationMenu = () => {
     setApplicationMenuOpen(!isApplicationMenuOpen);
   };
+
+  // Listen for external openCreateModal events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (detail && detail.existingContractId) {
+        setInitialContractType('existing');
+        setInitialExistingContractId(String(detail.existingContractId));
+      } else {
+        setInitialContractType(undefined);
+        setInitialExistingContractId(undefined);
+      }
+      setIsCreateModalOpen(true);
+    };
+    window.addEventListener('openCreateModal', handler as EventListener);
+    return () => window.removeEventListener('openCreateModal', handler as EventListener);
+  }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -185,7 +204,7 @@ const AppHeader: React.FC = () => {
             </form>
             <button 
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors h-11 flex items-center"
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={() => { setInitialContractType(undefined); setInitialExistingContractId(undefined); setIsCreateModalOpen(true); }}
             >
               Create Request
             </button>
@@ -216,6 +235,8 @@ const AppHeader: React.FC = () => {
         onIssueCreated={(issue) => {
           console.log("Created issue:", issue);
         }}
+        initialContractType={initialContractType}
+        initialExistingContractId={initialExistingContractId}
       />
     </header>
   );

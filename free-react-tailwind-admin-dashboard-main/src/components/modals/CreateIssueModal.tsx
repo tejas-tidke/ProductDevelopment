@@ -28,6 +28,8 @@ interface CreateIssueModalProps {
   isOpen: boolean;
   onClose: () => void;
   onIssueCreated?: (issue: CreatedIssue) => void;
+  initialContractType?: 'new' | 'existing';
+  initialExistingContractId?: string;
 }
 
 // Define the product item structure
@@ -39,7 +41,7 @@ interface ProductItem {
   productType?: 'license' | 'usage'; // New field to indicate if product is license-based or usage-based
 }
 
-const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onIssueCreated }) => {
+const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onIssueCreated, initialContractType, initialExistingContractId }) => {
   // Get user data from context
   const { 
   currentUser, 
@@ -169,6 +171,22 @@ useEffect(() => {
   }
 }, [isOpen, userData, currentUser]);
 
+// ------------------------------------------------------------------
+// Apply initial defaults when opening from external trigger (e.g. Renewal button)
+// ------------------------------------------------------------------
+useEffect(() => {
+  if (!isOpen) return;
+  if (initialContractType) {
+    setContractType(initialContractType);
+  } else {
+    setContractType('');
+  }
+  if (initialContractType === 'existing' && initialExistingContractId) {
+    setSelectedExistingContractId(initialExistingContractId);
+  } else if (!initialExistingContractId) {
+    setSelectedExistingContractId('');
+  }
+}, [isOpen, initialContractType, initialExistingContractId]);
 
   // ------------------------------------------------------------------
   // Load existing contracts when needed

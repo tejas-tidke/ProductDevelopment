@@ -32,7 +32,7 @@ public class User {
 
     // ---------- 🔥 Department Relation ----------
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "department_id")
+    @JoinColumn(name = "department_id", nullable = true)
     private Department department;
     // --------------------------------------------
 

@@ -180,6 +180,9 @@ const actionRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
   const departmentOptions = useMemo(() => ["All", ...departments.map((d) => d.name)], [departments]);
 
   const filteredUsers = users.filter((user) => {
+    // Always hide inactive (disabled) users from the list
+    if (!user.active) return false;
+
     // For Admin users, filter to show only users from their organization and department
     if (isAdmin && !isSuperAdmin) {
       // Debug logging
@@ -236,7 +239,10 @@ const actionRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
   const handleDisableUser = async (userId: string) => {
     try {
-      await userApi.disableUser(userId);
+      const user = users.find((u) => u.id === userId);
+      if (!user) throw new Error("User not found in list");
+      if (!user.uid) throw new Error("Cannot disable user: missing UID");
+      await userApi.disableUser(user.uid);
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, active: false } : u)));
       closeDropdown();
     } catch (err) {
@@ -246,7 +252,10 @@ const actionRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
   const handleActivateUser = async (userId: string) => {
     try {
-      await userApi.enableUser(userId);
+      const user = users.find((u) => u.id === userId);
+      if (!user) throw new Error("User not found in list");
+      if (!user.uid) throw new Error("Cannot activate user: missing UID");
+      await userApi.enableUser(user.uid);
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, active: true } : u)));
       closeDropdown();
     } catch (err) {
@@ -255,12 +264,37 @@ const actionRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
   };
 
   const handleDeleteUser = async (userId: string) => {
+    const userToDelete = users.find((u) => u.id === userId);
+    if (!userToDelete) {
+      setError("Failed to delete user: User not found in list");
+      return;
+    }
     try {
-      await userApi.deleteUser(userId);
-      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      // Prefer deleting by UID if available (auth route), else fallback to numeric DB ID
+      if (userToDelete.uid) {
+        await userApi.deleteUserByUid(userToDelete.uid);
+      } else {
+        await userApi.deleteUser(userId);
+      }
+      setUsers((prev) => prev.filter((u) => u.id !== userId && u.uid !== userToDelete.uid));
       closeDropdown();
     } catch (err) {
-      setError("Failed to delete user: " + ((err as Error).message || String(err)));
+      const msg = (err as Error).message || String(err);
+      const fkViolation = /foreign key constraint|violates foreign key constraint|could not execute statement/i.test(msg);
+      if (fkViolation) {
+        try {
+          if (!userToDelete.uid) throw new Error(msg);
+          // Fallback: disable user and remove from current list
+          await userApi.disableUser(userToDelete.uid);
+          setUsers((prev) => prev.filter((u) => u.id !== userId && u.uid !== userToDelete.uid));
+          closeDropdown();
+          return;
+        } catch (fallbackErr) {
+          setError("Failed to delete user: " + ((fallbackErr as Error).message || String(fallbackErr)));
+          return;
+        }
+      }
+      setError("Failed to delete user: " + msg);
     }
   };
 
