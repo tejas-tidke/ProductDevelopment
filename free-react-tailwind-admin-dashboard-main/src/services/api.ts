@@ -110,11 +110,7 @@ export const userApi = {
     method: "PUT",
     body: JSON.stringify(userData),
   }),
-  
-  // Delete user by numeric database ID
-  deleteUser: (id: string) => apiCall(`/api/users/${id}`, {
-    method: "DELETE",
-  }),
+
 
   // Delete user by Firebase UID (Auth route)
   deleteUserByUid: (uid: string) => apiCall(`/api/auth/users/${uid}`, {
@@ -122,14 +118,26 @@ export const userApi = {
   }),
   
   // Disable user
-  disableUser: (id: string) => apiCall(`/api/auth/users/${id}/disable`, {
+  // Disable user (set active=false)
+disableUser: (id: string) =>
+  apiCall(`/api/users/${id}`, {
     method: "PUT",
+    body: JSON.stringify({ active: false })
   }),
-  
-  // Enable user
-  enableUser: (id: string) => apiCall(`/api/auth/users/${id}/enable`, {
+
+// Enable user (set active=true)
+enableUser: (id: string) =>
+  apiCall(`/api/users/${id}`, {
     method: "PUT",
+    body: JSON.stringify({ active: true })
   }),
+
+// Delete user using DB ID
+deleteUser: (id: string) =>
+  apiCall(`/api/users/${id}`, {
+    method: "DELETE"
+  }),
+
 };
 
 // Department API functions

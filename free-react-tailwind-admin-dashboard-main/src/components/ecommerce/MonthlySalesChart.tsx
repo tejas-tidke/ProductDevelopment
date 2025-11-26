@@ -484,9 +484,9 @@ export default function MonthlySalesChart() {
             aria-label="Select view"
           >
             <option>Issue Types</option>
-            <option>Burndown</option>
+            {/* <option>Burndown</option>
             <option>Velocity</option>
-            <option>Cumulative Flow</option>
+            <option>Cumulative Flow</option> */}
           </select>
         </div>
 

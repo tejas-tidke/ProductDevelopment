@@ -194,7 +194,7 @@ export default function SendInvitation() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email Address *
+                Email Address <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
@@ -210,7 +210,7 @@ export default function SendInvitation() {
             
             <div>
               <label htmlFor="role" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Role * {userRole === "SUPER_ADMIN" && <span className="text-xs text-yellow-600 dark:text-yellow-400">(SUPER_ADMIN)</span>}
+                Role <span className="text-red-500">*</span>{userRole === "SUPER_ADMIN"}
               </label>
               <select
                 id="role"
@@ -240,7 +240,7 @@ export default function SendInvitation() {
             {/* Department Selection */}
             <div>
               <label htmlFor="departmentId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Department * {hasRole('SUPER_ADMIN') ? "" : "(Auto-selected based on your department)"}
+                Department <span className="text-red-500">*</span> {hasRole('SUPER_ADMIN') ? "" : "(Auto-selected based on your department)"}
               </label>
               <select
                 id="departmentId"
@@ -260,8 +260,9 @@ export default function SendInvitation() {
               </select>
               {!hasRole('SUPER_ADMIN') ? (
                 <p className="mt-1 text-xs text-gray-500">Department is auto-selected based on your login credentials.</p>
-              ) : (
-                <p className="mt-1 text-xs text-gray-500">Select the department the user will belong to.</p>
+              ) 
+              : (
+                <p className="mt-1 text-xs text-gray-500"></p>
               )}
             </div>
             
@@ -269,7 +270,7 @@ export default function SendInvitation() {
             {isSuperAdminMemo() && (
               <div>
                 <label htmlFor="organizationId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Organization <span className="text-xs text-gray-500">(SUPER_ADMIN only)</span>
+                  Organization <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="organizationId"
@@ -285,7 +286,7 @@ export default function SendInvitation() {
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-gray-500">Assign user to a specific organization. If empty, user will be assigned to 'Cost Room'.</p>
+                <p className="mt-1 text-xs text-gray-500"></p>
               </div>
             )}
             
