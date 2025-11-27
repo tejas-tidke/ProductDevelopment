@@ -414,7 +414,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
                   {/* For Adding the Radio Button In the Procurement Renewal form */}
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700"></th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">#</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">EEID</th>
+                  {/* <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">EEID</th> */}
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Requester Name</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Requester Email</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Department</th>
@@ -459,7 +459,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
     />
   </td>
   <td className="px-3 py-2 text-sm text-gray-600 border-b border-r border-gray-200">{idx + 1}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.id}</td>
+  {/* <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.id}</td> */}
 
   <td className="px-3 py-2 text-sm text-gray-900 border-b border-r border-gray-200">{r.requesterName}</td>
   <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.requesterEmail}</td>
