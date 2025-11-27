@@ -194,7 +194,11 @@ export default function SendInvitation() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+<<<<<<< HEAD
                 Email Address <span className="text-red-500">*</span>
+=======
+                Email Address <span class="text-red-600">*</span>
+>>>>>>> UIwala
               </label>
               <input
                 type="email"
@@ -210,7 +214,12 @@ export default function SendInvitation() {
             
             <div>
               <label htmlFor="role" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+<<<<<<< HEAD
                 Role <span className="text-red-500">*</span>{userRole === "SUPER_ADMIN"}
+=======
+                Role <span class="text-red-600">*</span>
+                 {/* {userRole === "SUPER_ADMIN" && <span className="text-xs text-yellow-600 dark:text-yellow-400">(SUPER_ADMIN)</span>} */}
+>>>>>>> UIwala
               </label>
               <select
                 id="role"
@@ -240,7 +249,11 @@ export default function SendInvitation() {
             {/* Department Selection */}
             <div>
               <label htmlFor="departmentId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+<<<<<<< HEAD
                 Department <span className="text-red-500">*</span> {hasRole('SUPER_ADMIN') ? "" : "(Auto-selected based on your department)"}
+=======
+                Department <span class="text-red-600">*</span>{hasRole('SUPER_ADMIN') ? "" : "(Auto-selected based on your department)"}
+>>>>>>> UIwala
               </label>
               <select
                 id="departmentId"
@@ -260,8 +273,12 @@ export default function SendInvitation() {
               </select>
               {!hasRole('SUPER_ADMIN') ? (
                 <p className="mt-1 text-xs text-gray-500">Department is auto-selected based on your login credentials.</p>
+<<<<<<< HEAD
               ) 
               : (
+=======
+              ) : (
+>>>>>>> UIwala
                 <p className="mt-1 text-xs text-gray-500"></p>
               )}
             </div>
@@ -270,7 +287,11 @@ export default function SendInvitation() {
             {isSuperAdminMemo() && (
               <div>
                 <label htmlFor="organizationId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+<<<<<<< HEAD
                   Organization <span className="text-red-500">*</span>
+=======
+                  Organization <span className="text-red-600">*</span> 
+>>>>>>> UIwala
                 </label>
                 <select
                   id="organizationId"
@@ -286,7 +307,11 @@ export default function SendInvitation() {
                     </option>
                   ))}
                 </select>
+<<<<<<< HEAD
                 <p className="mt-1 text-xs text-gray-500"></p>
+=======
+             
+>>>>>>> UIwala
               </div>
             )}
             

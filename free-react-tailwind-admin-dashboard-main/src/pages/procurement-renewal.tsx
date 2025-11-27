@@ -410,7 +410,8 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
           <div className="overflow-auto">
             <table className="min-w-[1800px] w-full table-auto border-separate border-spacing-0">
               <thead className="bg-green-50 sticky top-0 z-10">
-                <tr>
+                <tr>  
+                  {/* For Adding the Radio Button In the Procurement Renewal form */}
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700"></th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">#</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">EEID</th>
@@ -446,6 +447,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
   onClick={() => selectRow(r.id)}
   className={`cursor-pointer ${expandedRowId === r.id ? "bg-indigo-50" : idx % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
 >
+   {/* Radio Button Function on Renewal button */}
   <td className="px-3 py-2 text-center border-b border-r border-gray-200">
     <input
       type="radio"
@@ -490,8 +492,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
 
   <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.additionalComment ?? "N/A"}</td>
 </tr>
-
-                    </React.Fragment>
+ </React.Fragment>
                   ))
                 ) : (
                   <tr>
