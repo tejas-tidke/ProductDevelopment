@@ -60,6 +60,14 @@ public class ContractAttachmentService {
     public List<ContractAttachment> getAttachmentsByStage(Long contractId, String stage) {
         return attachmentRepo.findByContractIdAndStage(contractId, stage);
     }
+    
+    public List<ContractAttachment> getAttachmentsByProposalId(Long proposalId) {
+        return attachmentRepo.findByProposalId(proposalId);
+    }
+    
+    public List<ContractAttachment> getAttachmentsByIssueKey(String issueKey) {
+        return attachmentRepo.findByJiraIssueKey(issueKey);
+    }
 }
 
 

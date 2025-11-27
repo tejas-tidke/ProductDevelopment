@@ -5,6 +5,12 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
+import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
+
 @Entity
 @Table(name = "contract_attachments")
 @Getter
@@ -43,6 +49,9 @@ public class ContractAttachment {
     private String stage; // "CREATION", "FIRST_PROPOSAL", "FINAL_PROPOSAL"
 
     @Column(name = "uploaded_at")
+    @JsonSerialize(using = LocalDateTimeSerializer.class)
+    @JsonDeserialize(using = LocalDateTimeDeserializer.class)
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime uploadedAt = LocalDateTime.now();
     
     @ManyToOne(fetch = FetchType.LAZY)
@@ -51,6 +60,10 @@ public class ContractAttachment {
     
     @Column(name = "mime_type")
     private String mimeType;
+    
+    @Lob
+    @Column(name = "file_content", columnDefinition = "BYTEA")
+    private byte[] fileContent;
 
     public String getMimeType() {
         return mimeType;
@@ -58,6 +71,14 @@ public class ContractAttachment {
 
     public void setMimeType(String mimeType) {
         this.mimeType = mimeType;
+    }
+    
+    public byte[] getFileContent() {
+        return fileContent;
+    }
+    
+    public void setFileContent(byte[] fileContent) {
+        this.fileContent = fileContent;
     }
 
 

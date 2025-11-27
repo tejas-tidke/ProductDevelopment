@@ -29,3 +29,19 @@ CREATE TABLE IF NOT EXISTS proposals (
 CREATE INDEX IF NOT EXISTS idx_vendor_details_product_type ON vendor_details(product_type);
 CREATE INDEX IF NOT EXISTS idx_contract_details_contract_type ON contract_details(contract_type);
 CREATE INDEX IF NOT EXISTS idx_proposals_issue_key ON proposals(issue_key);
+
+-- Create comments table for custom comment functionality
+CREATE TABLE IF NOT EXISTS comments (
+    id BIGSERIAL PRIMARY KEY,
+    issue_key VARCHAR(255) NOT NULL,
+    user_id BIGINT NOT NULL,
+    user_name VARCHAR(255) NOT NULL,
+    comment_text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add indexes for better query performance on comments table
+CREATE INDEX IF NOT EXISTS idx_comment_issue_key ON comments(issue_key);
+CREATE INDEX IF NOT EXISTS idx_comment_user_id ON comments(user_id);
+CREATE INDEX IF NOT EXISTS idx_comment_created_at ON comments(created_at);

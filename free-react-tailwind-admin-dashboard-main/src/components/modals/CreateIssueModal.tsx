@@ -562,36 +562,8 @@ useEffect(() => {
       }
 
       // ⭐ SAVE ATTACHMENTS IN DB AS "CREATION" STAGE
-// ⭐ SAVE ATTACHMENTS IN DB AS "CREATION" STAGE
-if (attachments.length > 0) {
-  try {
-    
-
-    for (const file of attachments) {
-      const meta = await jiraService.getLastUploadedAttachment(created.key, file.name);
-
-      await fetch("http://localhost:8080/api/jira/contracts/save-attachment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          issueKey: created.key,
-
-          // 📌 Backend expects metadata object
-          metadata: {
-            fileName: meta.filename,
-            content: meta.content,
-            size: meta.size,
-            mimeType: meta.mimeType || file.type || "application/octet-stream"
-          }
-        })
-      });
-    }
-
-    console.log("📁 Attachments saved in DB successfully");
-  } catch (err) {
-    console.error("❌ Error saving attachment in DB: ", err);
-  }
-}
+// ⭐ ATTACHMENTS ARE NOW SAVED AUTOMATICALLY IN addAttachmentToIssue
+// No need to save metadata separately as it's handled in the service
 
 
 

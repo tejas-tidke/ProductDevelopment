@@ -55,10 +55,7 @@ public class JiraConfig {
             .build();
     }
     
-    @Bean
-    public ObjectMapper objectMapper() {
-        return new ObjectMapper();
-    }
+    // Removed objectMapper bean definition to avoid conflict with JacksonConfig
     
     @Bean
     public JiraService jiraService(RestTemplate restTemplate, ObjectMapper objectMapper) {
