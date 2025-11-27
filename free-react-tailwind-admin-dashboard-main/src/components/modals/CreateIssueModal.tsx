@@ -808,7 +808,7 @@ if (attachments.length > 0) {
               {contractType === 'existing' && (
                 <>
                   <div>
-                    <label htmlFor="selectedExistingContractId" className="block text-sm font-medium text-gray-700 mb-1">Select Existing Contract</label>
+                    <label htmlFor="selectedExistingContractId" className="block text-sm font-medium text-gray-700 mb-1">Select Existing Contract <span className="text-red-500">*</span> </label>
                     <select id="selectedExistingContractId" value={selectedExistingContractId} onChange={e => setSelectedExistingContractId(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
                       <option value="">{loadingExistingContracts ? 'Loading...' : 'Select Contract'}</option>
                       {existingContracts.map(c => <option key={c.id} value={c.id}>{c.vendorName} — {c.productName}</option>)}
@@ -817,23 +817,23 @@ if (attachments.length > 0) {
                   </div>
 
                   <div>
-                    <label htmlFor="vendorNameExisting" className="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
+                    <label htmlFor="vendorNameExisting" className="block text-sm font-medium text-gray-700 mb-1">Vendor Name <span className="text-red-500">*</span>  </label>
                     <input id="vendorNameExisting" value={vendorName} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                   </div>
 
                   <div>
-                    <label htmlFor="productNameExisting" className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                    <label htmlFor="productNameExisting" className="block text-sm font-medium text-gray-700 mb-1">Product Name <span className="text-red-500">*</span>  </label>
                     <input id="productNameExisting" value={productName} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                   </div>
 
                   <div>
-                    <label htmlFor="billingTypeExisting" className="block text-sm font-medium text-gray-700 mb-1">Billing Type</label>
+                    <label htmlFor="billingTypeExisting" className="block text-sm font-medium text-gray-700 mb-1">Billing Type <span className="text-red-500">*</span>  </label>
                     <input id="billingTypeExisting" value={vendorContractType} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                   </div>
 
                   {vendorContractType === 'usage' && (
                     <div>
-                      <label htmlFor="currentUsageCount" className="block text-sm font-medium text-gray-700 mb-1">Current volumes</label>
+                      <label htmlFor="currentUsageCount" className="block text-sm font-medium text-gray-700 mb-1">Current volumes <span className ="text-red-500">*</span>  </label>
                       <div className="flex items-center space-x-2">
                         <input id="currentUsageCount" value={currentUsageCount ?? ''} readOnly disabled className="flex-1 w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                         <div className="w-36">
@@ -937,12 +937,12 @@ if (attachments.length > 0) {
                   )}
 
                   <div>
-                    <label htmlFor="contractDurationExisting" className="block text-sm font-medium text-gray-700 mb-1">Contract Duration (months)</label>
+                    <label htmlFor="contractDurationExisting" className="block text-sm font-medium text-gray-700 mb-1">Contract Duration (months) <span className="text-red-500">*</span></label>
                     <input id="contractDurationExisting" type="number" value={contractDuration} onChange={e => setContractDuration(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter duration in months" className="w-full border rounded-md py-2 px-3 text-sm" />
                   </div>
 
                   <div>
-                    <label htmlFor="renewalDate" className="block text-sm font-medium text-gray-700 mb-1">Renewal Date</label>
+                    <label htmlFor="renewalDate" className="block text-sm font-medium text-gray-700 mb-1">Renewal Date <span className ="text-red-500">*</span>   </label>
                                                                                                                                                                                                         <div className="flex items-center space-x-2">
                       <input id="renewalDate" ref={renewalDateRef} type="date" value={renewalDate} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                       <button type="button" onClick={focusRenewalDate} className="p-2 border rounded-md bg-white" aria-label="Open renewal date picker">
@@ -952,7 +952,7 @@ if (attachments.length > 0) {
                   </div>
 
                   <div>
-                    <label htmlFor="dueDateExisting" className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                    <label htmlFor="dueDateExisting" className="block text-sm font-medium text-gray-700 mb-1">Due Date  <span className="text-red-500">*</span>   </label>
                     <div className="flex items-center space-x-2">
                       <input id="dueDateExisting" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
                       <button type="button" onClick={() => dueDateRef.current?.focus()} className="p-2 border rounded-md bg-white" aria-label="Open due date picker">
