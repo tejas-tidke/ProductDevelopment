@@ -1941,7 +1941,7 @@ await Promise.all(
                       </div>
                     </div>
 
-                    {/* Description */}
+                    {/* Description
                     <div className="mb-6">
                       <div className="border-b border-gray-200 dark:border-gray-700 pb-2 mb-4">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -1965,7 +1965,7 @@ await Promise.all(
                           </p>
                         )}
                       </div>
-                    </div>
+                    </div> */}
 
 
                     
@@ -2072,7 +2072,7 @@ await Promise.all(
                     <div id="activity-section">
                       <div className="border-b border-gray-200 dark:border-gray-700 pb-2 mb-4">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                          Activity
+                          Comments
                         </h2>
                       </div>
 

@@ -37,18 +37,14 @@ public interface ContractDetailsRepository extends JpaRepository<ContractDetails
     """)
     List<ContractDetails> findContractsByDepartments(List<String> departments);
 
-    // Fetch contracts by contract type
     List<ContractDetails> findByContractType(String contractType);
 
-    // ⭐ NEW — Fix case sensitivity (needed for procurement-renewal)
     List<ContractDetails> findByContractTypeIgnoreCase(String contractType);
 
-    // vendor → existing contracts
     List<ContractDetails> findByNameOfVendorIgnoreCase(String vendorName);
 
     ContractDetails findByNameOfVendorAndProductNameIgnoreCase(String vendorName, String productName);
     
- // ⭐ NEW — Fetch completed/renewed contracts using renewalStatus
     List<ContractDetails> findByRenewalStatusIgnoreCase(String renewalStatus);
 
  
