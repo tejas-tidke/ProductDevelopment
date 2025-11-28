@@ -1,7 +1,33 @@
 package com.htc.productdevelopment.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 
+import org.springframework.http.HttpStatus;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.htc.productdevelopment.dto.ContractCompletedRequest;
+import com.htc.productdevelopment.dto.ContractDTO;
+import com.htc.productdevelopment.dto.VendorDetailsDTO;
 import com.htc.productdevelopment.model.ContractAttachment;
 import com.htc.productdevelopment.model.ContractDetails;
 import com.htc.productdevelopment.model.ContractProposal;
@@ -10,901 +36,900 @@ import com.htc.productdevelopment.model.Proposal;
 import com.htc.productdevelopment.repository.ContractAttachmentRepository;
 import com.htc.productdevelopment.repository.ContractDetailsRepository;
 import com.htc.productdevelopment.repository.ContractProposalRepository;
-import com.htc.productdevelopment.dto.ContractCompletedRequest;
-import com.htc.productdevelopment.dto.ContractDTO;
-import com.htc.productdevelopment.service.JiraService;
 import com.htc.productdevelopment.service.ContractDetailsService;
-import com.htc.productdevelopment.service.VendorDetailsService;
+import com.htc.productdevelopment.service.JiraService;
 import com.htc.productdevelopment.service.ProposalService;
-
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.RequestEntity;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.http.HttpMethod;
-
-
-
-
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.beans.factory.annotation.Autowired;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
-
-import org.springframework.http.HttpEntity;  // ✔ CORRECT
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.htc.productdevelopment.service.VendorDetailsService;
 
 /**
- * Controller class for handling Jira-related API requests
- * This controller provides endpoints for managing Jira projects and issues
+ * Controller class for handling Jira-related API requests This controller
+ * provides endpoints for managing Jira projects and issues
  */
 @RestController
 @RequestMapping("/api/jira")
 @CrossOrigin(origins = "http://localhost:5173")
 public class JiraController {
 
-    // Logger for tracking controller operations
-    private static final Logger logger = LoggerFactory.getLogger(JiraController.class);
-    
-    // Service for handling Jira operations
-    private final JiraService jiraService;
-    private final ContractDetailsService contractDetailsService;
-    private final VendorDetailsService vendorDetailsService;
+	// Logger for tracking controller operations
+	private static final Logger logger = LoggerFactory.getLogger(JiraController.class);
 
-    @Autowired
-    private ContractDetailsRepository contractDetailsRepository;
+	// Service for handling Jira operations
+	private final JiraService jiraService;
+	private final ContractDetailsService contractDetailsService;
+	private final VendorDetailsService vendorDetailsService;
 
-    @Autowired
-    private ContractAttachmentRepository contractAttachmentRepository;
+	@Autowired
+	private ContractDetailsRepository contractDetailsRepository;
 
-    @Autowired
-    private ContractProposalRepository contractProposalRepository;
-    
-    @Autowired
-    private ProposalService proposalService;
+	@Autowired
+	private ContractAttachmentRepository contractAttachmentRepository;
 
-    public JiraController(JiraService jiraService,
-                          ContractDetailsService contractDetailsService,
-                          VendorDetailsService vendorDetailsService) {
-        this.jiraService = jiraService;
-        this.contractDetailsService = contractDetailsService;
-        this.vendorDetailsService = vendorDetailsService;
-    }
+	@Autowired
+	private ContractProposalRepository contractProposalRepository;
 
+	@Autowired
+	private ProposalService proposalService;
 
-    /**
-     * Get recent Jira projects (max 3)
-     * @return List of recent Jira projects
-     */
-    @GetMapping("/projects/recent")
-    public ResponseEntity<List<JiraProject>> getRecentProjects() {
-        try {
-            logger.info("Received request for recent Jira projects");
-            List<JiraProject> projects = jiraService.getRecentProjects();
-            logger.info("Returning {} recent projects", projects.size());
-            return ResponseEntity.ok(projects);
-        } catch (Exception e) {
-            logger.error("Error fetching recent Jira projects", e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
+	public JiraController(JiraService jiraService, ContractDetailsService contractDetailsService,
+			VendorDetailsService vendorDetailsService) {
+		this.jiraService = jiraService;
+		this.contractDetailsService = contractDetailsService;
+		this.vendorDetailsService = vendorDetailsService;
+	}
 
-    /**
-     * Get all Jira projects
-     * @return List of all Jira projects
-     */
-    @GetMapping("/projects")
-    public ResponseEntity<List<JiraProject>> getAllProjects() {
-        try {
-            logger.info("Received request for all Jira projects");
-            List<JiraProject> projects = jiraService.getAllProjects();
-            logger.info("Returning {} projects", projects.size());
-            return ResponseEntity.ok(projects);
-        } catch (Exception e) {
-            logger.error("Error fetching all Jira projects", e);
-            return ResponseEntity.internalServerError().build();
-        }
-    }
+	/**
+	 * Get recent Jira projects (max 3)
+	 * 
+	 * @return List of recent Jira projects
+	 */
+	@GetMapping("/projects/recent")
+	public ResponseEntity<List<JiraProject>> getRecentProjects() {
+		try {
+			logger.info("Received request for recent Jira projects");
+			List<JiraProject> projects = jiraService.getRecentProjects();
+			logger.info("Returning {} recent projects", projects.size());
+			return ResponseEntity.ok(projects);
+		} catch (Exception e) {
+			logger.error("Error fetching recent Jira projects", e);
+			return ResponseEntity.internalServerError().build();
+		}
+	}
 
-    /**
-     * Get a specific Jira project by ID or key
-     * @param projectIdOrKey The project ID or key
-     * @return The Jira project details
-     */
-    @GetMapping("/projects/{projectIdOrKey}")
-    public ResponseEntity<?> getProjectByIdOrKey(@PathVariable String projectIdOrKey) {
-        try {
-            logger.info("Received request for Jira project with ID/Key: {}", projectIdOrKey);
-            JiraProject project = jiraService.getProjectByIdOrKey(projectIdOrKey);
-            logger.info("Returning project: {}", project.getKey());
-            return ResponseEntity.ok(project);
-        } catch (Exception e) {
-            logger.error("Error fetching Jira project with ID/Key: {}", projectIdOrKey, e);
-            // Provide more detailed error information to the frontend
-            String errorMessage = "Failed to fetch project: " + e.getMessage();
-            if (e.getCause() != null && e.getCause().getMessage() != null) {
-                errorMessage += " - " + e.getCause().getMessage();
-            }
-            return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
-        }
-    }
+	/**
+	 * Get all Jira projects
+	 * 
+	 * @return List of all Jira projects
+	 */
+	@GetMapping("/projects")
+	public ResponseEntity<List<JiraProject>> getAllProjects() {
+		try {
+			logger.info("Received request for all Jira projects");
+			List<JiraProject> projects = jiraService.getAllProjects();
+			logger.info("Returning {} projects", projects.size());
+			return ResponseEntity.ok(projects);
+		} catch (Exception e) {
+			logger.error("Error fetching all Jira projects", e);
+			return ResponseEntity.internalServerError().build();
+		}
+	}
 
-    /**
-     * Get issues for a specific Jira project
-     * @param projectKey The project key
-     * @return The issues for the project
-     */
-    @GetMapping("/projects/{projectKey}/issues")
-    public ResponseEntity<?> getIssuesForProject(@PathVariable String projectKey) {
-        try {
-            logger.info("Received request for issues in Jira project: {}", projectKey);
-            JsonNode issuesResponse = jiraService.getIssuesForProject(projectKey);
-            logger.info("Returning issues for project: {}", projectKey);
-            return ResponseEntity.ok(issuesResponse);
-        } catch (Exception e) {
-            logger.error("Error fetching issues for project: {}", projectKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch issues: " + e.getMessage()));
-        }
-    }
+	/**
+	 * Get a specific Jira project by ID or key
+	 * 
+	 * @param projectIdOrKey The project ID or key
+	 * @return The Jira project details
+	 */
+	@GetMapping("/projects/{projectIdOrKey}")
+	public ResponseEntity<?> getProjectByIdOrKey(@PathVariable String projectIdOrKey) {
+		try {
+			logger.info("Received request for Jira project with ID/Key: {}", projectIdOrKey);
+			JiraProject project = jiraService.getProjectByIdOrKey(projectIdOrKey);
+			logger.info("Returning project: {}", project.getKey());
+			return ResponseEntity.ok(project);
+		} catch (Exception e) {
+			logger.error("Error fetching Jira project with ID/Key: {}", projectIdOrKey, e);
+			// Provide more detailed error information to the frontend
+			String errorMessage = "Failed to fetch project: " + e.getMessage();
+			if (e.getCause() != null && e.getCause().getMessage() != null) {
+				errorMessage += " - " + e.getCause().getMessage();
+			}
+			return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
+		}
+	}
 
-    /**
-     * Get recent issues across all projects (max 3)
-     * @return Recent issues from all projects
-     */
-    @GetMapping("/issues/recent")
-    public ResponseEntity<?> getRecentIssues() {
-        try {
-            logger.info("Received request for recent issues across all projects");
-            JsonNode recentIssues = jiraService.getRecentIssues();
-            logger.info("Returning recent issues");
-            // Return the issues array directly instead of the full response
-            if (recentIssues.has("issues")) {
-                return ResponseEntity.ok(recentIssues.get("issues"));
-            } else {
-                return ResponseEntity.ok(recentIssues);
-            }
-        } catch (Exception e) {
-            logger.error("Error fetching recent issues", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch recent issues: " + e.getMessage()));
-        }
-    }
+	/**
+	 * Get issues for a specific Jira project
+	 * 
+	 * @param projectKey The project key
+	 * @return The issues for the project
+	 */
+	@GetMapping("/projects/{projectKey}/issues")
+	public ResponseEntity<?> getIssuesForProject(@PathVariable String projectKey) {
+		try {
+			logger.info("Received request for issues in Jira project: {}", projectKey);
+			JsonNode issuesResponse = jiraService.getIssuesForProject(projectKey);
+			logger.info("Returning issues for project: {}", projectKey);
+			return ResponseEntity.ok(issuesResponse);
+		} catch (Exception e) {
+			logger.error("Error fetching issues for project: {}", projectKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch issues: " + e.getMessage()));
+		}
+	}
 
-    /**
-     * Get all issues across all projects with role-based filtering
-     * @return All issues from all projects
-     */
-    @GetMapping("/issues")
-    public ResponseEntity<?> getAllIssues(
-            @RequestParam(required = false) String userRole,
-            @RequestParam(required = false) Long userOrganizationId,
-            @RequestParam(required = false) Long userDepartmentId,
-            @RequestParam(required = false) String userEmail){
-        try {
-            logger.info("Received request for all issues across all projects with user context - Role: {}, Organization ID: {}, Department ID: {}", 
-                userRole, userOrganizationId, userDepartmentId);
-            
-            // Add debug logging to see what values are actually received
-            if (userRole == null) {
-                logger.warn("User role is null");
-            }
-            if (userOrganizationId == null) {
-                logger.warn("User organization ID is null");
-            }
-            if (userDepartmentId == null) {
-                logger.warn("User department ID is null");
-            }
-            
-            JsonNode allIssues = jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId, userEmail);
-            logger.info("Returning all issues");
-            // Return the issues array directly instead of the full response
-            if (allIssues.has("issues")) {
-                return ResponseEntity.ok(allIssues.get("issues"));
-            } else {
-                return ResponseEntity.ok(allIssues);
-            }
-        } catch (Exception e) {
-            logger.error("Error fetching all issues", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch all issues: " + e.getMessage()));
-        }
-    }
+	/**
+	 * Get recent issues across all projects (max 3)
+	 * 
+	 * @return Recent issues from all projects
+	 */
+	@GetMapping("/issues/recent")
+	public ResponseEntity<?> getRecentIssues() {
+		try {
+			logger.info("Received request for recent issues across all projects");
+			JsonNode recentIssues = jiraService.getRecentIssues();
+			logger.info("Returning recent issues");
+			// Return the issues array directly instead of the full response
+			if (recentIssues.has("issues")) {
+				return ResponseEntity.ok(recentIssues.get("issues"));
+			} else {
+				return ResponseEntity.ok(recentIssues);
+			}
+		} catch (Exception e) {
+			logger.error("Error fetching recent issues", e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch recent issues: " + e.getMessage()));
+		}
+	}
 
-    /**
-     * Get all fields from Jira
-     * @return The fields from Jira
-     */
-    @GetMapping("/fields")
-    public ResponseEntity<?> getFields() {
-        try {
-            logger.info("Received request for Jira fields");
-            JsonNode fields = jiraService.getFields();
-            logger.info("Returning fields from Jira");
-            return ResponseEntity.ok(fields);
-        } catch (Exception e) {
-            logger.error("Error fetching fields from Jira", e);
-            // Provide more detailed error information to the frontend
-            String errorMessage = "Failed to fetch fields: " + e.getMessage();
-            if (e.getCause() != null && e.getCause().getMessage() != null) {
-                errorMessage += " - " + e.getCause().getMessage();
-            }
-            return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
-        }
-    }
+	/**
+	 * Get all issues across all projects with role-based filtering
+	 * 
+	 * @return All issues from all projects
+	 */
+	@GetMapping("/issues")
+	public ResponseEntity<?> getAllIssues(@RequestParam(required = false) String userRole,
+			@RequestParam(required = false) Long userOrganizationId,
+			@RequestParam(required = false) Long userDepartmentId, @RequestParam(required = false) String userEmail) {
+		try {
+			logger.info(
+					"Received request for all issues across all projects with user context - Role: {}, Organization ID: {}, Department ID: {}",
+					userRole, userOrganizationId, userDepartmentId);
 
-    /**
-     * Test connectivity to Jira API
-     * @return Success or error response
-     */
-    @GetMapping("/test-connectivity")
-    public ResponseEntity<?> testJiraConnectivity() {
-        try {
-            logger.info("Received request to test Jira connectivity");
-            logger.info("Jira config - Base URL: {}, Email: {}", jiraService.getJiraConfig().getBaseUrl(), jiraService.getJiraConfig().getEmail());
-            
-            boolean success = jiraService.testJiraConnectivity();
-            if (success) {
-                logger.info("Jira connectivity test successful");
-                return ResponseEntity.ok(Map.of("message", "Jira connectivity test successful"));
-            } else {
-                logger.warn("Jira connectivity test failed");
-                return ResponseEntity.internalServerError().body(Map.of("message", "Jira connectivity test failed"));
-            }
-        } catch (Exception e) {
-            logger.error("Error testing Jira connectivity", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to test Jira connectivity: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Get all issue types from Jira
-     * @return The issue types from Jira
-     */
-    @GetMapping("/issuetypes")
-    public ResponseEntity<?> getIssueTypes() {
-        try {
-            logger.info("Received request for Jira issue types");
-            JsonNode issueTypes = jiraService.getIssueTypes();
-            logger.info("Returning issue types from Jira");
-            return ResponseEntity.ok(issueTypes);
-        } catch (Exception e) {
-            logger.error("Error fetching issue types from Jira", e);
-            // Provide more detailed error information to the frontend
-            String errorMessage = "Failed to fetch issue types: " + e.getMessage();
-            if (e.getCause() != null && e.getCause().getMessage() != null) {
-                errorMessage += " - " + e.getCause().getMessage();
-            }
-            return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
-        }
-    }
+			// Add debug logging to see what values are actually received
+			if (userRole == null) {
+				logger.warn("User role is null");
+			}
+			if (userOrganizationId == null) {
+				logger.warn("User organization ID is null");
+			}
+			if (userDepartmentId == null) {
+				logger.warn("User department ID is null");
+			}
 
-    /**
-     * Get users assignable to issues in a project
-     * @param projectKey The project key
-     * @return The assignable users for the project
-     */
-    @GetMapping("/projects/{projectKey}/assignable")
-    public ResponseEntity<?> getAssignableUsers(@PathVariable String projectKey) {
-        try {
-            logger.info("Received request for assignable users in Jira project: {}", projectKey);
-            JsonNode users = jiraService.getAssignableUsers(projectKey);
-            logger.info("Returning assignable users for project: {}", projectKey);
-            return ResponseEntity.ok(users);
-        } catch (Exception e) {
-            logger.error("Error fetching assignable users for project: {}", projectKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch assignable users: " + e.getMessage()));
-        }
-    }
+			JsonNode allIssues = jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId, userEmail);
+			logger.info("Returning all issues");
+			// Return the issues array directly instead of the full response
+			if (allIssues.has("issues")) {
+				return ResponseEntity.ok(allIssues.get("issues"));
+			} else {
+				return ResponseEntity.ok(allIssues);
+			}
+		} catch (Exception e) {
+			logger.error("Error fetching all issues", e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch all issues: " + e.getMessage()));
+		}
+	}
 
-    /**
-     * Create a new Jira issue
-     * @param issueData The issue data to create
-     * @return The created issue
-     */
-    @PostMapping("/issues")
-    public ResponseEntity<?> createIssue(@RequestBody Map<String, Object> issueData) {
-        try {
-            logger.info("Received request to create new Jira issue with data: {}", issueData);
-            JsonNode createdIssue = jiraService.createIssue(issueData);
-            logger.info("Issue created successfully: {}", createdIssue);
-            return ResponseEntity.ok(createdIssue);
-        } catch (Exception e) {
-            logger.error("Error creating Jira issue with data: {}", issueData, e);
-            // Provide more detailed error information to the frontend
-            String errorMessage = "Failed to create issue: " + e.getMessage();
-            if (e.getCause() != null && e.getCause().getMessage() != null) {
-                errorMessage += " - " + e.getCause().getMessage();
-            }
-            return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
-        }
-    }
+	/**
+	 * Get all fields from Jira
+	 * 
+	 * @return The fields from Jira
+	 */
+	@GetMapping("/fields")
+	public ResponseEntity<?> getFields() {
+		try {
+			logger.info("Received request for Jira fields");
+			JsonNode fields = jiraService.getFields();
+			logger.info("Returning fields from Jira");
+			return ResponseEntity.ok(fields);
+		} catch (Exception e) {
+			logger.error("Error fetching fields from Jira", e);
+			// Provide more detailed error information to the frontend
+			String errorMessage = "Failed to fetch fields: " + e.getMessage();
+			if (e.getCause() != null && e.getCause().getMessage() != null) {
+				errorMessage += " - " + e.getCause().getMessage();
+			}
+			return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
+		}
+	}
 
-    /**
-     * Create a new Jira project
-     * @param projectData The project data to create
-     * @return The created project
-     */
-    @PostMapping("/projects")
-    public ResponseEntity<?> createProject(@RequestBody Map<String, Object> projectData) {
-        try {
-            logger.info("Received request to create new Jira project");
-            Object createdProject = jiraService.createProject(projectData);
-            logger.info("Project created successfully");
-            return ResponseEntity.ok(createdProject);
-        } catch (Exception e) {
-            logger.error("Error creating Jira project", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to create project: " + e.getMessage()));
-        }
-    }
+	/**
+	 * Test connectivity to Jira API
+	 * 
+	 * @return Success or error response
+	 */
+	@GetMapping("/test-connectivity")
+	public ResponseEntity<?> testJiraConnectivity() {
+		try {
+			logger.info("Received request to test Jira connectivity");
+			logger.info("Jira config - Base URL: {}, Email: {}", jiraService.getJiraConfig().getBaseUrl(),
+					jiraService.getJiraConfig().getEmail());
 
-    /**
-     * Delete a Jira project
-     * @param projectKey The project key to delete
-     * @return Success or error response
-     */
-    @DeleteMapping("/projects/{projectKey}")
-    public ResponseEntity<?> deleteProject(@PathVariable String projectKey) {
-        try {
-            logger.info("Received request to delete Jira project with key: {}", projectKey);
-            JsonNode response = jiraService.deleteProject(projectKey);
-            logger.info("Project deleted successfully: {}", projectKey);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            logger.error("Error deleting Jira project with key: {}", projectKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to delete project: " + e.getMessage()));
-        }
-    }
+			boolean success = jiraService.testJiraConnectivity();
+			if (success) {
+				logger.info("Jira connectivity test successful");
+				return ResponseEntity.ok(Map.of("message", "Jira connectivity test successful"));
+			} else {
+				logger.warn("Jira connectivity test failed");
+				return ResponseEntity.internalServerError().body(Map.of("message", "Jira connectivity test failed"));
+			}
+		} catch (Exception e) {
+			logger.error("Error testing Jira connectivity", e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to test Jira connectivity: " + e.getMessage()));
+		}
+	}
 
-    /**
-     * Delete a Jira issue
-     * @param issueIdOrKey The issue ID or key to delete
-     * @return Success or error response
-     */
-    @DeleteMapping("/issues/{issueIdOrKey}")
-    public ResponseEntity<?> deleteIssue(@PathVariable String issueIdOrKey) {
-        try {
-            logger.info("Received request to delete Jira issue with ID/Key: {}", issueIdOrKey);
-            JsonNode response = jiraService.deleteIssue(issueIdOrKey);
-            logger.info("Issue deleted successfully: {}", issueIdOrKey);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            logger.error("Error deleting Jira issue with ID/Key: {}", issueIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to delete issue: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Get a specific Jira issue by ID or key with all details
-     * @param issueIdOrKey The issue ID or key
-     * @return The Jira issue details
-     */
-    @GetMapping("/issues/{issueIdOrKey}")
-    public ResponseEntity<?> getIssueByIdOrKey(@PathVariable String issueIdOrKey) {
-        try {
-            logger.info("Received request for Jira issue with ID/Key: {}", issueIdOrKey);
-            JsonNode issue = jiraService.getIssueByIdOrKey(issueIdOrKey);
-            logger.info("Returning issue: {}", issueIdOrKey);
-            return ResponseEntity.ok(issue);
-        } catch (Exception e) {
-            logger.error("Error fetching Jira issue with ID/Key: {}", issueIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch issue: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Get comments for a specific Jira issue
-     * @param issueIdOrKey The issue ID or key
-     * @return The comments for the issue
-     */
-    @GetMapping("/issues/{issueIdOrKey}/comments")
-    public ResponseEntity<?> getIssueComments(@PathVariable String issueIdOrKey) {
-        try {
-            logger.info("Received request for comments of Jira issue: {}", issueIdOrKey);
-            JsonNode comments = jiraService.getIssueComments(issueIdOrKey);
-            logger.info("Returning comments for issue: {}", issueIdOrKey);
-            return ResponseEntity.ok(comments);
-        } catch (Exception e) {
-            logger.error("Error fetching comments for issue: {}", issueIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch comments: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Get worklogs for a specific Jira issue
-     * @param issueIdOrKey The issue ID or key
-     * @return The worklogs for the issue
-     */
-    @GetMapping("/issues/{issueIdOrKey}/worklogs")
-    public ResponseEntity<?> getIssueWorklogs(@PathVariable String issueIdOrKey) {
-        try {
-            logger.info("Received request for worklogs of Jira issue: {}", issueIdOrKey);
-            JsonNode worklogs = jiraService.getIssueWorklogs(issueIdOrKey);
-            logger.info("Returning worklogs for issue: {}", issueIdOrKey);
-            return ResponseEntity.ok(worklogs);
-        } catch (Exception e) {
-            logger.error("Error fetching worklogs for issue: {}", issueIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch worklogs: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Update a Jira issue
-     * @param issueIdOrKey The issue ID or key to update
-     * @param issueData The issue data to update
-     * @return The updated issue
-     */
-    @PutMapping("/issues/{issueIdOrKey}")
-    public ResponseEntity<?> updateIssue(@PathVariable String issueIdOrKey, @RequestBody Map<String, Object> issueData) {
-        try {
-            logger.info("Received request to update Jira issue: {}", issueIdOrKey);
-            JsonNode updatedIssue = jiraService.updateIssue(issueIdOrKey, issueData);
-            logger.info("Issue updated successfully: {}", issueIdOrKey);
-            return ResponseEntity.ok(updatedIssue);
-        } catch (Exception e) {
-            logger.error("Error updating Jira issue: {}", issueIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to update issue: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Add an attachment to a Jira issue (using Jira Cloud-compliant API)
-     * @param issueIdOrKey The issue ID or key
-     * @param file The file to attach
-     * @return Success or error response
-     */
-    @PostMapping(
-            value = "/issues/{issueIdOrKey}/attachments",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
-    )
-    public ResponseEntity<?> uploadAttachment(
-            @PathVariable String issueIdOrKey,
-            @RequestPart("file") MultipartFile file
-    ) {
-        try {
-            logger.info("📥 Received Jira attachment upload for issue {}", issueIdOrKey);
+	/**
+	 * Get all issue types from Jira
+	 * 
+	 * @return The issue types from Jira
+	 */
+	@GetMapping("/issuetypes")
+	public ResponseEntity<?> getIssueTypes() {
+		try {
+			logger.info("Received request for Jira issue types");
+			JsonNode issueTypes = jiraService.getIssueTypes();
+			logger.info("Returning issue types from Jira");
+			return ResponseEntity.ok(issueTypes);
+		} catch (Exception e) {
+			logger.error("Error fetching issue types from Jira", e);
+			// Provide more detailed error information to the frontend
+			String errorMessage = "Failed to fetch issue types: " + e.getMessage();
+			if (e.getCause() != null && e.getCause().getMessage() != null) {
+				errorMessage += " - " + e.getCause().getMessage();
+			}
+			return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
+		}
+	}
 
-            JsonNode response = jiraService.addAttachmentToIssue(
-                    issueIdOrKey,
-                    file.getBytes(),
-                    file.getOriginalFilename()
-            );
+	/**
+	 * Get users assignable to issues in a project
+	 * 
+	 * @param projectKey The project key
+	 * @return The assignable users for the project
+	 */
+	@GetMapping("/projects/{projectKey}/assignable")
+	public ResponseEntity<?> getAssignableUsers(@PathVariable String projectKey) {
+		try {
+			logger.info("Received request for assignable users in Jira project: {}", projectKey);
+			JsonNode users = jiraService.getAssignableUsers(projectKey);
+			logger.info("Returning assignable users for project: {}", projectKey);
+			return ResponseEntity.ok(users);
+		} catch (Exception e) {
+			logger.error("Error fetching assignable users for project: {}", projectKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch assignable users: " + e.getMessage()));
+		}
+	}
 
-            logger.info("📤 Attachment uploaded successfully to Jira!");
+	/**
+	 * Create a new Jira issue
+	 * 
+	 * @param issueData The issue data to create
+	 * @return The created issue
+	 */
+	@PostMapping("/issues")
+	public ResponseEntity<?> createIssue(@RequestBody Map<String, Object> issueData) {
+		try {
+			logger.info("Received request to create new Jira issue with data: {}", issueData);
+			JsonNode createdIssue = jiraService.createIssue(issueData);
+			logger.info("Issue created successfully: {}", createdIssue);
+			return ResponseEntity.ok(createdIssue);
+		} catch (Exception e) {
+			logger.error("Error creating Jira issue with data: {}", issueData, e);
+			// Provide more detailed error information to the frontend
+			String errorMessage = "Failed to create issue: " + e.getMessage();
+			if (e.getCause() != null && e.getCause().getMessage() != null) {
+				errorMessage += " - " + e.getCause().getMessage();
+			}
+			return ResponseEntity.internalServerError().body(Map.of("message", errorMessage));
+		}
+	}
 
-            return ResponseEntity.ok(response);
+	/**
+	 * Create a new Jira project
+	 * 
+	 * @param projectData The project data to create
+	 * @return The created project
+	 */
+	@PostMapping("/projects")
+	public ResponseEntity<?> createProject(@RequestBody Map<String, Object> projectData) {
+		try {
+			logger.info("Received request to create new Jira project");
+			Object createdProject = jiraService.createProject(projectData);
+			logger.info("Project created successfully");
+			return ResponseEntity.ok(createdProject);
+		} catch (Exception e) {
+			logger.error("Error creating Jira project", e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to create project: " + e.getMessage()));
+		}
+	}
 
-        } catch (Exception e) {
-            logger.error("❌ Error uploading attachment to Jira", e);
-            return ResponseEntity.status(500)
-                    .body(Map.of("error", e.getMessage()));
-        }
-    }
+	/**
+	 * Delete a Jira project
+	 * 
+	 * @param projectKey The project key to delete
+	 * @return Success or error response
+	 */
+	@DeleteMapping("/projects/{projectKey}")
+	public ResponseEntity<?> deleteProject(@PathVariable String projectKey) {
+		try {
+			logger.info("Received request to delete Jira project with key: {}", projectKey);
+			JsonNode response = jiraService.deleteProject(projectKey);
+			logger.info("Project deleted successfully: {}", projectKey);
+			return ResponseEntity.ok(response);
+		} catch (Exception e) {
+			logger.error("Error deleting Jira project with key: {}", projectKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to delete project: " + e.getMessage()));
+		}
+	}
 
+	/**
+	 * Delete a Jira issue
+	 * 
+	 * @param issueIdOrKey The issue ID or key to delete
+	 * @return Success or error response
+	 */
+	@DeleteMapping("/issues/{issueIdOrKey}")
+	public ResponseEntity<?> deleteIssue(@PathVariable String issueIdOrKey) {
+		try {
+			logger.info("Received request to delete Jira issue with ID/Key: {}", issueIdOrKey);
+			JsonNode response = jiraService.deleteIssue(issueIdOrKey);
+			logger.info("Issue deleted successfully: {}", issueIdOrKey);
+			return ResponseEntity.ok(response);
+		} catch (Exception e) {
+			logger.error("Error deleting Jira issue with ID/Key: {}", issueIdOrKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to delete issue: " + e.getMessage()));
+		}
+	}
 
+	/**
+	 * Get a specific Jira issue by ID or key with all details
+	 * 
+	 * @param issueIdOrKey The issue ID or key
+	 * @return The Jira issue details
+	 */
+	@GetMapping("/issues/{issueIdOrKey}")
+	public ResponseEntity<?> getIssueByIdOrKey(@PathVariable String issueIdOrKey) {
+		try {
+			logger.info("Received request for Jira issue with ID/Key: {}", issueIdOrKey);
+			JsonNode issue = jiraService.getIssueByIdOrKey(issueIdOrKey);
+			logger.info("Returning issue: {}", issueIdOrKey);
+			return ResponseEntity.ok(issue);
+		} catch (Exception e) {
+			logger.error("Error fetching Jira issue with ID/Key: {}", issueIdOrKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch issue: " + e.getMessage()));
+		}
+	}
 
-    
-    /**
-     * Get attachments for a Jira issue
-     * @param issueIdOrKey The issue ID or key
-     * @return The attachments for the issue
-     */
-    @GetMapping("/issues/{issueIdOrKey}/attachments")
-    public ResponseEntity<?> getIssueAttachments(@PathVariable String issueIdOrKey) {
-        try {
-            logger.info("Received request for attachments of Jira issue: {}", issueIdOrKey);
-            JsonNode attachments = jiraService.getIssueAttachments(issueIdOrKey);
-            logger.info("Returning attachments for issue: {}", issueIdOrKey);
-            return ResponseEntity.ok(attachments);
-        } catch (Exception e) {
-            logger.error("Error fetching attachments for issue: {}", issueIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch attachments: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Get attachment content by ID
-     * @param attachmentId The attachment ID
-     * @return The attachment content
-     */
-    @GetMapping("/attachment/content/{attachmentId}")
-    public ResponseEntity<?> getAttachmentContent(@PathVariable String attachmentId) {
-        try {
-            logger.info("Received request for attachment content with ID: {}", attachmentId);
-            byte[] content = jiraService.getAttachmentContent(attachmentId);
-            logger.info("Returning attachment content for ID: {}", attachmentId);
-            return ResponseEntity.ok(content);
-        } catch (Exception e) {
-            logger.error("Error fetching attachment content for ID: {}", attachmentId, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch attachment content: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Get transitions available for a specific Jira issue
-     * @param issueIdOrKey The issue ID or key
-     * @return The available transitions for the issue
-     */
-    @GetMapping("/issues/{issueIdOrKey}/transitions")
-    public ResponseEntity<?> getIssueTransitions(@PathVariable String issueIdOrKey) {
-        try {
-            logger.info("Received request for transitions of Jira issue: {}", issueIdOrKey);
-            JsonNode raw = jiraService.getIssueTransitions(issueIdOrKey);
+	/**
+	 * Get comments for a specific Jira issue
+	 * 
+	 * @param issueIdOrKey The issue ID or key
+	 * @return The comments for the issue
+	 */
+	@GetMapping("/issues/{issueIdOrKey}/comments")
+	public ResponseEntity<?> getIssueComments(@PathVariable String issueIdOrKey) {
+		try {
+			logger.info("Received request for comments of Jira issue: {}", issueIdOrKey);
+			JsonNode comments = jiraService.getIssueComments(issueIdOrKey);
+			logger.info("Returning comments for issue: {}", issueIdOrKey);
+			return ResponseEntity.ok(comments);
+		} catch (Exception e) {
+			logger.error("Error fetching comments for issue: {}", issueIdOrKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch comments: " + e.getMessage()));
+		}
+	}
 
-            JsonNode array = raw != null && raw.has("transitions") ? raw.get("transitions") : raw;
-            if (array == null || !array.isArray()) {
-                logger.info("No transitions array present, returning empty array");
-                return ResponseEntity.ok(new com.fasterxml.jackson.databind.node.ArrayNode(
-                        new com.fasterxml.jackson.databind.node.JsonNodeFactory(false)
-                ));
-            }
+	/**
+	 * Get worklogs for a specific Jira issue
+	 * 
+	 * @param issueIdOrKey The issue ID or key
+	 * @return The worklogs for the issue
+	 */
+	@GetMapping("/issues/{issueIdOrKey}/worklogs")
+	public ResponseEntity<?> getIssueWorklogs(@PathVariable String issueIdOrKey) {
+		try {
+			logger.info("Received request for worklogs of Jira issue: {}", issueIdOrKey);
+			JsonNode worklogs = jiraService.getIssueWorklogs(issueIdOrKey);
+			logger.info("Returning worklogs for issue: {}", issueIdOrKey);
+			return ResponseEntity.ok(worklogs);
+		} catch (Exception e) {
+			logger.error("Error fetching worklogs for issue: {}", issueIdOrKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch worklogs: " + e.getMessage()));
+		}
+	}
 
-            logger.info("Returning {} transitions", array.size());
-            return ResponseEntity.ok(array);
-        } catch (Exception e) {
-            logger.error("Error fetching transitions for issue: {}", issueIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch transitions: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Transition a Jira issue to a new status
-     * @param issueIdOrKey The issue ID or key
-     * @param transitionData The transition data containing the transition ID
-     * @return Success or error response
-     */
-    @PostMapping("/issues/{issueIdOrKey}/transitions")
-    public ResponseEntity<?> transitionIssue(
-            @PathVariable String issueIdOrKey,
-            @RequestBody Map<String, Object> transitionData
-    ) {
-        try {
-            logger.info("Received request to transition Jira issue: {} with data: {}", issueIdOrKey, transitionData);
+	/**
+	 * Update a Jira issue
+	 * 
+	 * @param issueIdOrKey The issue ID or key to update
+	 * @param issueData    The issue data to update
+	 * @return The updated issue
+	 */
+	@PutMapping("/issues/{issueIdOrKey}")
+	public ResponseEntity<?> updateIssue(@PathVariable String issueIdOrKey,
+			@RequestBody Map<String, Object> issueData) {
+		try {
+			logger.info("Received request to update Jira issue: {}", issueIdOrKey);
+			JsonNode updatedIssue = jiraService.updateIssue(issueIdOrKey, issueData);
+			logger.info("Issue updated successfully: {}", issueIdOrKey);
+			return ResponseEntity.ok(updatedIssue);
+		} catch (Exception e) {
+			logger.error("Error updating Jira issue: {}", issueIdOrKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to update issue: " + e.getMessage()));
+		}
+	}
 
-            // Accept BOTH:
-            // 1) { "transition": { "id": "123" } }  (Jira standard)
-            // 2) { "transitionId": "123" }          (old FE shape)
-            String transitionId = null;
+	/**
+	 * Add an attachment to a Jira issue (using Jira Cloud-compliant API)
+	 * 
+	 * @param issueIdOrKey The issue ID or key
+	 * @param file         The file to attach
+	 * @return Success or error response
+	 */
+	@PostMapping(value = "/issues/{issueIdOrKey}/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ResponseEntity<?> uploadAttachment(@PathVariable String issueIdOrKey,
+			@RequestPart("file") MultipartFile file) {
+		try {
+			logger.info("📥 Received Jira attachment upload for issue {}", issueIdOrKey);
 
-            Object transitionObj = transitionData.get("transition");
-            if (transitionObj instanceof Map<?, ?> transitionMap) {
-                Object idObj = transitionMap.get("id");
-                if (idObj != null) transitionId = String.valueOf(idObj);
-            }
-            if (transitionId == null) {
-                Object flatId = transitionData.get("transitionId");
-                if (flatId != null) transitionId = String.valueOf(flatId);
-            }
+			JsonNode response = jiraService.addAttachmentToIssue(issueIdOrKey, file.getBytes(),
+					file.getOriginalFilename());
 
-            if (transitionId == null || transitionId.isBlank()) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Transition ID is required"));
-            }
+			logger.info("📤 Attachment uploaded successfully to Jira!");
 
-            jiraService.transitionIssue(issueIdOrKey, transitionId);
-            logger.info("Issue transitioned successfully: {} -> {}", issueIdOrKey, transitionId);
+			return ResponseEntity.ok(response);
 
-            // Mirror Jira's 204 No Content for success
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            logger.error("Error transitioning issue: {}", issueIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to transition issue: " + e.getMessage()));
-        }
-    }
+		} catch (Exception e) {
+			logger.error("❌ Error uploading attachment to Jira", e);
+			return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+		}
+	}
 
-    
-    /**
-     * Get current user information
-     * @return The current user information
-     */
-    @GetMapping("/myself")
-    public ResponseEntity<?> getCurrentUser() {
-        try {
-            logger.info("Received request for current user information");
-            JsonNode currentUser = jiraService.getCurrentUser();
-            logger.info("Returning current user information");
-            return ResponseEntity.ok(currentUser);
-        } catch (Exception e) {
-            logger.error("Error fetching current user information", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch current user information: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Get metadata for creating issues in Jira
-     * @param projectKeys Optional project keys to filter issue types
-     * @return The create metadata
-     */
-    @GetMapping("/issue/createmeta")
-    public ResponseEntity<?> getCreateMeta(@RequestParam(required = false) String projectKeys) {
-        try {
-            logger.info("Received request for create metadata with project keys: {}", projectKeys);
-            JsonNode createMeta = jiraService.getCreateMeta(projectKeys);
-            logger.info("Create metadata response type: {}", createMeta != null ? createMeta.getClass().getName() : "null");
-            if (createMeta != null && createMeta.isArray()) {
-                logger.info("Create metadata array size: {}", createMeta.size());
-            } else if (createMeta != null && createMeta.isObject()) {
-                logger.info("Create metadata object keys: {}", createMeta.fieldNames().toString());
-            }
-            logger.info("Returning create metadata");
-            return ResponseEntity.ok(createMeta);
-        } catch (Exception e) {
-            logger.error("Error fetching create metadata", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch create metadata: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Create a new Jira issue with the proper Jira API structure
-     * @param issueData The issue data to create
-     * @return The created issue
-     */
-    @PostMapping("/issues/create")
-    public ResponseEntity<?> createIssueJira(@RequestBody Map<String, Object> issueData) {
-        try {
-            logger.info("Received request to create new Jira issue with Jira API structure");
-            JsonNode createdIssue = jiraService.createIssueJira(issueData);
-            logger.info("Issue created successfully with Jira API structure");
-            return ResponseEntity.ok(createdIssue);
-        } catch (Exception e) {
-            logger.error("Error creating Jira issue with Jira API structure", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to create issue: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Add a comment to a Jira issue
-     * @param issueIdOrKey The issue ID or key
-     * @param commentData The comment data containing the comment body
-     * @return The created comment
-     */
-    @PostMapping("/issues/{issueIdOrKey}/comments")
-    public ResponseEntity<?> addCommentToIssue(@PathVariable String issueIdOrKey, @RequestBody Map<String, Object> commentData) {
-        try {
-            logger.info("Received request to add comment to Jira issue: {} with data: {}", issueIdOrKey, commentData);
-            
-            String commentBody = (String) commentData.get("body");
-            if (commentBody == null || commentBody.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Comment body is required"));
-            }
-            
-            JsonNode response = jiraService.addComment(issueIdOrKey, commentBody);
-            logger.info("Comment added successfully to issue: {}", issueIdOrKey);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            logger.error("Error adding comment to issue: {}", issueIdOrKey, e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to add comment: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Save proposal data with attachments
-     * @param proposalData The proposal data to save
-     * @return The saved proposal
-     */
-    @PostMapping("/proposals")
-    public ResponseEntity<?> saveProposal(@RequestBody Proposal proposalData) {
-        try {
-            logger.info("Received request to save proposal data: {}", proposalData);
-            
-            Proposal savedProposal = proposalService.saveProposal(proposalData);
-            logger.info("Proposal saved successfully with ID: {}", savedProposal.getId());
-            
-            return ResponseEntity.ok(savedProposal);
-        } catch (Exception e) {
-            logger.error("Error saving proposal", e);
-            return ResponseEntity.internalServerError().body(Map.of("message", "Failed to save proposal: " + e.getMessage()));
-        }
-    }
+	/**
+	 * Get attachments for a Jira issue
+	 * 
+	 * @param issueIdOrKey The issue ID or key
+	 * @return The attachments for the issue
+	 */
+	@GetMapping("/issues/{issueIdOrKey}/attachments")
+	public ResponseEntity<?> getIssueAttachments(@PathVariable String issueIdOrKey) {
+		try {
+			logger.info("Received request for attachments of Jira issue: {}", issueIdOrKey);
+			JsonNode attachments = jiraService.getIssueAttachments(issueIdOrKey);
+			logger.info("Returning attachments for issue: {}", issueIdOrKey);
+			return ResponseEntity.ok(attachments);
+		} catch (Exception e) {
+			logger.error("Error fetching attachments for issue: {}", issueIdOrKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch attachments: " + e.getMessage()));
+		}
+	}
 
-    /**
-     * Get all proposals for a specific issue
-     * @param issueKey The issue key
-     * @return List of proposals for the issue
-     */
-    @GetMapping("/proposals/issue/{issueKey}")
-    public ResponseEntity<?> getProposalsByIssueKey(@PathVariable String issueKey) {
-        try {
-            logger.info("Received request to fetch proposals for issue: {}", issueKey);
+	/**
+	 * Get attachment content by ID
+	 * 
+	 * @param attachmentId The attachment ID
+	 * @return The attachment content
+	 */
+	@GetMapping("/attachment/content/{attachmentId}")
+	public ResponseEntity<?> getAttachmentContent(@PathVariable String attachmentId) {
+		try {
+			logger.info("Received request for attachment content with ID: {}", attachmentId);
+			byte[] content = jiraService.getAttachmentContent(attachmentId);
+			logger.info("Returning attachment content for ID: {}", attachmentId);
+			return ResponseEntity.ok(content);
+		} catch (Exception e) {
+			logger.error("Error fetching attachment content for ID: {}", attachmentId, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch attachment content: " + e.getMessage()));
+		}
+	}
 
-            if (issueKey == null || issueKey.trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("message", "Issue key cannot be empty"));
-            }
+	/**
+	 * Get transitions available for a specific Jira issue
+	 * 
+	 * @param issueIdOrKey The issue ID or key
+	 * @return The available transitions for the issue
+	 */
+	@GetMapping("/issues/{issueIdOrKey}/transitions")
+	public ResponseEntity<?> getIssueTransitions(@PathVariable String issueIdOrKey) {
+		try {
+			logger.info("Received request for transitions of Jira issue: {}", issueIdOrKey);
+			JsonNode raw = jiraService.getIssueTransitions(issueIdOrKey);
 
-            String cleanedKey = issueKey.trim();
+			JsonNode array = raw != null && raw.has("transitions") ? raw.get("transitions") : raw;
+			if (array == null || !array.isArray()) {
+				logger.info("No transitions array present, returning empty array");
+				return ResponseEntity.ok(new com.fasterxml.jackson.databind.node.ArrayNode(
+						new com.fasterxml.jackson.databind.node.JsonNodeFactory(false)));
+			}
 
-            List<ContractProposal> proposals =
-                    contractProposalRepository.findByJiraIssueKeyIgnoreCaseOrderByProposalNumberAsc(cleanedKey);
+			logger.info("Returning {} transitions", array.size());
+			return ResponseEntity.ok(array);
+		} catch (Exception e) {
+			logger.error("Error fetching transitions for issue: {}", issueIdOrKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch transitions: " + e.getMessage()));
+		}
+	}
 
-            logger.info("Found {} proposals for issue: {}", proposals.size(), cleanedKey);
+	/**
+	 * Transition a Jira issue to a new status
+	 * 
+	 * @param issueIdOrKey   The issue ID or key
+	 * @param transitionData The transition data containing the transition ID
+	 * @return Success or error response
+	 */
+	@PostMapping("/issues/{issueIdOrKey}/transitions")
+	public ResponseEntity<?> transitionIssue(@PathVariable String issueIdOrKey,
+			@RequestBody Map<String, Object> transitionData) {
+		try {
+			logger.info("Received request to transition Jira issue: {} with data: {}", issueIdOrKey, transitionData);
 
-            return ResponseEntity.ok(
-            	    proposals.stream().map(p -> Map.of(
-            	        "id", p.getId(),
-            	        "jiraIssueKey", p.getJiraIssueKey(),
-            	        "proposalNumber", p.getProposalNumber(),
-            	        "licenseCount", p.getLicenseCount(),
-            	        "unitCost", p.getUnitCost(),
-            	        "totalCost", p.getTotalCost(),
-            	        "comment", p.getComment(),
-            	        "isFinal", p.isFinal(),
-            	        "proposalType", p.getProposalType(),
-            	        "createdAt", p.getCreatedAt() != null ? p.getCreatedAt().toString() : null
-            	    )).toList()
-            	);
+			// Accept BOTH:
+			// 1) { "transition": { "id": "123" } } (Jira standard)
+			// 2) { "transitionId": "123" } (old FE shape)
+			String transitionId = null;
 
+			Object transitionObj = transitionData.get("transition");
+			if (transitionObj instanceof Map<?, ?> transitionMap) {
+				Object idObj = transitionMap.get("id");
+				if (idObj != null)
+					transitionId = String.valueOf(idObj);
+			}
+			if (transitionId == null) {
+				Object flatId = transitionData.get("transitionId");
+				if (flatId != null)
+					transitionId = String.valueOf(flatId);
+			}
 
-        } catch (Exception e) {
-            logger.error("Error fetching proposals for issue: {}", issueKey, e);
-            return ResponseEntity.badRequest()
-                    .body(Map.of("message", "Failed to fetch proposals: " + e.getMessage()));
-        }
-    }
+			if (transitionId == null || transitionId.isBlank()) {
+				return ResponseEntity.badRequest().body(Map.of("message", "Transition ID is required"));
+			}
 
+			jiraService.transitionIssue(issueIdOrKey, transitionId);
+			logger.info("Issue transitioned successfully: {} -> {}", issueIdOrKey, transitionId);
 
+			// Mirror Jira's 204 No Content for success
+			return ResponseEntity.noContent().build();
+		} catch (Exception e) {
+			logger.error("Error transitioning issue: {}", issueIdOrKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to transition issue: " + e.getMessage()));
+		}
+	}
 
- // -------------------------------------------------------------------------
- // 📦 Vendor Details Endpoints
- // -------------------------------------------------------------------------
+	/**
+	 * Get current user information
+	 * 
+	 * @return The current user information
+	 */
+	@GetMapping("/myself")
+	public ResponseEntity<?> getCurrentUser() {
+		try {
+			logger.info("Received request for current user information");
+			JsonNode currentUser = jiraService.getCurrentUser();
+			logger.info("Returning current user information");
+			return ResponseEntity.ok(currentUser);
+		} catch (Exception e) {
+			logger.error("Error fetching current user information", e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch current user information: " + e.getMessage()));
+		}
+	}
 
- // 1️⃣ Fetch all vendors for dropdown
- @GetMapping("/vendors")
- public ResponseEntity<?> getAllVendors() {
-     try {
-    	 logger.info("Fetching all vendors for dropdown");
-         return ResponseEntity.ok(vendorDetailsService.getAllVendors());
-     } catch (Exception e) {
-         return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch vendors: " + e.getMessage()));
-     }
- }
+	/**
+	 * Get metadata for creating issues in Jira
+	 * 
+	 * @param projectKeys Optional project keys to filter issue types
+	 * @return The create metadata
+	 */
+	@GetMapping("/issue/createmeta")
+	public ResponseEntity<?> getCreateMeta(@RequestParam(required = false) String projectKeys) {
+		try {
+			logger.info("Received request for create metadata with project keys: {}", projectKeys);
+			JsonNode createMeta = jiraService.getCreateMeta(projectKeys);
+			logger.info("Create metadata response type: {}",
+					createMeta != null ? createMeta.getClass().getName() : "null");
+			if (createMeta != null && createMeta.isArray()) {
+				logger.info("Create metadata array size: {}", createMeta.size());
+			} else if (createMeta != null && createMeta.isObject()) {
+				logger.info("Create metadata object keys: {}", createMeta.fieldNames().toString());
+			}
+			logger.info("Returning create metadata");
+			return ResponseEntity.ok(createMeta);
+		} catch (Exception e) {
+			logger.error("Error fetching create metadata", e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch create metadata: " + e.getMessage()));
+		}
+	}
 
- // 2️⃣ Fetch all products for a given vendor
- @GetMapping("/vendors/{vendorName}/products")
- public ResponseEntity<?> getVendorProducts(@PathVariable String vendorName) {
-     try {
-    	 logger.info("Fetching all products for vendor: {}", vendorName);
-         return ResponseEntity.ok(vendorDetailsService.getProductsByVendor(vendorName));
-     } catch (Exception e) {
-         return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch products: " + e.getMessage()));
-     }
- }
+	/**
+	 * Create a new Jira issue with the proper Jira API structure
+	 * 
+	 * @param issueData The issue data to create
+	 * @return The created issue
+	 */
+	@PostMapping("/issues/create")
+	public ResponseEntity<?> createIssueJira(@RequestBody Map<String, Object> issueData) {
+		try {
+			logger.info("Received request to create new Jira issue with Jira API structure");
+			JsonNode createdIssue = jiraService.createIssueJira(issueData);
+			logger.info("Issue created successfully with Jira API structure");
+			return ResponseEntity.ok(createdIssue);
+		} catch (Exception e) {
+			logger.error("Error creating Jira issue with Jira API structure", e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to create issue: " + e.getMessage()));
+		}
+	}
 
- // -------------------------------------------------------------------------
- // 📄 Contract Details Endpoints
- // -------------------------------------------------------------------------
+	/**
+	 * Add a comment to a Jira issue
+	 * 
+	 * @param issueIdOrKey The issue ID or key
+	 * @param commentData  The comment data containing the comment body
+	 * @return The created comment
+	 */
+	@PostMapping("/issues/{issueIdOrKey}/comments")
+	public ResponseEntity<?> addCommentToIssue(@PathVariable String issueIdOrKey,
+			@RequestBody Map<String, Object> commentData) {
+		try {
+			logger.info("Received request to add comment to Jira issue: {} with data: {}", issueIdOrKey, commentData);
 
- // 3️⃣ Fetch contract details for a given vendor
- @GetMapping("/contracts/vendor/{vendorName}")
- public ResponseEntity<?> getContractsByVendor(@PathVariable String vendorName) {
-     try {
-         return ResponseEntity.ok(contractDetailsService.getContractsByVendor(vendorName));
-     } catch (Exception e) {
-         return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch contract details: " + e.getMessage()));
-     }
- }
- 
- @GetMapping("/contracts")
- public ResponseEntity<?> getAllContracts() {
-     try {
-        logger.info("Received request to fetch all contracts");
-        return ResponseEntity.ok(contractDetailsService.getAllContracts());
-    } catch (Exception e) {
-        logger.error("Error fetching all contracts", e);
-        return (ResponseEntity<?>) ResponseEntity.internalServerError()
-                .body(Map.of("message", "Failed to fetch contracts: " + e.getMessage()));
-    }
-}
+			String commentBody = (String) commentData.get("body");
+			if (commentBody == null || commentBody.isEmpty()) {
+				return ResponseEntity.badRequest().body(Map.of("message", "Comment body is required"));
+			}
+
+			JsonNode response = jiraService.addComment(issueIdOrKey, commentBody);
+			logger.info("Comment added successfully to issue: {}", issueIdOrKey);
+			return ResponseEntity.ok(response);
+		} catch (Exception e) {
+			logger.error("Error adding comment to issue: {}", issueIdOrKey, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to add comment: " + e.getMessage()));
+		}
+	}
+
+	/**
+	 * Save proposal data with attachments
+	 * 
+	 * @param proposalData The proposal data to save
+	 * @return The saved proposal
+	 */
+	@PostMapping("/proposals")
+	public ResponseEntity<?> saveProposal(@RequestBody Proposal proposalData) {
+		try {
+			logger.info("Received request to save proposal data: {}", proposalData);
+
+			Proposal savedProposal = proposalService.saveProposal(proposalData);
+			logger.info("Proposal saved successfully with ID: {}", savedProposal.getId());
+
+			return ResponseEntity.ok(savedProposal);
+		} catch (Exception e) {
+			logger.error("Error saving proposal", e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to save proposal: " + e.getMessage()));
+		}
+	}
+
+	/**
+	 * Get all proposals for a specific issue
+	 * 
+	 * @param issueKey The issue key
+	 * @return List of proposals for the issue
+	 */
+	@GetMapping("/proposals/issue/{issueKey}")
+	public ResponseEntity<?> getProposalsByIssueKey(@PathVariable String issueKey) {
+		try {
+			logger.info("Received request to fetch proposals for issue: {}", issueKey);
+
+			if (issueKey == null || issueKey.trim().isEmpty()) {
+				return ResponseEntity.badRequest().body(Map.of("message", "Issue key cannot be empty"));
+			}
+
+			String cleanedKey = issueKey.trim();
+
+			List<ContractProposal> proposals = contractProposalRepository
+					.findByJiraIssueKeyIgnoreCaseOrderByProposalNumberAsc(cleanedKey);
+
+			logger.info("Found {} proposals for issue: {}", proposals.size(), cleanedKey);
+
+			return ResponseEntity.ok(proposals.stream()
+					.map(p -> Map.of("id", p.getId(), "jiraIssueKey", p.getJiraIssueKey(), "proposalNumber",
+							p.getProposalNumber(), "licenseCount", p.getLicenseCount(), "unitCost", p.getUnitCost(),
+							"totalCost", p.getTotalCost(), "comment", p.getComment(), "isFinal", p.isFinal(),
+							"proposalType", p.getProposalType(), "createdAt",
+							p.getCreatedAt() != null ? p.getCreatedAt().toString() : null))
+					.toList());
+
+		} catch (Exception e) {
+			logger.error("Error fetching proposals for issue: {}", issueKey, e);
+			return ResponseEntity.badRequest().body(Map.of("message", "Failed to fetch proposals: " + e.getMessage()));
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// 📦 Vendor Details Endpoints
+	// -------------------------------------------------------------------------
+
+	// 1️⃣ Fetch all vendors for dropdown
+	@GetMapping("/vendors")
+	public ResponseEntity<?> getAllVendors() {
+		try {
+			logger.info("Fetching all vendors for dropdown");
+			return ResponseEntity.ok(vendorDetailsService.getAllVendors());
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch vendors: " + e.getMessage()));
+		}
+	}
+
+	// 2️⃣ Fetch all products for a given vendor
+	@GetMapping("/vendors/{vendorName}/products")
+	public ResponseEntity<?> getVendorProducts(@PathVariable String vendorName) {
+		try {
+			logger.info("Fetching all products for vendor: {}", vendorName);
+			return ResponseEntity.ok(vendorDetailsService.getProductsByVendor(vendorName));
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch products: " + e.getMessage()));
+		}
+	}
+
+	// -------------------------------------------------------------------------
+	// 📄 Contract Details Endpoints
+	// -------------------------------------------------------------------------
+
+	// 3️⃣ Fetch contract details for a given vendor
+	@GetMapping("/contracts/vendor/{vendorName}")
+	public ResponseEntity<?> getContractsByVendor(@PathVariable String vendorName) {
+		try {
+			return ResponseEntity.ok(contractDetailsService.getContractsByVendor(vendorName));
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch contract details: " + e.getMessage()));
+		}
+	}
+
+	@GetMapping("/contracts")
+	public ResponseEntity<?> getAllContracts() {
+		try {
+			logger.info("Received request to fetch all contracts");
+			return ResponseEntity.ok(contractDetailsService.getAllContracts());
+		} catch (Exception e) {
+			logger.error("Error fetching all contracts", e);
+			return (ResponseEntity<?>) ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch contracts: " + e.getMessage()));
+		}
+	}
 
 // Add this new endpoint for fetching contracts by type as DTOs
-@GetMapping("/contracts/type/{contractType}/dto")
-public ResponseEntity<?> getContractsByTypeAsDTO(@PathVariable String contractType) {
-    try {
-        logger.info("Received request to fetch contracts by type: {}", contractType);
-        List<ContractDTO> contracts = contractDetailsService.getContractsByTypeAsDTO(contractType);
-        logger.info("Returning {} contracts", contracts.size());
-        return ResponseEntity.ok(contracts);
-    } catch (Exception e) {
-        logger.error("Error fetching contracts by type: {}", contractType, e);
-        return ResponseEntity.internalServerError()
-                .body(Map.of("message", "Failed to fetch contracts: " + e.getMessage()));
-    }
-}
+	@GetMapping("/contracts/type/{contractType}/dto")
+	public ResponseEntity<?> getContractsByTypeAsDTO(@PathVariable String contractType) {
+		try {
+			logger.info("Received request to fetch contracts by type: {}", contractType);
+			List<ContractDTO> contracts = contractDetailsService.getContractsByTypeAsDTO(contractType);
+			logger.info("Returning {} contracts", contracts.size());
+			return ResponseEntity.ok(contracts);
+		} catch (Exception e) {
+			logger.error("Error fetching contracts by type: {}", contractType, e);
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch contracts: " + e.getMessage()));
+		}
+	}
 
-@PostMapping("/contracts/create")
-public ResponseEntity<?> createContractIssue(@RequestBody Map<String,Object> issueData) {
-    try {
-        JsonNode result = jiraService.createIssueJira(issueData);
-        return ResponseEntity.ok(result);
-    } catch (Exception ex) {
-        return ResponseEntity.status(500).body(Map.of("error", ex.getMessage()));
-    }
-}
+	@PostMapping("/contracts/create")
+	public ResponseEntity<?> createContractIssue(@RequestBody Map<String, Object> issueData) {
+		try {
+			JsonNode result = jiraService.createIssueJira(issueData);
+			return ResponseEntity.ok(result);
+		} catch (Exception ex) {
+			return ResponseEntity.status(500).body(Map.of("error", ex.getMessage()));
+		}
+	}
 
 // 4️⃣ Fetch existing license count (for upgrade/downgrade/flat renewal logic)
-@GetMapping("/contracts/vendor/{vendorName}/licenses")
-public ResponseEntity<?> getLicenseCount(@PathVariable String vendorName,
-                                          @RequestParam(required = false) String productName) {
-    try {
-        Integer count = contractDetailsService.getExistingLicenseCount(vendorName, productName);
-        return ResponseEntity.ok(Map.of("existingLicenseCount", count != null ? count : 0));
-    } catch (Exception e) {
-        return ResponseEntity.internalServerError().body(Map.of("message", "Failed to fetch license count: " + e.getMessage()));
-    }
- }
+	@GetMapping("/contracts/vendor/{vendorName}/licenses")
+	public ResponseEntity<?> getLicenseCount(@PathVariable String vendorName,
+			@RequestParam(required = false) String productName) {
+		try {
+			Integer count = contractDetailsService.getExistingLicenseCount(vendorName, productName);
+			return ResponseEntity.ok(Map.of("existingLicenseCount", count != null ? count : 0));
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch license count: " + e.getMessage()));
+		}
+	}
 
-    
-@GetMapping("/projects/request-management")
-public ResponseEntity<?> getRequestManagementProject() {
-    try {
-        JsonNode project = jiraService.getRequestManagementProject();
-        return ResponseEntity.ok(project);
-    } catch (Exception e) {
-        return ResponseEntity.internalServerError()
-            .body(Map.of("message", "Failed to fetch Request Management project: " + e.getMessage()));
-    }
-}
+	@GetMapping("/projects/request-management")
+	public ResponseEntity<?> getRequestManagementProject() {
+		try {
+			JsonNode project = jiraService.getRequestManagementProject();
+			return ResponseEntity.ok(project);
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError()
+					.body(Map.of("message", "Failed to fetch Request Management project: " + e.getMessage()));
+		}
+	}
 
-/**
- * Get all completed contract details for procurement renewal page
- * @return List of completed contract details
- */
-@GetMapping("/contracts/completed")
-public ResponseEntity<?> getCompletedContracts() {
-    try {
-        logger.info("Fetching COMPLETED contracts (renewalStatus=completed)");
+	/**
+	 * Get all completed contract details for procurement renewal page
+	 * 
+	 * @return List of completed contract details
+	 */
+	@GetMapping("/contracts/completed")
+	public ResponseEntity<?> getCompletedContracts() {
+		try {
+			logger.info("Fetching COMPLETED contracts (renewalStatus=completed)");
 
-        List<ContractDetails> completed = 
-                contractDetailsService.getContractsByRenewalStatus("completed");
+			List<ContractDetails> completed = contractDetailsService.getContractsByRenewalStatus("completed");
 
-        List<ContractDTO> dtoList = completed.stream().map(c -> {
-            ContractDTO dto = new ContractDTO();
+			List<ContractDTO> dtoList = completed.stream().map(c -> {
+				ContractDTO dto = new ContractDTO();
 
-            dto.setId(c.getId());
-            dto.setContractType(c.getContractType());
-            dto.setRenewalStatus(c.getRenewalStatus());   // ⭐ IMPORTANT
-            dto.setJiraIssueKey(c.getJiraIssueKey());
+				dto.setId(c.getId());
+				dto.setContractType(c.getContractType());
+				dto.setRenewalStatus(c.getRenewalStatus()); // ⭐ IMPORTANT
+				dto.setJiraIssueKey(c.getJiraIssueKey());
 
-            dto.setNameOfVendor(c.getNameOfVendor());
-            dto.setProductName(c.getProductName());
-            dto.setRequesterName(c.getRequesterName());
-            dto.setRequesterEmail(c.getRequesterMail());
-            dto.setRequesterDepartment(c.getRequesterDepartment());
-            dto.setRequesterOrganization(c.getRequesterOrganization());
+				dto.setNameOfVendor(c.getNameOfVendor());
+				dto.setProductName(c.getProductName());
+				dto.setRequesterName(c.getRequesterName());
+				dto.setRequesterEmail(c.getRequesterMail());
+				dto.setRequesterDepartment(c.getRequesterDepartment());
+				dto.setRequesterOrganization(c.getRequesterOrganization());
 
-            dto.setVendorContractType(c.getVendorContractType());
-            dto.setAdditionalComment(c.getAdditionalComment());
-            dto.setBillingType(c.getBillingType());
-            dto.setLicenseUpdateType(c.getLicenseUpdateType());
-            dto.setExistingContractId(c.getExistingContractId());
+				dto.setVendorContractType(c.getVendorContractType());
+				dto.setAdditionalComment(c.getAdditionalComment());
+				dto.setBillingType(c.getBillingType());
+				dto.setLicenseUpdateType(c.getLicenseUpdateType());
+				dto.setExistingContractId(c.getExistingContractId());
 
-            dto.setCurrentLicenseCount(c.getCurrentLicenseCount());
-            dto.setCurrentUsageCount(c.getCurrentUsageCount());
-            dto.setCurrentUnits(c.getCurrentUnits());
+				dto.setCurrentLicenseCount(c.getCurrentLicenseCount());
+				dto.setCurrentUsageCount(c.getCurrentUsageCount());
+				dto.setCurrentUnits(c.getCurrentUnits());
 
-            dto.setNewLicenseCount(c.getNewLicenseCount());
-            dto.setNewUsageCount(c.getNewUsageCount());
-            dto.setNewUnits(c.getNewUnits());
+				dto.setNewLicenseCount(c.getNewLicenseCount());
+				dto.setNewUsageCount(c.getNewUsageCount());
+				dto.setNewUnits(c.getNewUnits());
 
-            dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
-            dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
+				dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
+				dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
 
-            return dto;
-        }).toList();
+				return dto;
+			}).toList();
 
-        return ResponseEntity.ok(dtoList);
+			return ResponseEntity.ok(dtoList);
 
-    } catch (Exception e) {
-        logger.error("Error fetching completed contracts", e);
-        return ResponseEntity.status(500)
-                .body(Map.of("message", e.getMessage()));
-    }
-}
-
+		} catch (Exception e) {
+			logger.error("Error fetching completed contracts", e);
+			return ResponseEntity.status(500).body(Map.of("message", e.getMessage()));
+		}
+	}
 
 //@GetMapping("/contracts/test")
 //public ResponseEntity<?> testContractData() {
@@ -977,215 +1002,198 @@ public ResponseEntity<?> getCompletedContracts() {
 //----------------------------------------------------------
 //⭐ NEW API — Save contract as COMPLETED
 //----------------------------------------------------------
-@PostMapping("/contracts/mark-completed")
-public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedRequest request) {
-    try {
-        logger.info("Received request to mark contract as completed: {}", request);
+	@PostMapping("/contracts/mark-completed")
+	public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedRequest request) {
+		try {
+			logger.info("Received request to mark contract as completed: {}", request);
 
-        if (request.getIssueKey() == null || request.getTransitionKey() == null) {
-            return ResponseEntity.badRequest().body("Missing issueKey or transitionKey");
-        }
+			if (request.getIssueKey() == null || request.getTransitionKey() == null) {
+				return ResponseEntity.badRequest().body("Missing issueKey or transitionKey");
+			}
 
-        // ⭐ 1. CHECK CURRENT STATUS FIRST
-        String currentStatus = jiraService.getIssueStatus(request.getIssueKey());
-        logger.info("Current Jira status for {} is: {}", request.getIssueKey(), currentStatus);
+			// ⭐ 1. CHECK CURRENT STATUS FIRST
+			String currentStatus = jiraService.getIssueStatus(request.getIssueKey());
+			logger.info("Current Jira status for {} is: {}", request.getIssueKey(), currentStatus);
 
-        // If already completed → SKIP Jira transition
-        if (currentStatus != null && currentStatus.equalsIgnoreCase("completed")) {
-            logger.warn("Skipping Jira transition — issue already completed.");
-        } else {
-            // ⭐ 2. TRANSITION ONLY IF NOT COMPLETED
-            boolean success = jiraService.transitionIssueByKey(
-                    request.getIssueKey(),
-                    request.getTransitionKey()
-            );
+			// If already completed → SKIP Jira transition
+			if (currentStatus != null && currentStatus.equalsIgnoreCase("completed")) {
+				logger.warn("Skipping Jira transition — issue already completed.");
+			} else {
+				// ⭐ 2. TRANSITION ONLY IF NOT COMPLETED
+				boolean success = jiraService.transitionIssueByKey(request.getIssueKey(), request.getTransitionKey());
 
-            if (!success) {
-                return ResponseEntity.badRequest().body("Transition failed");
-            }
-        }
+				if (!success) {
+					return ResponseEntity.badRequest().body("Transition failed");
+				}
+			}
 
-        // ⭐ 3. SAVE CONTRACT DATA
-        ContractDetails contract = contractDetailsService.findByJiraIssueKey(request.getIssueKey());
-        if (contract == null) {
-            contract = new ContractDetails();
-        }
+			// ⭐ 3. SAVE CONTRACT DATA
+			ContractDetails contract = contractDetailsService.findByJiraIssueKey(request.getIssueKey());
+			if (contract == null) {
+				contract = new ContractDetails();
+			}
 
-        contract.setRenewalStatus("completed");
-        contract.setJiraIssueKey(request.getIssueKey());
-        contract.setContractType("existing");
-        contract.setNameOfVendor(request.getNameOfVendor());
-        contract.setProductName(request.getProductName());
-        contract.setRequesterName(request.getRequesterName());
-        contract.setRequesterMail(request.getRequesterMail());
-        contract.setRequesterDepartment(request.getRequesterDepartment());
-        contract.setRequesterOrganization(request.getRequesterOrganization());
-        contract.setCurrentLicenseCount(request.getCurrentLicenseCount());
-        contract.setCurrentUsageCount(request.getCurrentUsageCount());
-        contract.setCurrentUnits(request.getCurrentUnits());
-        contract.setNewLicenseCount(request.getNewLicenseCount());
-        contract.setNewUsageCount(request.getNewUsageCount());
-        contract.setNewUnits(request.getNewUnits());
-        contract.setAdditionalComment(request.getAdditionalComment());
-        contract.setVendorContractType(request.getVendorContractType());
-        contract.setLicenseUpdateType(request.getLicenseUpdateType());
-        contract.setExistingContractId(request.getExistingContractId());
-        contract.setBillingType(request.getBillingType());
+			contract.setRenewalStatus("completed");
+			contract.setJiraIssueKey(request.getIssueKey());
+			contract.setContractType("existing");
+			contract.setNameOfVendor(request.getNameOfVendor());
+			contract.setProductName(request.getProductName());
+			contract.setRequesterName(request.getRequesterName());
+			contract.setRequesterMail(request.getRequesterMail());
+			contract.setRequesterDepartment(request.getRequesterDepartment());
+			contract.setRequesterOrganization(request.getRequesterOrganization());
+			contract.setCurrentLicenseCount(request.getCurrentLicenseCount());
+			contract.setCurrentUsageCount(request.getCurrentUsageCount());
+			contract.setCurrentUnits(request.getCurrentUnits());
+			contract.setNewLicenseCount(request.getNewLicenseCount());
+			contract.setNewUsageCount(request.getNewUsageCount());
+			contract.setNewUnits(request.getNewUnits());
+			contract.setAdditionalComment(request.getAdditionalComment());
+			contract.setVendorContractType(request.getVendorContractType());
+			contract.setLicenseUpdateType(request.getLicenseUpdateType());
+			contract.setExistingContractId(request.getExistingContractId());
+			contract.setBillingType(request.getBillingType());
 
-        if (request.getDueDate() != null && !request.getDueDate().trim().isEmpty()) {
-            contract.setDueDate(LocalDate.parse(request.getDueDate()));
-        }
+			if (request.getDueDate() != null && !request.getDueDate().trim().isEmpty()) {
+				contract.setDueDate(LocalDate.parse(request.getDueDate()));
+			}
 
-        if (request.getRenewalDate() != null && !request.getRenewalDate().trim().isEmpty()) {
-            contract.setRenewalDate(LocalDate.parse(request.getRenewalDate()));
-        }
+			if (request.getRenewalDate() != null && !request.getRenewalDate().trim().isEmpty()) {
+				contract.setRenewalDate(LocalDate.parse(request.getRenewalDate()));
+			}
 
-        ContractDetails saved = contractDetailsService.saveCompletedContract(contract);
-        logger.info("Completed contract saved with ID: {}", saved.getId());
+			ContractDetails saved = contractDetailsService.saveCompletedContract(contract);
+			logger.info("Completed contract saved with ID: {}", saved.getId());
 
-        return ResponseEntity.ok(Map.of("message", "Contract saved successfully!"));
+			return ResponseEntity.ok(Map.of("message", "Contract saved successfully!"));
 
-    } catch (Exception e) {
-        logger.error("Error saving completed contract", e);
-        return ResponseEntity.status(500)
-                .body(Map.of("message", e.getMessage()));
-    }
-}
+		} catch (Exception e) {
+			logger.error("Error saving completed contract", e);
+			return ResponseEntity.status(500).body(Map.of("message", e.getMessage()));
+		}
+	}
 
+	@PostMapping("/contracts/save-attachment")
+	public ResponseEntity<?> saveAttachmentToContract(@RequestBody Map<String, Object> payload) {
 
+		try {
+			String issueKey = (String) payload.get("issueKey");
+			Map<String, Object> metadata = (Map<String, Object>) payload.get("metadata");
 
-@PostMapping("/contracts/save-attachment")
-public ResponseEntity<?> saveAttachmentToContract(@RequestBody Map<String, Object> payload) {
+			if (metadata == null) {
+				return ResponseEntity.badRequest().body(Map.of("error", "metadata object missing in request"));
+			}
 
-    try {
-        String issueKey = (String) payload.get("issueKey");
-        Map<String, Object> metadata = (Map<String, Object>) payload.get("metadata");
+			String fileName = metadata.get("fileName") != null ? metadata.get("fileName").toString() : "";
+			String fileUrl = metadata.get("content") != null ? metadata.get("content").toString() : "";
+			Long fileSize = metadata.get("size") != null ? Long.valueOf(metadata.get("size").toString()) : 0L;
+			String mimeType = metadata.get("mimeType") != null ? metadata.get("mimeType").toString() : "";
 
-        if (metadata == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "metadata object missing in request"));
-        }
+			logger.info("Saving attachment in DB for issueKey={} file={}", issueKey, fileName);
 
-        String fileName = metadata.get("fileName") != null ? metadata.get("fileName").toString() : "";
-        String fileUrl = metadata.get("content") != null ? metadata.get("content").toString() : "";
-        Long fileSize = metadata.get("size") != null ? Long.valueOf(metadata.get("size").toString()) : 0L;
-        String mimeType = metadata.get("mimeType") != null ? metadata.get("mimeType").toString() : "";
+			// ❌ DO NOT CREATE CONTRACT
+			ContractDetails contract = null;
 
-        logger.info("Saving attachment in DB for issueKey={} file={}", issueKey, fileName);
+			ContractAttachment attachment = new ContractAttachment();
+			attachment.setContract(null);
+			attachment.setJiraIssueKey(issueKey);
+			attachment.setFileName(fileName);
+			attachment.setFileUrl(fileUrl);
+			attachment.setFileSize(fileSize);
+			attachment.setMimeType(mimeType);
+			attachment.setUploadedBy("system");
+			attachment.setStage("CREATION");
 
-        // ❌ DO NOT CREATE CONTRACT
-        ContractDetails contract = null;
+			contractAttachmentRepository.save(attachment);
 
-        ContractAttachment attachment = new ContractAttachment();
-        attachment.setContract(null);
-        attachment.setJiraIssueKey(issueKey);
-        attachment.setFileName(fileName);
-        attachment.setFileUrl(fileUrl);
-        attachment.setFileSize(fileSize);
-        attachment.setMimeType(mimeType);
-        attachment.setUploadedBy("system");
-        attachment.setStage("CREATION");
+			return ResponseEntity.ok(Map.of("message", "Attachment saved successfully"));
 
-        contractAttachmentRepository.save(attachment);
+		} catch (Exception e) {
+			logger.error("Failed saving attachment: ", e);
+			return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+		}
+	}
 
-        return ResponseEntity.ok(Map.of("message", "Attachment saved successfully"));
+	@PostMapping("/contracts/add-proposal")
+	public ResponseEntity<?> addProposal(@RequestBody Map<String, Object> payload) {
 
-    } catch (Exception e) {
-        logger.error("Failed saving attachment: ", e);
-        return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
-    }
-}
+		try {
+			String issueKey = (String) payload.get("jiraIssueKey");
 
+			if (issueKey == null) {
+				issueKey = (String) payload.get("issueKey"); // fallback
+			}
+			Integer licenseCount = payload.get("licenseCount") != null
+					? Integer.valueOf(payload.get("licenseCount").toString())
+					: null;
 
-@PostMapping("/contracts/add-proposal")
-public ResponseEntity<?> addProposal(@RequestBody Map<String, Object> payload) {
+			Double unitCost = payload.get("unitCost") != null ? Double.valueOf(payload.get("unitCost").toString())
+					: null;
 
-    try {
-    	String issueKey = (String) payload.get("jiraIssueKey");
+			Double totalCost = payload.get("totalCost") != null ? Double.valueOf(payload.get("totalCost").toString())
+					: (unitCost != null && licenseCount != null ? unitCost * licenseCount : null);
 
-    	if (issueKey == null) {
-    	    issueKey = (String) payload.get("issueKey"); // fallback
-    	}
-        Integer licenseCount = payload.get("licenseCount") != null
-                ? Integer.valueOf(payload.get("licenseCount").toString()) : null;
+			String comment = (String) payload.get("comment");
+			boolean isFinal = payload.get("isFinal") != null && (Boolean) payload.get("isFinal");
 
-        Double unitCost = payload.get("unitCost") != null
-                ? Double.valueOf(payload.get("unitCost").toString()) : null;
+			// ❌ DO NOT CREATE CONTRACT HERE
+			ContractDetails contract = contractDetailsRepository.findByJiraIssueKey(issueKey);
+			// If null, keep null (contract is created only at COMPLETED status)
 
-        Double totalCost = payload.get("totalCost") != null
-                ? Double.valueOf(payload.get("totalCost").toString())
-                : (unitCost != null && licenseCount != null ? unitCost * licenseCount : null);
+			ContractProposal last = contractProposalRepository
+					.findTopByJiraIssueKeyIgnoreCaseOrderByProposalNumberDesc(issueKey);
 
-        String comment = (String) payload.get("comment");
-        boolean isFinal = payload.get("isFinal") != null && (Boolean) payload.get("isFinal");
+			int proposalNumber = last == null ? 1 : last.getProposalNumber() + 1;
 
-        // ❌ DO NOT CREATE CONTRACT HERE
-        ContractDetails contract = contractDetailsRepository.findByJiraIssueKey(issueKey);
-        // If null, keep null (contract is created only at COMPLETED status)
+			ContractProposal proposal = new ContractProposal();
+			proposal.setContract(contract); // can be null
+			proposal.setJiraIssueKey(issueKey);
+			proposal.setProposalNumber(proposalNumber);
+			proposal.setLicenseCount(licenseCount);
+			proposal.setUnitCost(unitCost);
+			proposal.setTotalCost(totalCost);
+			proposal.setComment(comment);
+			proposal.setFinal(isFinal);
+			proposal.setProposalType(isFinal ? "FINAL" : "PROPOSAL " + proposalNumber);
 
-        ContractProposal last = contractProposalRepository
-        		.findTopByJiraIssueKeyIgnoreCaseOrderByProposalNumberDesc(issueKey);
+			contractProposalRepository.save(proposal);
 
+			return ResponseEntity.ok(Map.of("message", "Proposal saved", "proposalId", proposal.getId()));
 
-        int proposalNumber = last == null ? 1 : last.getProposalNumber() + 1;
+		} catch (Exception e) {
+			return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
+		}
+	}
 
-        ContractProposal proposal = new ContractProposal();
-        proposal.setContract(contract);  // can be null
-        proposal.setJiraIssueKey(issueKey);
-        proposal.setProposalNumber(proposalNumber);
-        proposal.setLicenseCount(licenseCount);
-        proposal.setUnitCost(unitCost);
-        proposal.setTotalCost(totalCost);
-        proposal.setComment(comment);
-        proposal.setFinal(isFinal);
-        proposal.setProposalType(isFinal ? "FINAL" : "PROPOSAL " + proposalNumber);
+	@GetMapping("/proposals/{proposalId}")
+	public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
+		try {
+			ContractProposal proposal = contractProposalRepository.findById(proposalId).orElse(null);
 
-        contractProposalRepository.save(proposal);
+			if (proposal == null) {
+				return ResponseEntity.status(404).body(Map.of("message", "Proposal not found"));
+			}
 
-        return ResponseEntity.ok(Map.of(
-                "message", "Proposal saved",
-                "proposalId", proposal.getId()
-        ));
+			// Return the proposal data in the format expected by the frontend
+			Map<String, Object> responseData = Map.of("id", proposal.getId(), "jiraIssueKey",
+					proposal.getJiraIssueKey(), "proposalNumber", proposal.getProposalNumber(), "proposalType",
+					proposal.getProposalType(), "licenseCount", proposal.getLicenseCount(), "unitCost",
+					proposal.getUnitCost(), "totalCost", proposal.getTotalCost(), "comment", proposal.getComment(),
+					"final", proposal.isFinal(), "createdAt",
+					proposal.getCreatedAt() != null ? proposal.getCreatedAt().toString() : null);
 
-    } catch (Exception e) {
-        return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
-    }
-}
+			return ResponseEntity.ok(responseData);
 
-@GetMapping("/proposals/{proposalId}")
-public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
-    try {
-        ContractProposal proposal = contractProposalRepository.findById(proposalId)
-                .orElse(null);
+		} catch (Exception e) {
+			return ResponseEntity.badRequest().body(Map.of("message", "Failed to fetch proposal: " + e.getMessage()));
+		}
+	}
 
-        if (proposal == null) {
-            return ResponseEntity.status(404)
-                    .body(Map.of("message", "Proposal not found"));
-        }
-
-        // Return the proposal data in the format expected by the frontend
-        Map<String, Object> responseData = Map.of(
-            "id", proposal.getId(),
-            "jiraIssueKey", proposal.getJiraIssueKey(),
-            "proposalNumber", proposal.getProposalNumber(),
-            "proposalType", proposal.getProposalType(),
-            "licenseCount", proposal.getLicenseCount(),
-            "unitCost", proposal.getUnitCost(),
-            "totalCost", proposal.getTotalCost(),
-            "comment", proposal.getComment(),
-            "final", proposal.isFinal(),
-            "createdAt", proposal.getCreatedAt() != null ? proposal.getCreatedAt().toString() : null
-        );
-
-        return ResponseEntity.ok(responseData);
-
-    } catch (Exception e) {
-        return ResponseEntity.badRequest()
-                .body(Map.of("message", "Failed to fetch proposal: " + e.getMessage()));
-    }
-}
-
-
+//-------------------- CREATE VENDOR (POST API) --------------------
+	@PostMapping("/vendors")
+	public ResponseEntity<VendorDetailsDTO> createVendor(@RequestBody VendorDetailsDTO dto) {
+		VendorDetailsDTO created = vendorDetailsService.createVendor(dto);
+		return ResponseEntity.status(HttpStatus.CREATED).body(created);
+	}
 
 }
-

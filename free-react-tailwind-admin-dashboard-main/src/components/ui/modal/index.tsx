@@ -46,7 +46,7 @@ export const Modal: React.FC<ModalProps> = ({
     : "relative w-full rounded-3xl bg-white dark:bg-gray-900";
 
   return (
-    <div 
+    <div
       className="fixed inset-0 flex items-center justify-center overflow-y-auto modal z-50"
       aria-modal="true"
       role="dialog"

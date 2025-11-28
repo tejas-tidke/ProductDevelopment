@@ -12,43 +12,58 @@ import java.util.stream.Collectors;
 @Service
 public class VendorDetailsService {
 
-    @Autowired
-    private VendorDetailsRepository vendorDetailsRepository;
+	@Autowired
+	private VendorDetailsRepository vendorDetailsRepository;
 
-    // Fetch distinct vendor names for dropdown
-    public List<String> getAllVendors() {
-        return vendorDetailsRepository.findDistinctVendorNames();
-    }
+	// Fetch distinct vendor names for dropdown
+	public List<String> getAllVendors() {
+		return vendorDetailsRepository.findDistinctVendorNames();
+	}
 
-    // Fetch all products for a vendor
-    public List<VendorDetailsDTO> getProductsByVendor(String vendorName) {
-        List<VendorDetails> vendorDetailsList = vendorDetailsRepository.findByNameOfVendor(vendorName);
-        return vendorDetailsList.stream()
-            .map(this::convertToDTO)
-            .collect(Collectors.toList());
-    }
-    
-    // Fetch product type for a specific vendor and product
-    public String getProductType(String vendorName, String productName) {
-        return vendorDetailsRepository.findProductTypeByVendorAndProduct(vendorName, productName);
-    }
-    
-    // Fetch all products of a specific type for a vendor
-    public List<VendorDetailsDTO> getProductsByVendorAndType(String vendorName, String productType) {
-        List<VendorDetails> vendorDetailsList = vendorDetailsRepository.findByNameOfVendorAndProductType(vendorName, productType);
-        return vendorDetailsList.stream()
-            .map(this::convertToDTO)
-            .collect(Collectors.toList());
-    }
-    
-    // Convert VendorDetails entity to VendorDetailsDTO
-    private VendorDetailsDTO convertToDTO(VendorDetails vendorDetails) {
-        VendorDetailsDTO dto = new VendorDetailsDTO();
-        dto.setId(vendorDetails.getId());
-        dto.setNameOfVendor(vendorDetails.getNameOfVendor());
-        dto.setProductName(vendorDetails.getProductName());
-        dto.setProductLink(vendorDetails.getProductLink());
-        dto.setProductType(vendorDetails.getProductType());
-        return dto;
-    }
+	// Fetch all products for a vendor
+	public List<VendorDetailsDTO> getProductsByVendor(String vendorName) {
+		List<VendorDetails> vendorDetailsList = vendorDetailsRepository.findByNameOfVendor(vendorName);
+		return vendorDetailsList.stream().map(this::convertToDTO).collect(Collectors.toList());
+	}
+
+	// Fetch product type for a specific vendor and product
+	public String getProductType(String vendorName, String productName) {
+		return vendorDetailsRepository.findProductTypeByVendorAndProduct(vendorName, productName);
+	}
+
+	// Fetch all products of a specific type for a vendor
+	public List<VendorDetailsDTO> getProductsByVendorAndType(String vendorName, String productType) {
+		List<VendorDetails> vendorDetailsList = vendorDetailsRepository.findByNameOfVendorAndProductType(vendorName,
+				productType);
+		return vendorDetailsList.stream().map(this::convertToDTO).collect(Collectors.toList());
+	}
+
+	// Convert VendorDetails entity to VendorDetailsDTO
+	private VendorDetailsDTO convertToDTO(VendorDetails vendorDetails) {
+		VendorDetailsDTO dto = new VendorDetailsDTO();
+		dto.setId(vendorDetails.getId());
+		dto.setNameOfVendor(vendorDetails.getNameOfVendor());
+		dto.setProductName(vendorDetails.getProductName());
+		dto.setProductLink(vendorDetails.getProductLink());
+		dto.setProductType(vendorDetails.getProductType());
+		return dto;
+	}
+
+//-------------------- CREATE NEW VENDOR --------------------
+	public VendorDetailsDTO createVendor(VendorDetailsDTO dto) {
+		VendorDetails entity = convertToEntity(dto); // convert DTO → entity
+		VendorDetails saved = vendorDetailsRepository.save(entity);
+		return convertToDTO(saved); // return saved DTO
+	}
+
+//-------------------- DTO → ENTITY --------------------
+	private VendorDetails convertToEntity(VendorDetailsDTO dto) {
+		VendorDetails entity = new VendorDetails();
+		entity.setId(dto.getId()); // usually null when creating
+		entity.setNameOfVendor(dto.getNameOfVendor());
+		entity.setProductName(dto.getProductName());
+		entity.setProductLink(dto.getProductLink());
+		entity.setProductType(dto.getProductType());
+		return entity;
+	}
 }
