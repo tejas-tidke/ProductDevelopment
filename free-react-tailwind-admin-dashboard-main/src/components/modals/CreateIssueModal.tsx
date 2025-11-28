@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { jiraService } from '../../services/jiraService';
@@ -41,16 +40,40 @@ interface ProductItem {
 
 const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, onIssueCreated }) => {
   // Get user data from context
-  const { 
-  currentUser, 
-  userData,
-  userDepartmentName, 
-  userOrganizationName 
-} = useAuth();
-
+  const {
+    currentUser,
+    userData,
+    userDepartmentName,
+    userOrganizationName
+  } = useAuth();
 
   const navigate = useNavigate();
-  
+
+  // State for dropdown visibility and filtering
+  const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+
+  // requester
+  const [requesterName, setRequesterName] = useState('');
+  const [requesterMail, setRequesterMail] = useState('');
+
+  // contract mode
+  const [contractType, setContractType] = useState<'new' | 'existing' | ''>('');
+
+  // vendors/products (from lighter file)
+  const [vendors, setVendors] = useState<string[]>([]);
+  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [loadingVendors, setLoadingVendors] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // Declare vendorName and productName states
+  const [vendorName, setVendorName] = useState('');
+  const [productName, setProductName] = useState('');
+
+  // Filter vendors and products only when they have values
+  const filteredVendors = vendorName && Array.isArray(vendors) ? vendors.filter(v => v.toLowerCase().includes(vendorName.toLowerCase())) : [];
+  const filteredProducts = productName && Array.isArray(products) ? products.filter(p => p.productName.toLowerCase().includes(productName.toLowerCase())) : [];
+
   // Log the auth context values
   console.log('🔐 Auth Context - Department:', userDepartmentName);
   console.log('🔐 Auth Context - Organization:', userOrganizationName);
@@ -61,15 +84,15 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
     d.setMonth(d.getMonth() + months);
     return d.toISOString().split('T')[0];
   };
-  
+
   // When a product is selected, fetch its type
   const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedProductName = e.target.value;
     setProductName(selectedProductName);
-    
+
     // Reset billing type when product changes
     setVendorContractType('');
-    
+
     // Fetch product type
     if (selectedProductName && vendorName) {
       jiraService.getProductType(vendorName, selectedProductName)
@@ -91,25 +114,10 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
     }
   };
 
-  // requester
-  const [requesterName, setRequesterName] = useState('');
-  const [requesterMail, setRequesterMail] = useState('');
-
-  // contract mode
-  const [contractType, setContractType] = useState<'new' | 'existing' | ''>('');
-
-  // vendors/products (from lighter file)
-  const [vendors, setVendors] = useState<string[]>([]);
-  const [products, setProducts] = useState<ProductItem[]>([]);
-  const [loadingVendors, setLoadingVendors] = useState(false);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  
   // product type
   const [productType, setProductType] = useState<'license' | 'usage' | ''>('');
 
   // core fields (detailed)
-  const [vendorName, setVendorName] = useState('');
-  const [productName, setProductName] = useState('');
   const [vendorContractType, setVendorContractType] = useState<'usage' | 'license' | ''>('');
 
   const [currentUsageCount, setCurrentUsageCount] = useState<number | ''>('');
@@ -150,7 +158,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   const [attachments, setAttachments] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const vendorDropdownRef = useRef<HTMLDivElement | null>(null);
+  const productDropdownRef = useRef<HTMLDivElement | null>(null);
   const dueDateRef = useRef<HTMLInputElement | null>(null);
   const renewalDateRef = useRef<HTMLInputElement | null>(null);
 
@@ -158,16 +167,16 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({ isOpen, onClose, on
   // Load logged in user (from backend jiraService.myself)
   // ------------------------------------------------------------------
   // ------------------------------------------------------------------
-// Load logged in user (from backend jiraService.myself)
-// ------------------------------------------------------------------
+  // Load logged in user (from backend jiraService.myself)
+  // ------------------------------------------------------------------
 
 
-useEffect(() => {
-  if (isOpen && userData && currentUser) {
-    setRequesterName(userData.user.name || "");
-    setRequesterMail(currentUser.email || "");
-  }
-}, [isOpen, userData, currentUser]);
+  useEffect(() => {
+    if (isOpen && userData && currentUser) {
+      setRequesterName(userData.user.name || "");
+      setRequesterMail(currentUser.email || "");
+    }
+  }, [isOpen, userData, currentUser]);
 
 
   // ------------------------------------------------------------------
@@ -185,31 +194,31 @@ useEffect(() => {
         const data: unknown = await jiraService.getContractsByTypeAsDTO('new');
         const mapped = Array.isArray(data)
           ? data.map((c: any) => ({
-              id: String(c.id ?? c.contractId ?? c.key ?? ''),
-              vendorName: c.vendorName ?? c.nameOfVendor ?? '',
-              productName: c.productName ?? '',
-              requesterName: c.requesterName ?? '',
-              requesterMail: c.requesterMail ?? c.requesterEmail ?? '',
-              vendorContractType:
-  (c.vendorContractType ||
-   c.billingType ||
-   c.billing_type ||
-   c.contractBilling ||
-   c.vendor_contract_type ||
-   '') as 'usage' | 'license' | '',
+            id: String(c.id ?? c.contractId ?? c.key ?? ''),
+            vendorName: c.vendorName ?? c.nameOfVendor ?? '',
+            productName: c.productName ?? '',
+            requesterName: c.requesterName ?? '',
+            requesterMail: c.requesterMail ?? c.requesterEmail ?? '',
+            vendorContractType:
+              (c.vendorContractType ||
+                c.billingType ||
+                c.billing_type ||
+                c.contractBilling ||
+                c.vendor_contract_type ||
+                '') as 'usage' | 'license' | '',
 
-              vendorStartDate: String(c.dueDate ?? ''),
-              vendorEndDate: String(c.renewalDate ?? ''),
-              additionalComment: c.additionalComment ?? '',
-              // Fixed mapping for current units and usage
-              vendorUnit: c.currentUnits ?? c.unit ?? '',
-              vendorUsage:
-                (typeof c.currentUsageCount !== 'undefined' && c.currentUsageCount !== null)
-                  ? Number(c.currentUsageCount)
-                  : (typeof c.currentLicenseCount !== 'undefined' && c.currentLicenseCount !== null)
+            vendorStartDate: String(c.dueDate ?? ''),
+            vendorEndDate: String(c.renewalDate ?? ''),
+            additionalComment: c.additionalComment ?? '',
+            // Fixed mapping for current units and usage
+            vendorUnit: c.currentUnits ?? c.unit ?? '',
+            vendorUsage:
+              (typeof c.currentUsageCount !== 'undefined' && c.currentUsageCount !== null)
+                ? Number(c.currentUsageCount)
+                : (typeof c.currentLicenseCount !== 'undefined' && c.currentLicenseCount !== null)
                   ? Number(c.currentLicenseCount)
                   : undefined,
-            }))
+          }))
           : [];
         setExistingContracts(mapped);
       }
@@ -246,7 +255,7 @@ useEffect(() => {
         setLoadingProducts(true);
         const list = await jiraService.getProductsByVendor(vendorName);
         if (Array.isArray(list)) setProducts(list);
-        
+
         // Reset product type when vendor changes
         setProductType('');
       } catch (err) {
@@ -396,7 +405,7 @@ useEffect(() => {
       if (!contractDuration) newErrors.contractDuration = 'Contract duration is required';
       if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
       if (!dueDate) newErrors.dueDate = 'Due date is required';
-      
+
       // For new contracts, due date should not be in the past
       if (dueDate) {
         const today = new Date();
@@ -406,7 +415,7 @@ useEffect(() => {
           newErrors.dueDate = 'Due date cannot be in the past for new contracts';
         }
       }
-      
+
       if (!vendorContractType) newErrors.vendorContractType = 'Select usage or license';
 
       if (vendorContractType === 'usage') {
@@ -424,14 +433,28 @@ useEffect(() => {
       if (!selectedExistingContractId) newErrors.selectedExistingContractId = 'Select an existing contract';
       if (!vendorContractType) newErrors.vendorContractType = 'Existing contract has no billing type';
       if (!renewalType) newErrors.renewalType = 'Select renewal type';
-      
+
       // For existing contracts, due date is still required
       if (!dueDate) newErrors.dueDate = 'Due date is required';
-      
+
+      if (dueDate && renewalDate) {
+        const dDate = new Date(dueDate);
+        const rDate = new Date(renewalDate);
+        if (dDate <= rDate) {
+          newErrors.dueDate = 'Due date must be ahead of the renewal date.';
+        }
+      }
+
       // Contract duration validation for existing contracts
       if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
 
       if (vendorContractType === 'usage') {
+        if (renewalType === 'upgrade' && (newUsageCount === '' || Number(newUsageCount) <= Number(currentUsageCount))) {
+          newErrors.newUsageCount = 'For an upgrade, new usage must be greater than the current.';
+        }
+        if (renewalType === 'downgrade' && (newUsageCount === '' || Number(newUsageCount) >= Number(currentUsageCount))) {
+          newErrors.newUsageCount = 'For a downgrade, new usage must be less than the current.';
+        }
         if (renewalType !== 'flat') {
           if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0)) newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
           if (renewalNewUnits === 'others' && !renewalNewUnitsOther) newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
@@ -439,11 +462,18 @@ useEffect(() => {
         }
       }
       if (vendorContractType === 'license') {
+        if (renewalType === 'upgrade' && (renewalNewLicenseCount === '' || Number(renewalNewLicenseCount) <= Number(currentLicenseCount))) {
+          newErrors.renewalNewLicenseCount = 'For an upgrade, new license count must be greater than the current.';
+        }
+        if (renewalType === 'downgrade' && (renewalNewLicenseCount === '' || Number(renewalNewLicenseCount) >= Number(currentLicenseCount))) {
+          newErrors.renewalNewLicenseCount = 'For a downgrade, new license count must be less than the current.';
+        }
         if (renewalType !== 'flat') {
           if (renewalNewLicenseCount === '' || renewalNewLicenseCount === 0) newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
           if (!renewalLicenseUnit) newErrors.renewalLicenseUnit = 'Select license unit (agents / users) for renewal';
         }
       }
+      if (!dueDate) newErrors.dueDate = 'Due date is required';
     }
 
     setErrors(newErrors);
@@ -544,43 +574,47 @@ useEffect(() => {
       }
 
       // ⭐ SAVE ATTACHMENTS IN DB AS "CREATION" STAGE
-// ⭐ SAVE ATTACHMENTS IN DB AS "CREATION" STAGE
-if (attachments.length > 0) {
-  try {
-    
+      // ⭐ SAVE ATTACHMENTS IN DB AS "CREATION" STAGE
+      if (attachments.length > 0) {
+        try {
 
-    for (const file of attachments) {
-      const meta = await jiraService.getLastUploadedAttachment(created.key, file.name);
 
-      await fetch("http://localhost:8080/api/jira/contracts/save-attachment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          issueKey: created.key,
+          for (const file of attachments) {
+            const meta = await jiraService.getLastUploadedAttachment(created.key, file.name);
 
-          // 📌 Backend expects metadata object
-          metadata: {
-            fileName: meta.filename,
-            content: meta.content,
-            size: meta.size,
-            mimeType: meta.mimeType || file.type || "application/octet-stream"
+            if (!meta) {
+              console.warn(`Attachment metadata not found for file: ${file.name}`);
+              continue;
+            }
+
+            await fetch("http://localhost:8080/api/jira/contracts/save-attachment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                issueKey: created.key,
+
+                // 📌 Backend expects metadata object
+                metadata: {
+                  fileName: meta.filename,
+                  content: meta.content,
+                  size: meta.size,
+                  mimeType: meta.mimeType || file.type || "application/octet-stream"
+                }
+              })
+            });
           }
-        })
-      });
-    }
 
-    console.log("📁 Attachments saved in DB successfully");
-  } catch (err) {
-    console.error("❌ Error saving attachment in DB: ", err);
-  }
-}
-
+          console.log("📁 Attachments saved in DB successfully");
+        } catch (err) {
+          console.error("❌ Error saving attachment in DB: ", err);
+        }
+      }
 
 
       setSuccessMessage('Request successfully created');
       setErrorMessage('');
       setShowSuccess(true);
-      
+
       // Dispatch a custom event to notify other components to refresh the issue list
       window.dispatchEvent(new CustomEvent('requestCreated'));
 
@@ -588,7 +622,7 @@ if (attachments.length > 0) {
 
       onIssueCreated?.(created as CreatedIssue);
       resetForm();
-      
+
       // Redirect to AllOpen page after successful submission
       setTimeout(() => {
         onClose();
@@ -606,8 +640,12 @@ if (attachments.length > 0) {
   // click outside handler
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        dropdownRef.current.classList.add('hidden');
+      // Check if click is outside both dropdowns
+      if (vendorDropdownRef.current && !vendorDropdownRef.current.contains(e.target as Node)) {
+        setShowVendorDropdown(false);
+      }
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
+        setShowProductDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -683,31 +721,111 @@ if (attachments.length > 0) {
               {/* NEW flow (supports vendor dropdown + detailed fields) */}
               {contractType === 'new' && (
                 <>
-                  <div>
+                  <div className="relative" ref={vendorDropdownRef}>
                     <label htmlFor="vendorName" className="block text-sm font-medium text-gray-700 mb-1">Vendor Name <span className="text-red-500">*</span></label>
-                    <select id="vendorName" value={vendorName} onChange={e => setVendorName(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm">
-                      <option value="">{loadingVendors ? 'Loading vendors...' : 'Select Vendor'}</option>
-                      {vendors.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
+                    <input
+                      id="vendorName"
+                      type="text"
+                      value={vendorName}
+                      onChange={e => {
+                        setVendorName(e.target.value);
+                        setShowVendorDropdown(true);
+                        // Hide product dropdown when typing in vendor
+                        setShowProductDropdown(false);
+                      }}
+                      placeholder={loadingVendors ? 'Loading vendors...' : 'Type or select vendor'}
+                      className="w-full border rounded-md py-2 px-3 text-sm"
+                      autoComplete="off"
+                      onFocus={() => {
+                        setShowVendorDropdown(true);
+                        // Hide product dropdown when focusing on vendor
+                        setShowProductDropdown(false);
+                      }}
+                      onBlur={() => {
+                        // Delay closing dropdown to allow item click
+                        setTimeout(() => setShowVendorDropdown(false), 150);
+                      }}
+                    />
+                    {showVendorDropdown && vendorName && (
+                      <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md max-h-40 overflow-auto dark:bg-gray-700">
+                        {filteredVendors.length > 0 ? filteredVendors.map((v, index) => (
+                          <li
+                            key={index}
+                            className="px-3 py-1 cursor-pointer hover:bg-blue-600 hover:text-white dark:hover:bg-blue-500"
+                            onMouseDown={(e) => {
+                              e.preventDefault(); // Prevent blur event
+                              setVendorName(v);
+                              setShowVendorDropdown(false);
+                              // Show product dropdown after selecting vendor
+                              setTimeout(() => {
+                                if (productName) {
+                                  setShowProductDropdown(true);
+                                }
+                              }, 150);
+                            }}
+                          >
+                            {v}
+                          </li>
+                        )) : (
+                          <li className="px-3 py-1 text-gray-500">No vendors found</li>
+                        )}
+                      </ul>
+                    )}
                     {errors.vendorName && <p className="mt-1 text-sm text-red-600">{errors.vendorName}</p>}
                   </div>
 
-                  <div>
+                  <div className="relative" ref={productDropdownRef}>
                     <label htmlFor="productName" className="block text-sm font-medium text-gray-700 mb-1">Product Name <span className="text-red-500">*</span></label>
-                    <select id="productName" value={productName} onChange={handleProductChange} className="w-full border rounded-md py-2 px-3 text-sm">
-                      <option value="">{loadingProducts ? 'Loading products...' : 'Select Product'}</option>
-                      {products.map(p => <option key={p.id} value={p.productName}>{p.productName}</option>)}
-                    </select>
+                    <input
+                      id="productName"
+                      type="text"
+                      value={productName}
+                      onChange={e => {
+                        setProductName(e.target.value);
+                        setShowProductDropdown(true);
+                      }}
+                      placeholder={loadingProducts ? 'Loading products...' : 'Type or select product'}
+                      className="w-full border rounded-md py-2 px-3 text-sm"
+                      autoComplete="off"
+                      onFocus={() => {
+                        setShowProductDropdown(true);
+                        // Hide vendor dropdown when focusing on product
+                        setShowVendorDropdown(false);
+                      }}
+                      onBlur={() => {
+                        // Delay closing dropdown to allow item click
+                        setTimeout(() => setShowProductDropdown(false), 150);
+                      }}
+                    />
+                    {showProductDropdown && productName && (
+                      <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md max-h-40 overflow-auto dark:bg-gray-700">
+                        {filteredProducts.length > 0 ? filteredProducts.map((p) => (
+                          <li
+                            key={p.id}
+                            className="px-3 py-1 cursor-pointer hover:bg-blue-600 hover:text-white dark:hover:bg-blue-500"
+                            onMouseDown={(e) => {
+                              e.preventDefault(); // Prevent blur event
+                              setProductName(p.productName);
+                              setShowProductDropdown(false);
+                            }}
+                          >
+                            {p.productName}
+                          </li>
+                        )) : (
+                          <li className="px-3 py-1 text-gray-500">No products found</li>
+                        )}
+                      </ul>
+                    )}
                     {errors.productName && <p className="mt-1 text-sm text-red-600">{errors.productName}</p>}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Contract Billing</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contract Billing <span className="text-red-500">*</span></label>
                     <div className="flex flex-col space-y-2">
                       <label htmlFor="billingUsage"><input id="billingUsage" type="radio" value="usage" checked={vendorContractType === 'usage'} onChange={() => setVendorContractType('usage')} /> Usage</label>
                       <label htmlFor="billingLicense"><input id="billingLicense" type="radio" value="license" checked={vendorContractType === 'license'} onChange={() => setVendorContractType('license')} /> License</label>
                     </div>
-                    
+
                     {/* Show a message if the product type doesn't match the selected billing type */}
                     {productType && vendorContractType && productType !== vendorContractType && (
                       <div className="mt-2 text-sm text-yellow-600">
@@ -738,7 +856,7 @@ if (attachments.length > 0) {
 
                         {newUnits === 'others' && (
                           <div className="mt-2">
-                            <label htmlFor="newUnitsOther" className="block text-sm font-medium text-gray-700 mb-1">Specify other unit</label>
+                            <label htmlFor="newUnitsOther" className="block text-sm font-medium text-gray-700 mb-1">Specify other unit <span className="text-red-500">*</span></label>
                             <input id="newUnitsOther" value={newUnitsOther} onChange={e => setNewUnitsOther(e.target.value)} placeholder="Type unit (e.g. messages, transactions)" className="w-full border rounded-md py-2 px-3 text-sm" />
                             {errors.newUnitsOther && <p className="mt-1 text-sm text-red-600">{errors.newUnitsOther}</p>}
                           </div>
@@ -750,7 +868,10 @@ if (attachments.length > 0) {
                       <div className="mt-3">
                         <label htmlFor="newLicenseCount" className="block text-sm font-medium text-gray-700 mb-1">How many licenses do you want? <span className="text-red-500">*</span></label>
                         <div className="flex items-end space-x-3">
-                          <input id="newLicenseCount" type="number" value={newLicenseCount} onChange={e => setNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="License Count" className="flex-1 border rounded-md py-2 px-3 text-sm" />
+                          <input id="newLicenseCount" type="number" min={0} value={newLicenseCount} onChange={e => {
+                            const val = e.target.value === '' ? '' : Number(e.target.value);
+                            if (val === '' || val >= 0) setNewLicenseCount(val);
+                          }} placeholder="License Count" className="flex-1 border rounded-md py-2 px-3 text-sm" />
                           <div style={{ minWidth: 140 }}>
                             <label htmlFor="newLicenseUnit" className="block text-xs font-medium text-gray-700 mb-1">Unit</label>
                             <select id="newLicenseUnit" value={newLicenseUnit} onChange={e => setNewLicenseUnit(e.target.value as any)} className="w-full border rounded-md py-2 px-3 text-sm">
@@ -769,7 +890,10 @@ if (attachments.length > 0) {
 
                   <div>
                     <label htmlFor="contractDuration" className="block text-sm font-medium text-gray-700 mb-1">Contract Duration (months) <span className="text-red-500">*</span></label>
-                    <input id="contractDuration" type="number" value={contractDuration} onChange={e => setContractDuration(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter duration in months" className="w-full border rounded-md py-2 px-3 text-sm" />
+                    <input id="contractDuration" type="number" min={0} value={contractDuration} onChange={e => {
+                      const val = e.target.value === '' ? '' : Number(e.target.value);
+                      if (val === '' || val >= 0) setContractDuration(val);
+                    }} placeholder="Enter duration in months" className="w-full border rounded-md py-2 px-3 text-sm" />
                     {errors.contractDuration && <p className="mt-1 text-sm text-red-600">{errors.contractDuration}</p>}
                   </div>
 
@@ -778,7 +902,7 @@ if (attachments.length > 0) {
                     <div className="flex items-center space-x-2">
                       <input id="dueDate" ref={dueDateRef} type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
                       <button type="button" onClick={focusDueDate} className="p-2 border rounded-md bg-white" aria-label="Open due date picker">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 11H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M15 11H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M7 11H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M15 11H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" /><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       </button>
                     </div>
                     {errors.dueDate && <p className="mt-1 text-sm text-red-600">{errors.dueDate}</p>}
@@ -870,8 +994,8 @@ if (attachments.length > 0) {
 
                           {renewalNewUnits === 'others' && (
                             <div className="mt-2">
-                            <label htmlFor="renewalNewUnitsOther" className="block text-sm font-medium text-gray-700 mb-1">Specify other unit for renewal</label>
-                            <input id="renewalNewUnitsOther" value={renewalNewUnitsOther} onChange={e => setRenewalNewUnitsOther(e.target.value)} placeholder="Type unit (e.g. transactions)" className="w-full border rounded-md py-2 px-3 text-sm" />
+                              <label htmlFor="renewalNewUnitsOther" className="block text-sm font-medium text-gray-700 mb-1">Specify other unit for renewal <span className="text-red-500">*</span></label>
+                              <input id="renewalNewUnitsOther" value={renewalNewUnitsOther} onChange={e => setRenewalNewUnitsOther(e.target.value)} placeholder="Type unit (e.g. transactions)" className="w-full border rounded-md py-2 px-3 text-sm" />
                               {errors.renewalNewUnitsOther && <p className="mt-1 text-sm text-red-600">{errors.renewalNewUnitsOther}</p>}
                             </div>
                           )}
@@ -920,15 +1044,18 @@ if (attachments.length > 0) {
 
                   <div>
                     <label htmlFor="contractDurationExisting" className="block text-sm font-medium text-gray-700 mb-1">Contract Duration (months)</label>
-                    <input id="contractDurationExisting" type="number" value={contractDuration} onChange={e => setContractDuration(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter duration in months" className="w-full border rounded-md py-2 px-3 text-sm" />
+                    <input id="contractDurationExisting" type="number" min={0} value={contractDuration} onChange={e => {
+                      const val = e.target.value === '' ? '' : Number(e.target.value);
+                      if (val === '' || val >= 0) setContractDuration(val);
+                    }} placeholder="Enter duration in months" className="w-full border rounded-md py-2 px-3 text-sm" />
                   </div>
 
                   <div>
                     <label htmlFor="renewalDate" className="block text-sm font-medium text-gray-700 mb-1">Renewal Date</label>
-                                                                                                                                                                                                        <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2">
                       <input id="renewalDate" ref={renewalDateRef} type="date" value={renewalDate} readOnly disabled className="w-full border rounded-md py-2 px-3 text-sm bg-gray-100" />
                       <button type="button" onClick={focusRenewalDate} className="p-2 border rounded-md bg-white" aria-label="Open renewal date picker">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" /><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       </button>
                     </div>
                   </div>
@@ -938,7 +1065,7 @@ if (attachments.length > 0) {
                     <div className="flex items-center space-x-2">
                       <input id="dueDateExisting" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border rounded-md py-2 px-3 text-sm" />
                       <button type="button" onClick={() => dueDateRef.current?.focus()} className="p-2 border rounded-md bg-white" aria-label="Open due date picker">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" /><path d="M16 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 3V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       </button>
                     </div>
                   </div>
@@ -960,9 +1087,24 @@ if (attachments.length > 0) {
                       id="attachments"
                       type="file"
                       multiple
-                      onChange={(e) => setAttachments(Array.from(e.target.files || []))}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg'];
+                        const validFiles = files.filter(file => validTypes.includes(file.type.toLowerCase()));
+
+                        if (validFiles.length !== files.length) {
+                          setErrorMessage('Only PDF and JPG files are allowed as attachments.');
+                        } else {
+                          setErrorMessage('');
+                        }
+                        setAttachments(validFiles);
+                      }}
                       className="w-full border rounded-md py-2 px-3 text-sm"
+                      accept=".pdf,.jpg,.jpeg,.png"
                     />
+                    {errorMessage && (
+                      <p className="mt-1 text-sm text-red-600">{errorMessage}</p>
+                    )}
                     {attachments.length > 0 && (
                       <div className="mt-2">
                         <p className="text-sm text-gray-600">Selected files:</p>
@@ -979,18 +1121,17 @@ if (attachments.length > 0) {
             </div>
 
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
-              <button 
-                onClick={() => { resetForm(); onClose(); }} 
+              <button
+                onClick={() => { resetForm(); onClose(); }}
                 className="px-4 py-2 text-sm bg-white border rounded-md"
                 disabled={isSubmitting}
               >
                 Cancel
               </button>
-              <button 
-                onClick={handleSubmit} 
-                className={`px-4 py-2 text-sm text-white rounded-md flex items-center ${
-                  isSubmitting ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
+              <button
+                onClick={handleSubmit}
+                className={`px-4 py-2 text-sm text-white rounded-md flex items-center ${isSubmitting ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (

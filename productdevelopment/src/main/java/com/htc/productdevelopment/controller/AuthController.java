@@ -527,7 +527,7 @@ public class AuthController {
         
         try {
             // Sync all users
-            List<User> users = firebaseSyncService.syncAllUsers();
+            List<User> users = firebaseSyncService.syncAllFirebaseUsers();
             logger.info("All Firebase users synced successfully, count: {}", users.size());
             return ResponseEntity.ok(Map.of("message", "Synced " + users.size() + " users", "users", users));
         } catch (Exception e) {

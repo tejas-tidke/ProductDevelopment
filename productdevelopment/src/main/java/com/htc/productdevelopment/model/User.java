@@ -31,8 +31,8 @@ public class User {
     private String name;
 
     // ---------- 🔥 Department Relation ----------
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "department_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "department_id", nullable = true)
     private Department department;
     // --------------------------------------------
 
