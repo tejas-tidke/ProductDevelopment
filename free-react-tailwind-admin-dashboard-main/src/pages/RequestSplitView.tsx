@@ -5,11 +5,9 @@ import { jiraService, IssueTransition } from "../services/jiraService";
 import { CustomFilterDropdown } from "../components/filters/CustomFilterDropdown";
 import { usePermissions } from "../hooks/usePermissions";
 import EditIssueModal from "../components/modals/EditIssueModal";
-// import { createQuote } from "../services/quoteService";
 import { useNotifications } from "../context/NotificationContext";
 import { useAuth } from "../context/AuthContext";
 import { commentService } from "../services/commentService";
-
 
 // Define minimal ADF interfaces (enough for description rendering)
 interface AdfNode {
@@ -134,7 +132,10 @@ interface Comment {
   body: string;
   created: string;
   updated: string;
+  parentCommentId?: number | null;
+  replies?: Comment[];
 }
+
 interface HistoryItem {
   id: string;
   author: { displayName: string; avatarUrls: { "48x48": string } };
@@ -184,7 +185,6 @@ interface ContractProposalDto {
   createdAt: string;
   final: boolean;
 }
-
 
 interface Activity {
   id: string;
@@ -256,19 +256,17 @@ const IssueTypeIcon: React.FC<{ type: string; size?: "sm" | "md" | "lg" }> = ({
   );
 };
 
-
-
 const RequestSplitView: React.FC = () => {
   const { issueKey } = useParams<{ issueKey: string }>();
-  const {
-    userRole,
-    canAccessDepartmentIssues,
-  } = usePermissions();
-  
+  const { userRole, canAccessDepartmentIssues } = usePermissions();
+
   // Get current user information from AuthContext
   const { userData } = useAuth();
 
-  // ⬇️ FIX: move getFieldValue HERE (before any useState!)
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+
+  // helper to read fields
   const getFieldValue = (keys: string[]) => {
     if (!selectedIssue) return "";
     for (const k of keys) {
@@ -287,12 +285,8 @@ const RequestSplitView: React.FC = () => {
     return "";
   };
 
-
   // Custom function to check if issue can be edited
   const canEditIssue = () => {
-    // if (!canEditIssueBase()) {
-    //   return false;
-    // }
     const currentStatus = selectedIssue?.fields?.status?.name || "";
     if (currentStatus === "Completed" || currentStatus === "Declined") {
       return false;
@@ -310,13 +304,9 @@ const RequestSplitView: React.FC = () => {
   const [sortField, setSortField] = useState<string>("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  // data
-  const [issues, setIssues] = useState<Issue[]>([]);
-  const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { addNotification } = useNotifications();
-
 
   // dropdowns
   const [assignees, setAssignees] = useState<{ id: string; name: string }[]>(
@@ -329,19 +319,22 @@ const RequestSplitView: React.FC = () => {
   // UI
   const [isMoreDropdownOpen, setIsMoreDropdownOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"comments">("comments");
-  const [comments, setComments] = useState<Comment[]>([]);
 
+  const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [isAddingComment, setIsAddingComment] = useState(false);
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(
+    null
+  );
+  const [replyText, setReplyText] = useState("");
+
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [proposals, setProposals] = useState<ContractProposalDto[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [transitions, setTransitions] = useState<Transition[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
-const [isLoadingProposals, setIsLoadingProposals] = useState(false);
-const { issueKey: issueKeyFromParams } = useParams();
-
-
+  const [isLoadingProposals, setIsLoadingProposals] = useState(false);
+  const { issueKey: issueKeyFromParams } = useParams();
 
   const [selectedTransition, setSelectedTransition] = useState<string>("");
 
@@ -352,48 +345,40 @@ const { issueKey: issueKeyFromParams } = useParams();
   const [isUploadQuoteModalOpen, setIsUploadQuoteModalOpen] = useState(false);
   const [isTransitionDropdownOpen, setIsTransitionDropdownOpen] =
     useState(false);
-const [currentProposal, setCurrentProposal] = useState<
-  "first" | "second" | "third" | "final"
->("first");
 
-// New proposal fields
-const [unitCost, setUnitCost] = useState("");
-const [editableLicenseCount, setEditableLicenseCount] = useState(
-  getFieldValue(["customfield_10293", "customfield_10294"]) || "0"
-);
-const totalCost = Number(editableLicenseCount || 0) * Number(unitCost || 0);
+  const [currentProposal, setCurrentProposal] = useState<
+    "first" | "second" | "third" | "final"
+  >("first");
 
-const [proposalComment, setProposalComment] = useState("");
+  const [unitCost, setUnitCost] = useState("");
+  const [editableLicenseCount, setEditableLicenseCount] = useState(
+    getFieldValue(["customfield_10293", "customfield_10294"]) || "0"
+  );
+  const totalCost = Number(editableLicenseCount || 0) * Number(unitCost || 0);
 
-// Attachments chosen in Upload Quote modal
-const [quoteAttachments, setQuoteAttachments] = useState<File[]>([]);
+  const [proposalComment, setProposalComment] = useState("");
 
-// Final proposal flag (used to enable status transition)
-const [hasSubmittedFinalQuote, setHasSubmittedFinalQuote] = useState(false);
+  const [quoteAttachments, setQuoteAttachments] = useState<File[]>([]);
 
-const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
+  const [hasSubmittedFinalQuote, setHasSubmittedFinalQuote] = useState(false);
 
-const [previewProposal, setPreviewProposal] = useState<ContractProposalDto | null>(null);
+  const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
 
+  const [previewProposal, setPreviewProposal] =
+    useState<ContractProposalDto | null>(null);
 
-  // split view
   const [leftPanelWidth, setLeftPanelWidth] = useState(30);
   const [isResizing, setIsResizing] = useState(false);
   const splitViewRef = useRef<HTMLDivElement>(null);
-//helperssss(Anurag)
-
 
   const isInNegotiationStage =
-  selectedIssue?.fields?.status?.name === "Negotiation Stage";
+    selectedIssue?.fields?.status?.name === "Negotiation Stage";
 
-const isTransitionDisabled =
-  userRole !== "SUPER_ADMIN" &&
-  isInNegotiationStage &&
-  !hasSubmittedFinalQuote;
+  const isTransitionDisabled =
+    userRole !== "SUPER_ADMIN" &&
+    isInNegotiationStage &&
+    !hasSubmittedFinalQuote;
 
-
-  // helpers to read fields from different possible keys
-  
   const formatAsYMD = (val: string) => {
     if (!val) return "";
     const d = new Date(val);
@@ -438,70 +423,71 @@ const isTransitionDisabled =
   const fetchIssueDetails = async (issueKey: string) => {
     try {
       // Fetch comments using our custom comment service
-      // --- START replace block ---
-const commentsResponse = await commentService.getCommentsByIssueKey(issueKey);
-const customComments = commentsResponse.comments || [];
+      const commentsResponse = await commentService.getCommentsByIssueKey(
+        issueKey
+      );
+      const customComments = commentsResponse.comments || [];
 
-// Helper to resolve avatar URL (checks likely fields + fallback)
-const resolveAvatarUrl = (c: any, fallbackName?: string) => {
-  const name = fallbackName || c.userName || c.user?.displayName || "User";
-  return (
-    c.avatarUrl ||
-    c.userAvatar ||
-    c.user?.avatarUrl ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=E2E8F0&color=111827&rounded=true&size=48`
-  );
-};
+      // Recursive mapper: backend CommentDto -> UI Comment
+      const mapDtoToUiComment = (dto: any): Comment => ({
+        id: dto.id.toString(),
+        author: {
+          displayName: dto.userName,
+          avatarUrls: { "48x48": "https://via.placeholder.com/48" },
+        },
+        body: dto.commentText,
+        created: dto.createdAt,
+        updated: dto.updatedAt || dto.createdAt,
+        parentCommentId: dto.parentCommentId ?? null,
+        replies: (dto.replies || []).map(mapDtoToUiComment),
+      });
 
-const formattedComments: Comment[] = customComments.map((comment: any) => {
-  const name = comment.userName || comment.user?.displayName || "User";
-  const avatar = resolveAvatarUrl(comment, name);
-
-  return {
-    id: String(comment.id),
-    author: {
-      displayName: name,
-      avatarUrls: { "48x48": avatar },
-    },
-    body: comment.commentText,
-    created: comment.createdAt,
-    updated: comment.updatedAt || comment.createdAt,
-  } as Comment;
-});
-
-setComments(formattedComments);
-// --- END replace block ---
-
-      
+      const formattedComments: Comment[] = customComments.map(mapDtoToUiComment);
       setComments(formattedComments);
-      
+
+      // flatten comments for activities
+      const flattenComments = (items: Comment[]): Comment[] =>
+        items.reduce<Comment[]>((acc, c) => {
+          acc.push(c);
+          if (c.replies && c.replies.length) {
+            acc.push(...flattenComments(c.replies));
+          }
+          return acc;
+        }, []);
+
+      const flatComments = flattenComments(formattedComments);
+
       // Fetch attachments from our database instead of Jira directly
-      const attachmentsData = await jiraService.getAttachmentsByIssueKey(issueKey);
-      
-      // Transform our database attachment objects to the format expected by the UI
-      const transformedAttachments: Attachment[] = (attachmentsData || []).map((attachment: any) => ({
-        // Use our database fields with fallback to Jira fields
-        id: attachment.id?.toString() || '',
-        filename: attachment.fileName || attachment.filename || 'Unknown file',
-        content: attachment.fileUrl || attachment.content || '',
-        size: attachment.fileSize || attachment.size || 0,
-        mimeType: attachment.mimeType || '',
-        created: attachment.uploadedAt || attachment.created || new Date().toISOString(),
-        // Keep our database fields for internal use
-        fileName: attachment.fileName,
-        fileUrl: attachment.fileUrl,
-        fileSize: attachment.fileSize,
-        uploadedBy: attachment.uploadedBy,
-        stage: attachment.stage,
-        uploadedAt: attachment.uploadedAt,
-        jiraIssueKey: attachment.jiraIssueKey,
-        proposalId: attachment.proposalId,
-      }));
-      
+      const attachmentsData = await jiraService.getAttachmentsByIssueKey(
+        issueKey
+      );
+
+      const transformedAttachments: Attachment[] = (attachmentsData || []).map(
+        (attachment: any) => ({
+          id: attachment.id?.toString() || "",
+          filename: attachment.fileName || attachment.filename || "Unknown file",
+          content: attachment.fileUrl || attachment.content || "",
+          size: attachment.fileSize || attachment.size || 0,
+          mimeType: attachment.mimeType || "",
+          created:
+            attachment.uploadedAt ||
+            attachment.created ||
+            new Date().toISOString(),
+          fileName: attachment.fileName,
+          fileUrl: attachment.fileUrl,
+          fileSize: attachment.fileSize,
+          uploadedBy: attachment.uploadedBy,
+          stage: attachment.stage,
+          uploadedAt: attachment.uploadedAt,
+          jiraIssueKey: attachment.jiraIssueKey,
+          proposalId: attachment.proposalId,
+        })
+      );
+
       setAttachments(transformedAttachments);
 
       const allActivities: Activity[] = [
-        ...formattedComments.map((comment: Comment) => ({
+        ...flatComments.map((comment: Comment) => ({
           id: `comment-${comment.id}`,
           type: "comment" as const,
           author: comment.author,
@@ -523,61 +509,46 @@ setComments(formattedComments);
   };
 
   // Fetch proposal details for preview modal
-const handlePreviewProposal = async (proposalId: number) => {
-  try {
-    const res = await fetch(
-      `http://localhost:8080/api/jira/proposals/${proposalId}`
-    );
+  const handlePreviewProposal = async (proposalId: number) => {
+    try {
+      const res = await fetch(
+        `http://localhost:8080/api/jira/proposals/${proposalId}`
+      );
 
-    if (!res.ok) throw new Error("Failed to load proposal");
+      if (!res.ok) throw new Error("Failed to load proposal");
 
-    const data = await res.json();
-    setPreviewProposal(data);
-  } catch (err) {
-    console.error("Preview load error:", err);
-    alert("Failed to load proposal preview");
-  }
-};
-
-
+      const data = await res.json();
+      setPreviewProposal(data);
+    } catch (err) {
+      console.error("Preview load error:", err);
+      alert("Failed to load proposal preview");
+    }
+  };
 
   const loadProposals = async (issueKey: string) => {
-  try {
-    setIsLoadingProposals(true);
-    const res = await fetch(
-  `http://localhost:8080/api/jira/proposals/issue/${issueKey}`
-);
+    try {
+      setIsLoadingProposals(true);
+      const res = await fetch(
+        `http://localhost:8080/api/jira/proposals/issue/${issueKey}`
+      );
 
-    if (!res.ok) {
-      throw new Error("Failed to load proposals");
+      if (!res.ok) {
+        throw new Error("Failed to load proposals");
+      }
+      const data: ContractProposalDto[] = await res.json();
+      setProposals(data || []);
+
+      // If any proposal is final → allow transition from negotiation
+      const hasFinal = (data || []).some((p) => p.final);
+      setHasSubmittedFinalQuote(hasFinal);
+    } catch (err) {
+      console.error("Error loading proposals:", err);
+      setProposals([]);
+      setHasSubmittedFinalQuote(false);
+    } finally {
+      setIsLoadingProposals(false);
     }
-    const data: ContractProposalDto[] = await res.json();
-    setProposals(data || []);
-    // Calculate profit for UI
-if (data.length > 1) {
-  const beforeFinal = data[data.length - 2];
-  const final = data[data.length - 1];
-
-  if (final.final) {
-    const profit =
-      Number(beforeFinal.totalCost || 0) -
-      Number(final.totalCost || 0);
-    setProfitValue(profit);
-  }
-}
-
-    // If any proposal is final → allow transition from negotiation
-    const hasFinal = (data || []).some((p) => p.final);
-    setHasSubmittedFinalQuote(hasFinal);
-  } catch (err) {
-    console.error("Error loading proposals:", err);
-    setProposals([]);
-    setHasSubmittedFinalQuote(false);
-  } finally {
-    setIsLoadingProposals(false);
-  }
-};
-
+  };
 
   // click outside to close
   useEffect(() => {
@@ -590,7 +561,8 @@ if (data.length > 1) {
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return () =>
+      document.removeEventListener("mousedown", handleClickOutside);
   }, [isMoreDropdownOpen]);
 
   useEffect(() => {
@@ -633,9 +605,7 @@ if (data.length > 1) {
 
         try {
           const fieldsData: JiraField[] = await jiraService.getFields();
-          const customFieldsData = fieldsData.filter(
-            (field) => field.custom
-          );
+          const customFieldsData = fieldsData.filter((field) => field.custom);
           setCustomFields(customFieldsData);
         } catch (err) {
           console.error("Error fetching Jira fields:", err);
@@ -718,8 +688,7 @@ if (data.length > 1) {
 
         if (issueKey) {
           const foundIssue =
-            allIssues.find((issue) => issue.key === issueKey) ||
-            null;
+            allIssues.find((issue) => issue.key === issueKey) || null;
           setSelectedIssue(foundIssue);
           if (foundIssue)
             setSelectedStatus(foundIssue.fields.status?.name || "");
@@ -759,8 +728,6 @@ if (data.length > 1) {
       setSelectedStatus("");
     }
   }, [selectedProject, selectedStatus]);
-
-  
 
   // Filtering logic
   const filteredIssues = useMemo(() => {
@@ -839,7 +806,7 @@ if (data.length > 1) {
   const handleIssueClick = (issue: Issue) => {
     setSelectedIssue(issue);
     setSelectedStatus(issue.fields.status?.name || "");
-    setHasSubmittedFinalQuote(false); //(Anurag enable )
+    setHasSubmittedFinalQuote(false);
     navigate(`/request-management/${issue.key}`, { replace: true });
   };
 
@@ -893,6 +860,32 @@ if (data.length > 1) {
     return colorMap[colorName || ""] || "#A5ADBA";
   };
 
+  // Insert a reply into the nested comments tree
+  const insertReplyIntoTree = (
+    nodes: Comment[],
+    parentId: string,
+    reply: Comment
+  ): Comment[] => {
+    return nodes.map((node) => {
+      if (node.id === parentId) {
+        const existingReplies = node.replies || [];
+        return {
+          ...node,
+          replies: [...existingReplies, reply],
+        };
+      }
+
+      if (node.replies && node.replies.length > 0) {
+        return {
+          ...node,
+          replies: insertReplyIntoTree(node.replies, parentId, reply),
+        };
+      }
+
+      return node;
+    });
+  };
+
   const handleDeleteIssue = () => {
     if (
       selectedIssue &&
@@ -912,32 +905,37 @@ if (data.length > 1) {
     if (newComment.trim() && selectedIssue) {
       try {
         setIsAddingComment(true);
-        
+
         if (!userData) {
           throw new Error("User not authenticated");
         }
-        
-        // Create comment using our custom comment service
+
         const response = await commentService.addComment({
           issueKey: selectedIssue.key,
           userId: userData.user.id,
           userName: userData.user.name,
-          commentText: newComment
+          commentText: newComment,
+          parentCommentId: null,
         });
-        
+
         const comment: Comment = {
           id: response.id.toString(),
           author: {
-            displayName: response.userName || "Current User",
+            displayName: response.userName || userData.user.name,
             avatarUrls: {
               "48x48": "https://via.placeholder.com/48",
             },
           },
           body: response.commentText || newComment,
           created: response.createdAt || new Date().toISOString(),
-          updated: response.updatedAt || new Date().toISOString(),
+          updated:
+            response.updatedAt ||
+            response.createdAt ||
+            new Date().toISOString(),
+          parentCommentId: response.parentCommentId ?? null,
+          replies: [],
         };
-        
+
         setComments((prev) => [comment, ...prev]);
         const activity: Activity = {
           id: `comment-${comment.id}`,
@@ -948,12 +946,69 @@ if (data.length > 1) {
         };
         setActivities((prev) => [activity, ...prev]);
         setNewComment("");
-        setIsAddingComment(false);
       } catch (err) {
         console.error("Error adding comment:", err);
         alert("Failed to add comment. Please try again.");
+      } finally {
         setIsAddingComment(false);
       }
+    }
+  };
+
+  const handleAddReply = async (parentId: string) => {
+    if (!replyText.trim() || !selectedIssue) return;
+
+    try {
+      setIsAddingComment(true);
+
+      if (!userData) {
+        throw new Error("User not authenticated");
+      }
+
+      const response = await commentService.addComment({
+        issueKey: selectedIssue.key,
+        userId: userData.user.id,
+        userName: userData.user.name,
+        commentText: replyText,
+        parentCommentId: Number(parentId),
+      });
+
+      const replyComment: Comment = {
+        id: response.id.toString(),
+        author: {
+          displayName: response.userName || userData.user.name,
+          avatarUrls: {
+            "48x48": "https://via.placeholder.com/48",
+          },
+        },
+        body: response.commentText || replyText,
+        created: response.createdAt || new Date().toISOString(),
+        updated:
+          response.updatedAt ||
+          response.createdAt ||
+          new Date().toISOString(),
+        parentCommentId: response.parentCommentId ?? Number(parentId),
+        replies: [],
+      };
+
+      setComments((prev) => insertReplyIntoTree(prev, parentId, replyComment));
+
+      const activity: Activity = {
+        id: `comment-${replyComment.id}`,
+        type: "comment",
+        author: replyComment.author,
+        created: replyComment.created,
+        data: replyComment,
+      };
+      setActivities((prev) => [activity, ...prev]);
+
+      setReplyingToCommentId(null);
+      setReplyText("");
+    } catch (err) {
+      console.error("Error adding reply:", err);
+      alert("Failed to add reply. Please try again.");
+    } finally {
+      setIsAddingComment(false);
     }
   };
 
@@ -986,97 +1041,76 @@ if (data.length > 1) {
     else navigate("/issues-split");
   };
 
-  // Helper to build full "to" status block (TS-safe)
-const buildToStatus = (id: string, name: string, color: string = "green") => ({
-  id,
-  name,
-  statusCategory: {
-    id: 3,
-    key: "done",
-    colorName: color,
-  },
-});
-
-const getCustomTransitions = (): IssueTransition[] => {
-  if (!selectedIssue) return [];
-
-  const role = userRole;
-  const currentStatus = selectedIssue.fields?.status?.name || "";
-
-  const transitions: IssueTransition[] = [];
-
-  // APPROVE + DECLINE builder (role-independent)
-  const APPROVE_DECLINE = (approveId: string, toName: string) => [
-    {
-      id: approveId,
-      name: "Approve",
-      to: buildToStatus(approveId, toName),
+  const buildToStatus = (id: string, name: string, color: string = "green") => ({
+    id,
+    name,
+    statusCategory: {
+      id: 3,
+      key: "done",
+      colorName: color,
     },
-    {
-      id: "6",
-      name: "Decline",
-      to: buildToStatus("6", "Declined", "warm-red"),
-    },
-  ];
+  });
 
-  // ===============================
-  // WORKFLOW MATCHING YOUR IDs
-  // ===============================
+  const getCustomTransitions = (): IssueTransition[] => {
+    if (!selectedIssue) return [];
 
-  switch (currentStatus) {
-    case "Request Created":
-      transitions.push(...APPROVE_DECLINE("3", "Pre-Approval"));
-      break;
+    const role = userRole;
+    const currentStatus = selectedIssue.fields?.status?.name || "";
 
-    case "Pre-Approval":
-    case "Pre-approval":
-      transitions.push(...APPROVE_DECLINE("2", "Request Review Stage"));
-      break;
+    const transitions: IssueTransition[] = [];
 
-    case "Request Review Stage":
-      transitions.push(...APPROVE_DECLINE("4", "Negotiation Stage"));
-      break;
+    const APPROVE_DECLINE = (approveId: string, toName: string) => [
+      {
+        id: approveId,
+        name: "Approve",
+        to: buildToStatus(approveId, toName),
+      },
+      {
+        id: "6",
+        name: "Decline",
+        to: buildToStatus("6", "Declined", "warm-red"),
+      },
+    ];
 
-    case "Negotiation Stage":
-      transitions.push(...APPROVE_DECLINE("5", "Post Approval"));
-      break;
+    switch (currentStatus) {
+      case "Request Created":
+        transitions.push(...APPROVE_DECLINE("3", "Pre-Approval"));
+        break;
+      case "Pre-Approval":
+      case "Pre-approval":
+        transitions.push(...APPROVE_DECLINE("2", "Request Review Stage"));
+        break;
+      case "Request Review Stage":
+        transitions.push(...APPROVE_DECLINE("4", "Negotiation Stage"));
+        break;
+      case "Negotiation Stage":
+        transitions.push(...APPROVE_DECLINE("5", "Post Approval"));
+        break;
+      case "Post Approval":
+        transitions.push(...APPROVE_DECLINE("7", "Completed"));
+        break;
+      case "Completed":
+      case "Declined":
+        return [];
+    }
 
-    case "Post Approval":
-      transitions.push(...APPROVE_DECLINE("7", "Completed"));
-      break;
-
-    case "Completed":
-    case "Declined":
-      return [];
-  }
-
-  // ===============================
-  // ROLE FILTERING
-  // ===============================
-  switch (role) {
-    case "SUPER_ADMIN":
-    case "ADMIN":
-      return transitions;
-
-    case "DEPARTMENT_APPROVER":
-      return transitions.filter((t) => t.id !== "4");
-
-    case "EMPLOYEE":
-      if (currentStatus === "Request Created") return transitions;
-      return [];
-
-    case "REQUESTER":
-    default:
-      return [];
-  }
-};
-
-
-
+    switch (role) {
+      case "SUPER_ADMIN":
+      case "ADMIN":
+        return transitions;
+      case "DEPARTMENT_APPROVER":
+        return transitions.filter((t) => t.id !== "4");
+      case "EMPLOYEE":
+        if (currentStatus === "Request Created") return transitions;
+        return [];
+      case "REQUESTER":
+      default:
+        return [];
+    }
+  };
 
   const customTransitions = getCustomTransitions();
 
-  // Helper function to calculate total cost
   const calculateTotalCost = () => {
     const licenseCount = parseInt(
       getFieldValue(["customfield_10293", "customfield_10294"]) || "0",
@@ -1086,46 +1120,34 @@ const getCustomTransitions = (): IssueTransition[] => {
     return (licenseCount * unitCostValue).toFixed(2);
   };
 
-  // ==========================
-  // Contract-related read attempts (keys tried - you can extend keys if needed)
-  // ==========================
-
-  // Vendor & Product
+  // Contract-related field reads
   const vendorNameVal = getFieldValue(["customfield_10290"]);
   const productNameVal = getFieldValue(["customfield_10291"]);
   const billingTypeVal = getFieldValue(["customfield_10292"]);
   const vendorContractTypeVal = getFieldValue(["customfield_10245"]);
 
-
-  // Current contract values
   const currentLicenseCountVal = getFieldValue(["customfield_10293"]);
   const currentUsageCountVal = getFieldValue(["customfield_10294"]);
   const currentUnitsVal = getFieldValue(["customfield_10295"]);
 
-  // New renewal values
   const newLicenseCountVal = getFieldValue(["customfield_10296"]);
   const newUsageCountVal = getFieldValue(["customfield_10297"]);
   const newUnitsVal = getFieldValue(["customfield_10298"]);
 
-  // Requester info
   const requesterNameVal = getFieldValue(["customfield_10243"]);
   const requesterEmailVal = getFieldValue(["customfield_10246"]);
   const departmentVal = getFieldValue(["customfield_10244"]);
   const organizationVal = getFieldValue(["customfield_10337"]);
 
-  // Contract metadata
   const contractTypeVal = getFieldValue(["customfield_10299"]);
   const licenseUpdateTypeVal = getFieldValue(["customfield_10300"]);
   const existingContractIdVal = getFieldValue(["customfield_10301"]);
 
-  // Dates
   const dueDateVal = formatAsYMD(getFieldValue(["customfield_10302"]));
   const renewalDateVal = formatAsYMD(getFieldValue(["customfield_10303"]));
 
-  // Additional comments
   const additionalCommentsVal = getFieldValue(["customfield_10304"]);
 
-  // Normalized logic helpers
   const billingTypeNorm = (billingTypeVal || "").toLowerCase();
   const isUsageBilling = /usage|meter|consum/.test(billingTypeNorm);
   const isLicenseBilling = /licen|license|seat|user/.test(billingTypeNorm);
@@ -1135,146 +1157,126 @@ const getCustomTransitions = (): IssueTransition[] => {
     licenseUpdateTypeNorm === "upgrade" ||
     licenseUpdateTypeNorm === "downgrade";
 
+  const mapProposalType: Record<string, string> = {
+    first: "FIRST",
+    second: "SECOND",
+    third: "THIRD",
+    final: "FINAL",
+  };
 
-const mapProposalType: Record<string, string> = {
-  first: "FIRST",
-  second: "SECOND",
-  third: "THIRD",
-  final: "FINAL",
-};
+  const handleSubmitQuote = async () => {
+    if (!selectedIssue) {
+      alert("No issue selected");
+      return;
+    }
 
-  // Helper function to handle quote submission (REAL backend call)
-const handleSubmitQuote = async () => {
-  if (!selectedIssue) {
-    alert("No issue selected");
-    return;
-  }
+    setIsSubmittingQuote(true);
 
-  
+    try {
+      const issueKey = selectedIssue.key;
+      const isFinal = currentProposal === "final";
 
-  setIsSubmittingQuote(true);
+      const proposalRes = await fetch(
+        "http://localhost:8080/api/jira/contracts/add-proposal",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jiraIssueKey: issueKey,
+            licenseCount: editableLicenseCount,
+            unitCost: unitCost,
+            totalCost: totalCost,
+            comment: proposalComment,
+            isFinal: isFinal,
+            proposalType: mapProposalType[currentProposal],
+          }),
+        }
+      );
 
-  try {
-    const issueKey = selectedIssue.key;
-    const isFinal = currentProposal === "final";
-
-    // 1️⃣ Save proposal row in DB
-    const proposalRes = await fetch(
-      "http://localhost:8080/api/jira/contracts/add-proposal",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-  jiraIssueKey: issueKey,   // ← FIXED
-  licenseCount: editableLicenseCount,
-  unitCost: unitCost,
-  totalCost: totalCost,
-  comment: proposalComment,
-  isFinal: isFinal,
-  proposalType: mapProposalType[currentProposal]
-}),
-
-
-
+      if (!proposalRes.ok) {
+        throw new Error("Failed to save proposal");
       }
-    );
 
-    if (!proposalRes.ok) {
-      throw new Error("Failed to save proposal");
+      const proposalData = await proposalRes.json();
+      const proposalId: number =
+        proposalData.proposalId ?? proposalData.id ?? null;
+
+      let uploadedAttachments: Attachment[] = [];
+
+      for (const file of quoteAttachments) {
+        const resp = await jiraService.addAttachmentToIssue(issueKey, file);
+
+        if (Array.isArray(resp)) {
+          uploadedAttachments.push(...resp);
+        } else if (resp && Array.isArray((resp as any).attachments)) {
+          uploadedAttachments.push(...(resp as any).attachments);
+        }
+      }
+
+      const stageMap: Record<typeof currentProposal, string> = {
+        first: "FIRST_PROPOSAL",
+        second: "SECOND_PROPOSAL",
+        third: "THIRD_PROPOSAL",
+        final: "FINAL_PROPOSAL",
+      };
+
+      await Promise.all(
+        uploadedAttachments.map((att) =>
+          fetch("http://localhost:8080/api/jira/contracts/save-attachment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              issueKey,
+              fileName: att.filename,
+              fileUrl: att.content,
+              fileSize: att.size,
+              uploadedBy:
+                att.author?.displayName || requesterNameVal || "Unknown",
+              stage: stageMap[currentProposal],
+              proposalId: proposalId,
+            }),
+          })
+        )
+      );
+
+      if (issueKeyFromParams) {
+        await loadProposals(issueKeyFromParams);
+      }
+      await fetchIssueDetails(issueKey);
+
+      if (isFinal) {
+        setHasSubmittedFinalQuote(true);
+
+        await fetch(
+          "http://localhost:8080/api/jira/contracts/update-license-count",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              issueKey,
+              newLicenseCount: editableLicenseCount,
+            }),
+          }
+        );
+      }
+
+      setProposalComment("");
+      setQuoteAttachments([]);
+      setCurrentProposal("first");
+      setIsUploadQuoteModalOpen(false);
+
+      addNotification({
+        title: "Proposal saved",
+        message: `Proposal for ${issueKey} saved successfully.`,
+        issueKey: issueKey,
+      });
+    } catch (error) {
+      console.error("Error submitting quote:", error);
+      alert("Failed to submit proposal. Please try again.");
+    } finally {
+      setIsSubmittingQuote(false);
     }
-
-    const proposalData = await proposalRes.json();
-    const proposalId: number =
-      proposalData.proposalId ?? proposalData.id ?? null;
-
-    if (!proposalId) {
-      console.warn("Proposal saved but id not found in response:", proposalData);
-    }
-
-    // 2️⃣ Upload attachments to Jira (if any)
-    // 2️⃣ Upload attachments to Jira (if any)
-let uploadedAttachments: Attachment[] = [];
-
-for (const file of quoteAttachments) {
-  const resp = await jiraService.addAttachmentToIssue(issueKey, file);
-
-  if (Array.isArray(resp)) {
-    uploadedAttachments.push(...resp);
-  } else if (resp && Array.isArray((resp as any).attachments)) {
-    uploadedAttachments.push(...(resp as any).attachments);
-  }
-}
-
-// 3️⃣ For each uploaded attachment → save metadata in DB
-const stageMap: Record<typeof currentProposal, string> = {
-  first: "FIRST_PROPOSAL",
-  second: "SECOND_PROPOSAL",
-  third: "THIRD_PROPOSAL",
-  final: "FINAL_PROPOSAL",
-};
-
-// For proposal attachments, we'll proxy to Jira since we don't have the file content locally
-await Promise.all(
-  uploadedAttachments.map((att) =>
-    fetch("http://localhost:8080/api/jira/contracts/save-attachment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        issueKey,
-        fileName: att.filename,
-        fileUrl: att.content,
-        fileSize: att.size,
-        uploadedBy: att.author?.displayName || requesterNameVal || "Unknown",
-        stage: stageMap[currentProposal],
-        proposalId: proposalId,
-      }),
-    })
-  )
-);
-
-    
-
-    // 4️⃣ Reload proposals list & Jira attachments in UI
-    if (issueKeyFromParams) {
-      await loadProposals(issueKeyFromParams);
-    }
-    await fetchIssueDetails(issueKey);
-
-    if (isFinal) {
-  setHasSubmittedFinalQuote(true);
-
-  await fetch("http://localhost:8080/api/jira/contracts/update-license-count", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      issueKey,
-      newLicenseCount: editableLicenseCount
-    }),
-  });
-}
-
-
-    // Reset modal state
-    
-    setProposalComment("");
-    setQuoteAttachments([]);
-    setCurrentProposal("first");
-    setIsUploadQuoteModalOpen(false);
-
-    addNotification({
-      title: "Proposal saved",
-      message: `Proposal for ${issueKey} saved successfully.`,
-      issueKey: issueKey,
-    });
-  } catch (error) {
-    console.error("Error submitting quote:", error);
-    alert("Failed to submit proposal. Please try again.");
-  } finally {
-    setIsSubmittingQuote(false);
-  }
-};
-
-
+  };
 
   const handleCustomTransition = async (transitionId: string) => {
     try {
@@ -1284,51 +1286,43 @@ await Promise.all(
 
       const issueKey = selectedIssue.key;
 
-      // 🔥 Call backend transition API
-      console.log("Calling transition API:", {
-        issueKey,
-        transitionId
-      });
-
       await jiraService.transitionIssueCustom(issueKey, transitionId);
 
-      // reload issue after transition
       const updatedIssue = await jiraService.getIssueByIdOrKey(issueKey);
       setSelectedIssue(updatedIssue);
 
       const newStatus = updatedIssue?.fields?.status?.name;
       if (newStatus === "Completed") {
-        console.log("🟩 Request moved to Completed — saving contract to DB...");
-
-        await fetch("http://localhost:8080/api/jira/contracts/mark-completed", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            issueKey: issueKey,
-            transitionKey: transitionId,
-            nameOfVendor: vendorNameVal || null,
-            productName: productNameVal || null,
-            requesterName: requesterNameVal || null,
-            requesterMail: requesterEmailVal || null,
-            requesterDepartment: departmentVal || null,
-            requesterOrganization: organizationVal || null,
-            vendorContractType: vendorContractTypeVal || null,
-            additionalComment: additionalCommentsVal || null,
-            currentLicenseCount: Number(currentLicenseCountVal || 0),
-            currentUsageCount: Number(currentUsageCountVal || 0),
-            currentUnits: currentUnitsVal || null,
-            newLicenseCount: Number(newLicenseCountVal || 0),
-            newUsageCount: Number(newUsageCountVal || 0),
-            newUnits: newUnitsVal || null,
-            dueDate: dueDateVal || null,
-            renewalDate: renewalDateVal || null,
-            licenseUpdateType: licenseUpdateTypeVal || null,
-            existingContractId: existingContractIdVal || null,
-            billingType: billingTypeVal || null,
-          }),
-        });
-
-        console.log("✔️ Contract saved to DB.");
+        await fetch(
+          "http://localhost:8080/api/jira/contracts/mark-completed",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              issueKey: issueKey,
+              transitionKey: transitionId,
+              nameOfVendor: vendorNameVal || null,
+              productName: productNameVal || null,
+              requesterName: requesterNameVal || null,
+              requesterMail: requesterEmailVal || null,
+              requesterDepartment: departmentVal || null,
+              requesterOrganization: organizationVal || null,
+              vendorContractType: vendorContractTypeVal || null,
+              additionalComment: additionalCommentsVal || null,
+              currentLicenseCount: Number(currentLicenseCountVal || 0),
+              currentUsageCount: Number(currentUsageCountVal || 0),
+              currentUnits: currentUnitsVal || null,
+              newLicenseCount: Number(newLicenseCountVal || 0),
+              newUsageCount: Number(newUsageCountVal || 0),
+              newUnits: newUnitsVal || null,
+              dueDate: dueDateVal || null,
+              renewalDate: renewalDateVal || null,
+              licenseUpdateType: licenseUpdateTypeVal || null,
+              existingContractId: existingContractIdVal || null,
+              billingType: billingTypeVal || null,
+            }),
+          }
+        );
       }
 
       addNotification({
@@ -1336,13 +1330,109 @@ await Promise.all(
         message: `Request ${issueKey} moved successfully.`,
         issueKey: issueKey,
       });
-
     } catch (err) {
       console.error("Transition error:", err);
       alert("Failed to update issue status.");
     }
   };
 
+  const renderCommentsTree = (
+    nodes: Comment[],
+    level: number = 0
+  ): JSX.Element[] => {
+    return nodes.map((comment) => (
+      <div
+        key={`comment-${comment.id}`}
+        className="flex space-x-3"
+        style={{ marginLeft: level * 24 }}
+      >
+        <div className="flex-shrink-0">
+          <img
+            className="w-8 h-8 rounded-full"
+            src={comment.author.avatarUrls["48x48"]}
+            alt={comment.author.displayName}
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              {comment.author.displayName}
+            </span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {formatDate(comment.created)}
+            </span>
+          </div>
+          <div className="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+            {typeof comment.body === "object"
+              ? renderAdfContent(comment.body as unknown as AdfDocument)
+              : comment.body}
+          </div>
+
+          <div className="mt-2 flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
+            <button
+              onClick={() => {
+                setReplyingToCommentId(comment.id);
+                setReplyText("");
+              }}
+              className="inline-flex items-center hover:text-blue-600 dark:hover:text-blue-400"
+            >
+              <svg
+                className="w-4 h-4 mr-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M3 10l9-7v4a9 9 0 019 9v1a1 1 0 01-1.447.894L18 17.618V16a7 7 0 00-7-7v4L3 10z"
+                />
+              </svg>
+              Reply
+            </button>
+          </div>
+
+          {replyingToCommentId === comment.id && (
+            <div className="mt-2">
+              <textarea
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder="Write a reply..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white resize-none"
+                rows={2}
+                disabled={isAddingComment}
+              />
+              <div className="flex justify-end mt-1 space-x-2">
+                <button
+                  onClick={() => {
+                    setReplyingToCommentId(null);
+                    setReplyText("");
+                  }}
+                  className="px-3 py-1 text-xs font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleAddReply(comment.id)}
+                  disabled={!replyText.trim() || isAddingComment}
+                  className="px-3 py-1 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isAddingComment ? "Replying..." : "Reply"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {comment.replies && comment.replies.length > 0 && (
+            <div className="mt-3 space-y-3">
+              {renderCommentsTree(comment.replies, level + 1)}
+            </div>
+          )}
+        </div>
+      </div>
+    ));
+  };
 
   if (loading) {
     return (
@@ -1371,12 +1461,9 @@ await Promise.all(
 
   return (
     <>
-
       <PageMeta
         title={
-          selectedIssue
-            ? `${selectedIssue.key} - Requests`
-            : "Requests"
+          selectedIssue ? `${selectedIssue.key} - Requests` : "Requests"
         }
         description="View all Requests"
       />
@@ -1670,85 +1757,35 @@ await Promise.all(
                       Comment
                     </button>
 
-                    {/* <button className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600">
-                      <svg
-                        className="w-4 h-4 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                        ></path>
-                      </svg>
-                      Assign
-                    </button> */}
-
-                    {/* <div className="relative more-dropdown">
-                      <button
-                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
-                        onClick={() =>
-                          setIsMoreDropdownOpen(!isMoreDropdownOpen)
-                        }
-                      >
-                        More
-                        <svg
-                          className="w-4 h-4 ml-2"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"
-                          ></path>
-                        </svg>
-                      </button>
-                      {isMoreDropdownOpen && (
-                        <div className="absolute left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700">
-                          <div className="py-1">
-                            <button
-                              onClick={handleDeleteIssue}
-                              className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div> */}
-
-                    {/* Custom Transition Dropdown */}
+                    {/* Transition Dropdown */}
                     <div className="flex items-center gap-2">
                       <div className="relative inline-block text-left">
-                     <button
-  onClick={() => {
-    if (isTransitionDisabled) return; // ❗ do nothing if disabled
-    setIsTransitionDropdownOpen(!isTransitionDropdownOpen);
-  }}
-  disabled={isTransitionDisabled}       // ❗ HTML disabled attribute
-  className={`inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full shadow-sm focus:outline-none ${
-    isTransitionDisabled ? "opacity-50 cursor-not-allowed" : ""
-  }`}
-  style={{
-    backgroundColor: getStatusColor(
-      selectedIssue?.fields?.status?.statusCategory?.colorName
-    ),
-    color: "white",
-  }}
-  title={
-    isTransitionDisabled
-      ? "Submit a Final Proposal before changing status"
-      : "Transition issue status"
-  }
->
-  {/* whatever text / icon you already had inside */}
-
+                        <button
+                          onClick={() => {
+                            if (isTransitionDisabled) return;
+                            setIsTransitionDropdownOpen(
+                              !isTransitionDropdownOpen
+                            );
+                          }}
+                          disabled={isTransitionDisabled}
+                          className={`inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full shadow-sm focus:outline-none ${
+                            isTransitionDisabled
+                              ? "opacity-50 cursor-not-allowed"
+                              : ""
+                          }`}
+                          style={{
+                            backgroundColor: getStatusColor(
+                              selectedIssue?.fields?.status?.statusCategory
+                                ?.colorName
+                            ),
+                            color: "white",
+                          }}
+                          title={
+                            isTransitionDisabled
+                              ? "Submit a Final Proposal before changing status"
+                              : "Transition issue status"
+                          }
+                        >
                           <span>
                             {selectedIssue?.fields?.status?.name ||
                               "Select Status"}
@@ -1811,7 +1848,6 @@ await Promise.all(
                       </div>
                     </div>
 
-                    {/* Upload Quote Button for SUPER_ADMIN in Negotiation Stage */}
                     {userRole === "SUPER_ADMIN" &&
                       selectedIssue?.fields?.status?.name ===
                         "Negotiation Stage" && (
@@ -1865,7 +1901,6 @@ await Promise.all(
                           </div>
                         </div>
 
-                        {/* Show Current License Count only for license-based billing */}
                         {isLicenseBilling && (
                           <>
                             <div>
@@ -1888,7 +1923,6 @@ await Promise.all(
                           </>
                         )}
 
-                        {/* Show Current Usage Count + Units only for usage-based billing */}
                         {isUsageBilling && (
                           <>
                             <div>
@@ -1911,7 +1945,6 @@ await Promise.all(
                           </>
                         )}
 
-                        {/* New counts: license billing + upgrade/downgrade */}
                         {isLicenseBilling && isUpgradeOrDowngrade && (
                           <>
                             <div>
@@ -1934,7 +1967,6 @@ await Promise.all(
                           </>
                         )}
 
-                        {/* New usage: usage billing + upgrade/downgrade */}
                         {isUsageBilling && isUpgradeOrDowngrade && (
                           <>
                             <div>
@@ -2030,9 +2062,6 @@ await Promise.all(
                       </div>
                     </div>
 
-
-                    
-
                     {/* Attachments */}
                     <div className="border-b border-gray-200 dark:border-gray-700 pb-2 mb-4">
                       <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
@@ -2060,25 +2089,29 @@ await Promise.all(
                               key={attachment.id}
                               className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow cursor-pointer"
                               onClick={() => {
-                                // Use fileUrl from our database - this is our own endpoint
                                 const url = attachment.fileUrl;
                                 if (!url) return;
-                                
-                                // For images, show preview modal
+
                                 if (
-                                  (attachment.mimeType || attachment.fileUrl)?.startsWith("image/")
-                                )
-                                  setPreviewAttachment(attachment);
-                                else
-                                  // For other files, open in new tab using our own endpoint
+                                  (attachment.mimeType ||
+                                    attachment.fileUrl
+                                  )?.startsWith("image/")
+                                ) {
+                                  // if you have a previewAttachment state, use it here
                                   window.open(url, "_blank");
+                                } else {
+                                  window.open(url, "_blank");
+                                }
                               }}
                             >
-                              {(attachment.mimeType || attachment.fileUrl)?.startsWith("image/") ? (
-                                // For images, use our own endpoint to serve the file content
+                              {(attachment.mimeType ||
+                                attachment.fileUrl
+                              )?.startsWith("image/") ? (
                                 <img
                                   src={attachment.fileUrl}
-                                  alt={attachment.fileName || attachment.filename}
+                                  alt={
+                                    attachment.fileName || attachment.filename
+                                  }
                                   className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200"
                                 />
                               ) : (
@@ -2144,10 +2177,8 @@ await Promise.all(
                       </div>
 
                       <div className="bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        {/* COMMENTS TAB */}
                         {activeTab === "comments" && (
                           <div className="p-4">
-                            {/* Additional Comments from Jira */}
                             {additionalCommentsVal ? (
                               <div className="mb-4 p-3 bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-600">
                                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
@@ -2164,9 +2195,7 @@ await Promise.all(
                               <div className="flex items-start space-x-3">
                                 <img
                                   className="w-8 h-8 rounded-full"
-                                 // src="/images/user/user-01.jpg"
-                                  src="/images/user/current.jpg"
-                                 
+                                  src="https://via.placeholder.com/48"
                                   alt="Current User"
                                 />
                                 <div className="flex-1">
@@ -2184,8 +2213,7 @@ await Promise.all(
                                     <button
                                       onClick={handleAddComment}
                                       disabled={
-                                        !newComment.trim() ||
-                                        isAddingComment
+                                        !newComment.trim() || isAddingComment
                                       }
                                       className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
@@ -2201,39 +2229,7 @@ await Promise.all(
                             {/* Comments List */}
                             {comments.length > 0 ? (
                               <div className="space-y-4">
-                                {comments.map((comment) => (
-                                  <div
-                                    key={`comment-${comment.id}`}
-                                    className="flex space-x-3"
-                                  >
-                                    <div className="flex-shrink-0">
-                                      <img
-                                        className="w-8 h-8 rounded-full"
-                                        src={
-                                          comment.author.avatarUrls["48x48"]
-                                        }
-                                        alt={comment.author.displayName}
-                                      />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center space-x-2">
-                                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                          {comment.author.displayName}
-                                        </span>
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                                          {formatDate(comment.created)}
-                                        </span>
-                                      </div>
-                                      <div className="mt-1 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                        {typeof comment.body === "object"
-                                          ? renderAdfContent(
-                                              comment.body as AdfDocument
-                                            )
-                                          : comment.body}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
+                                {renderCommentsTree(comments)}
                               </div>
                             ) : (
                               <div className="text-center text-gray-500 dark:text-gray-400 py-8">
@@ -2242,8 +2238,6 @@ await Promise.all(
                             )}
                           </div>
                         )}
-
-                        
                       </div>
                     </div>
                   </div>
@@ -2330,419 +2324,408 @@ await Promise.all(
         </div>
       </div>
 
-      {/* Preview modal */}
-      {/* ================================
-    PROPOSAL PREVIEW MODAL
-================================ */}
-{previewProposal && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      {/* PROPOSAL PREVIEW MODAL */}
+      {previewProposal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {previewProposal.proposalType} Proposal Preview
+              </h3>
+              <button
+                onClick={() => setPreviewProposal(null)}
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
+              >
+                ✕
+              </button>
+            </div>
 
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-          {previewProposal.proposalType} Proposal Preview
-        </h3>
-        <button
-          onClick={() => setPreviewProposal(null)}
-          className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
-        >
-          ✕
-        </button>
-      </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <p className="text-sm text-gray-500">License / Usage Count</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {previewProposal.licenseCount}
+                </p>
+              </div>
 
-      <div className="px-6 py-4 space-y-4">
+              <div>
+                <p className="text-sm text-gray-500">Unit Cost</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  ₹ {previewProposal.unitCost.toLocaleString()}
+                </p>
+              </div>
 
-        {/* License Count */}
-        <div>
-          <p className="text-sm text-gray-500">License / Usage Count</p>
-          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-            {previewProposal.licenseCount}
-          </p>
-        </div>
+              <div>
+                <p className="text-sm text-gray-500">Total Cost</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  ₹ {previewProposal.totalCost.toLocaleString()}
+                </p>
+              </div>
 
-        {/* Unit Cost */}
-        <div>
-          <p className="text-sm text-gray-500">Unit Cost</p>
-          <p className="text-lg font-semibold text-gray-900 dark:text-white">
-            ₹ {previewProposal.unitCost.toLocaleString()}
-          </p>
-        </div>
+              <div>
+                <p className="text-sm text-gray-500">Comment</p>
+                <p className="text-gray-900 dark:text-white whitespace-pre-wrap">
+                  {previewProposal.comment || "-"}
+                </p>
+              </div>
 
-        {/* Total Cost */}
-        <div>
-          <p className="text-sm text-gray-500">Total Cost</p>
-          <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-            ₹ {previewProposal.totalCost.toLocaleString()}
-          </p>
-        </div>
+              {previewProposal.final && proposals.length > 1 && (
+                <div className="p-4 mt-4 bg-yellow-100 dark:bg-yellow-700 rounded-md border border-yellow-400">
+                  <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
+                    Profit Comparison
+                  </h4>
 
-        {/* Comment */}
-        <div>
-          <p className="text-sm text-gray-500">Comment</p>
-          <p className="text-gray-900 dark:text-white whitespace-pre-wrap">
-            {previewProposal.comment || "-"}
-          </p>
-        </div>
+                  {(() => {
+                    const sorted = [...proposals].sort(
+                      (a, b) => a.proposalNumber - b.proposalNumber
+                    );
 
-        {/* SHOW PROFIT IF FINAL PROPOSAL */}
-        {previewProposal.final && proposals.length > 1 && (
-          <div className="p-4 mt-4 bg-yellow-100 dark:bg-yellow-700 rounded-md border border-yellow-400">
-            <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
-              Profit Comparison
-            </h4>
+                    const finalProposal = sorted[sorted.length - 1];
+                    const lastNormal = sorted[sorted.length - 2];
 
-            {(() => {
-              const sorted = [...proposals].sort((a, b) => a.proposalNumber - b.proposalNumber);
+                    const profit =
+                      Number(lastNormal.totalCost || 0) -
+                      Number(finalProposal.totalCost || 0);
 
-              const finalProposal = sorted[sorted.length - 1];
-              const lastNormal = sorted[sorted.length - 2];
+                    return (
+                      <div>
+                        <p className="text-sm text-gray-700 dark:text-gray-200">
+                          Previous Proposal Total:{" "}
+                          <strong>
+                            ₹ {lastNormal.totalCost.toLocaleString()}
+                          </strong>
+                        </p>
 
-              const profit =
-                Number(lastNormal.totalCost || 0) -
-                Number(finalProposal.totalCost || 0);
+                        <p className="text-sm text-gray-700 dark:text-gray-200">
+                          Final Proposal Total:{" "}
+                          <strong>
+                            ₹ {finalProposal.totalCost.toLocaleString()}
+                          </strong>
+                        </p>
 
-              return (
-                <div>
-                  <p className="text-sm text-gray-700 dark:text-gray-200">
-                    Previous Proposal Total:{" "}
-                    <strong>₹ {lastNormal.totalCost.toLocaleString()}</strong>
-                  </p>
-
-                  <p className="text-sm text-gray-700 dark:text-gray-200">
-                    Final Proposal Total:{" "}
-                    <strong>₹ {finalProposal.totalCost.toLocaleString()}</strong>
-                  </p>
-
-                  <p className="text-lg mt-2 font-bold text-blue-700 dark:text-blue-300">
-                    Profit: ₹ {profit.toLocaleString()}
-                  </p>
+                        <p className="text-lg mt-2 font-bold text-blue-700 dark:text-blue-300">
+                          Profit: ₹ {profit.toLocaleString()}
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
-              );
-            })()}
-          </div>
-        )}
-      </div>
+              )}
+            </div>
 
-      {/* Footer */}
-      <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
-        <button
-          onClick={() => setPreviewProposal(null)}
-          className="px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 dark:text-white"
-        >
-          Close
-        </button>
-      </div>
-
-    </div>
-  </div>
-)}
-
-{/* ================================
-      UPLOAD QUOTE MODAL
-================================ */} 
-{isUploadQuoteModalOpen && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-99999 p-4">
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
-
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Upload Quote
-        </h3>
-        <button
-          onClick={() => setIsUploadQuoteModalOpen(false)}
-          className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
-        >
-          ✕
-        </button>
-      </div>
-
-      {/* Body */}
-      <div className="px-6 py-4 space-y-4">
-
-        {/* Proposal Type - Changed to buttons */}
-        <div>
-          <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
-            Proposal Type
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setCurrentProposal("first")}
-              className={`p-3 rounded border text-center ${
-                currentProposal === "first"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-              }`}
-            >
-              First Proposal
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentProposal("second")}
-              className={`p-3 rounded border text-center ${
-                currentProposal === "second"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-              }`}
-            >
-              Second Proposal
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentProposal("third")}
-              className={`p-3 rounded border text-center ${
-                currentProposal === "third"
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-              }`}
-            >
-              Third Proposal
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentProposal("final")}
-              className={`p-3 rounded border text-center ${
-                currentProposal === "final"
-                  ? "bg-green-600 text-white border-green-600"
-                  : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-              }`}
-            >
-              Final Proposal
-            </button>
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                onClick={() => setPreviewProposal(null)}
+                className="px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 dark:text-white"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* License Count */}
-        <div>
-          <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
-            License/Usage Count
-          </label>
-          <input
-            type="number"
-            value={editableLicenseCount}
-            onChange={(e) => setEditableLicenseCount(e.target.value)}
-            className="w-full p-2 rounded border dark:bg-gray-700 dark:text-white"
-            placeholder="Enter license or usage count"
-          />
-        </div>
+      {/* UPLOAD QUOTE MODAL */}
+      {isUploadQuoteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-99999 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Upload Quote
+              </h3>
+              <button
+                onClick={() => setIsUploadQuoteModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-300 dark:hover:text-gray-100"
+              >
+                ✕
+              </button>
+            </div>
 
-        {/* Unit Cost */}
-        <div>
-          <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
-            Unit Cost
-          </label>
-          <input
-            type="number"
-            value={unitCost}
-            onChange={(e) => setUnitCost(e.target.value)}
-            className="w-full p-2 rounded border dark:bg-gray-700 dark:text-white"
-            placeholder="Enter unit cost"
-          />
-        </div>
-
-        {/* Total Cost */}
-        <div>
-          <p className="text-sm text-gray-500">Total Cost</p>
-          <p className="text-xl font-bold text-green-600 dark:text-green-300">
-            ₹ {totalCost.toLocaleString()}
-          </p>
-        </div>
-
-        {/* Profit Calculation for Final Proposal */}
-        {currentProposal === "final" && proposals.length > 0 && (
-          <div className="p-4 bg-yellow-100 dark:bg-yellow-700 rounded-md border border-yellow-400">
-            <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
-              Profit Calculation
-            </h4>
-            {(() => {
-              // Get the last non-final proposal
-              const sortedProposals = [...proposals].sort((a, b) => a.proposalNumber - b.proposalNumber);
-              const lastProposal = sortedProposals[sortedProposals.length - 1];
-              
-              // Calculate profit
-              const lastTotalCost = Number(lastProposal.totalCost || 0);
-              const currentTotalCost = Number(totalCost || 0);
-              const profit = lastTotalCost - currentTotalCost;
-              
-              return (
-                <div className="space-y-2">
-                  <p className="text-sm text-gray-700 dark:text-gray-200">
-                    Previous Proposal Total:{" "}
-                    <strong>₹ {lastTotalCost.toLocaleString()}</strong>
-                  </p>
-                  <p className="text-sm text-gray-700 dark:text-gray-200">
-                    Final Proposal Total:{" "}
-                    <strong>₹ {currentTotalCost.toLocaleString()}</strong>
-                  </p>
-                  <p className="text-lg mt-2 font-bold text-blue-700 dark:text-blue-300">
-                    Profit: ₹ {profit.toLocaleString()}
-                  </p>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
+                  Proposal Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentProposal("first")}
+                    className={`p-3 rounded border text-center ${
+                      currentProposal === "first"
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    First Proposal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentProposal("second")}
+                    className={`p-3 rounded border text-center ${
+                      currentProposal === "second"
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    Second Proposal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentProposal("third")}
+                    className={`p-3 rounded border text-center ${
+                      currentProposal === "third"
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    Third Proposal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentProposal("final")}
+                    className={`p-3 rounded border text-center ${
+                      currentProposal === "final"
+                        ? "bg-green-600 text-white border-green-600"
+                        : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                    }`}
+                  >
+                    Final Proposal
+                  </button>
                 </div>
-              );
-            })()}
-          </div>
-        )}
+              </div>
 
-        {/* Comment */}
-        <div>
-          <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
-            Comment
-          </label>
-          <textarea
-            value={proposalComment}
-            onChange={(e) => setProposalComment(e.target.value)}
-            className="w-full p-2 rounded border dark:bg-gray-700 dark:text-white"
-            rows={3}
-            placeholder="Enter your comment"
-          />
-        </div>
+              <div>
+                <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
+                  License/Usage Count
+                </label>
+                <input
+                  type="number"
+                  value={editableLicenseCount}
+                  onChange={(e) => setEditableLicenseCount(e.target.value)}
+                  className="w-full p-2 rounded border dark:bg-gray-700 dark:text-white"
+                  placeholder="Enter license or usage count"
+                />
+              </div>
 
-        {/* Attach Files */}
-        <div>
-          <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
-            Attach Quote Files
-          </label>
-          <input
-            type="file"
-            multiple
-            onChange={(e) => {
-              if (e.target.files) {
-                setQuoteAttachments(Array.from(e.target.files));
-              }
-            }}
-            className="w-full"
-          />
-        </div>
+              <div>
+                <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
+                  Unit Cost
+                </label>
+                <input
+                  type="number"
+                  value={unitCost}
+                  onChange={(e) => setUnitCost(e.target.value)}
+                  className="w-full p-2 rounded border dark:bg-gray-700 dark:text-white"
+                  placeholder="Enter unit cost"
+                />
+              </div>
 
-        {/* ============================
+              <div>
+                <p className="text-sm text-gray-500">Total Cost</p>
+                <p className="text-xl font-bold text-green-600 dark:text-green-300">
+                  ₹ {totalCost.toLocaleString()}
+                </p>
+              </div>
 
-   PREVIOUS PROPOSALS SECTION
-============================ */}
-<div className="mt-6">
-  <h2 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-    Previous Proposals
-  </h2>
+              {currentProposal === "final" && proposals.length > 0 && (
+                <div className="p-4 bg-yellow-100 dark:bg-yellow-700 rounded-md border border-yellow-400">
+                  <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
+                    Profit Calculation
+                  </h4>
+                  {(() => {
+                    const sortedProposals = [...proposals].sort(
+                      (a, b) => a.proposalNumber - b.proposalNumber
+                    );
+                    const lastProposal =
+                      sortedProposals[sortedProposals.length - 1];
 
-  {isLoadingProposals ? (
-    <p className="text-gray-500 dark:text-gray-400">Loading proposals...</p>
-  ) : proposals.length === 0 ? (
-    <p className="text-gray-500 dark:text-gray-400 italic">
-      No proposals yet.
-    </p>
-  ) : (
-    <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
-      {proposals.map((p) => (
-        <div
-          key={p.id}
-          className="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-gray-900 dark:text-white">
-                {p.proposalType} Proposal #{p.proposalNumber}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {new Date(p.createdAt).toLocaleString()}
-              </p>
-            </div>
+                    const lastTotalCost = Number(lastProposal.totalCost || 0);
+                    const currentTotalCost = Number(totalCost || 0);
+                    const profit = lastTotalCost - currentTotalCost;
 
-            <button
-              onClick={() => handlePreviewProposal(p.id)}
-              className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Preview
-            </button>
-          </div>
+                    return (
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-700 dark:text-gray-200">
+                          Previous Proposal Total:{" "}
+                          <strong>
+                            ₹ {lastTotalCost.toLocaleString()}
+                          </strong>
+                        </p>
+                        <p className="text-sm text-gray-700 dark:text-gray-200">
+                          Final Proposal Total:{" "}
+                          <strong>
+                            ₹ {currentTotalCost.toLocaleString()}
+                          </strong>
+                        </p>
+                        <p className="text-lg mt-2 font-bold text-blue-700 dark:text-blue-300">
+                          Profit: ₹ {profit.toLocaleString()}
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
-          <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
-            <div>
-              <p className="text-gray-500 dark:text-gray-400">License Count</p>
-              <p className="font-medium text-gray-900 dark:text-white">
-                {p.licenseCount}
-              </p>
-            </div>
+              <div>
+                <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
+                  Comment
+                </label>
+                <textarea
+                  value={proposalComment}
+                  onChange={(e) => setProposalComment(e.target.value)}
+                  className="w-full p-2 rounded border dark:bg-gray-700 dark:text-white"
+                  rows={3}
+                  placeholder="Enter your comment"
+                />
+              </div>
 
-            <div>
-              <p className="text-gray-500 dark:text-gray-400">Unit Cost</p>
-              <p className="font-medium text-gray-900 dark:text-white">
-                ₹ {p.unitCost}
-              </p>
-            </div>
+              <div>
+                <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
+                  Attach Quote Files
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      setQuoteAttachments(Array.from(e.target.files));
+                    }
+                  }}
+                  className="w-full"
+                />
+              </div>
 
-            <div>
-              <p className="text-gray-500 dark:text-gray-400">Total Cost</p>
-              <p className="font-bold text-green-600 dark:text-green-400">
-                ₹ {p.totalCost}
-              </p>
-            </div>
+              <div className="mt-6">
+                <h2 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+                  Previous Proposals
+                </h2>
 
-            <div>
-              <p className="text-gray-500 dark:text-gray-400">Comment</p>
-              <p className="text-gray-900 dark:text-white">
-                {p.comment || "-"}
-              </p>
-            </div>
-          </div>
+                {isLoadingProposals ? (
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Loading proposals...
+                  </p>
+                ) : proposals.length === 0 ? (
+                  <p className="text-gray-500 dark:text-gray-400 italic">
+                    No proposals yet.
+                  </p>
+                ) : (
+                  <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
+                    {proposals.map((p) => (
+                      <div
+                        key={p.id}
+                        className="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {p.proposalType} Proposal #{p.proposalNumber}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {new Date(p.createdAt).toLocaleString()}
+                            </p>
+                          </div>
 
-          {p.final && proposals.length > 1 && (
-            <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-700 rounded border border-yellow-400">
-              <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                Profit Calculation
-              </h4>
+                          <button
+                            onClick={() => handlePreviewProposal(p.id)}
+                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            Preview
+                          </button>
+                        </div>
 
-              {(() => {
-                const sorted = [...proposals].sort(
-                  (a, b) => a.proposalNumber - b.proposalNumber
-                );
+                        <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+                          <div>
+                            <p className="text-gray-500 dark:text-gray-400">
+                              License Count
+                            </p>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {p.licenseCount}
+                            </p>
+                          </div>
 
-                const finalP = sorted[sorted.length - 1];
-                const lastP = sorted[sorted.length - 2];
-                const profit =
-                  Number(lastP.totalCost) - Number(finalP.totalCost);
+                          <div>
+                            <p className="text-gray-500 dark:text-gray-400">
+                              Unit Cost
+                            </p>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              ₹ {p.unitCost}
+                            </p>
+                          </div>
 
-                return (
-                  <div className="mt-1 text-sm">
-                    <p>Prev Total: ₹ {lastP.totalCost}</p>
-                    <p>Final Total: ₹ {finalP.totalCost}</p>
-                    <p className="font-bold text-blue-800 dark:text-blue-300 mt-1">
-                      Profit: ₹ {profit}
-                    </p>
+                          <div>
+                            <p className="text-gray-500 dark:text-gray-400">
+                              Total Cost
+                            </p>
+                            <p className="font-bold text-green-600 dark:text-green-400">
+                              ₹ {p.totalCost}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-gray-500 dark:text-gray-400">
+                              Comment
+                            </p>
+                            <p className="text-gray-900 dark:text-white">
+                              {p.comment || "-"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {p.final && proposals.length > 1 && (
+                          <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-700 rounded border border-yellow-400">
+                            <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                              Profit Calculation
+                            </h4>
+
+                            {(() => {
+                              const sorted = [...proposals].sort(
+                                (a, b) => a.proposalNumber - b.proposalNumber
+                              );
+
+                              const finalP = sorted[sorted.length - 1];
+                              const lastP = sorted[sorted.length - 2];
+                              const profit =
+                                Number(lastP.totalCost) -
+                                Number(finalP.totalCost);
+
+                              return (
+                                <div className="mt-1 text-sm">
+                                  <p>Prev Total: ₹ {lastP.totalCost}</p>
+                                  <p>Final Total: ₹ {finalP.totalCost}</p>
+                                  <p className="font-bold text-blue-800 dark:text-blue-300 mt-1">
+                                    Profit: ₹ {profit}
+                                  </p>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                );
-              })()}
+                )}
+              </div>
             </div>
-          )}
+
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+              <button
+                onClick={() => setIsUploadQuoteModalOpen(false)}
+                className="px-4 py-2 bg-gray-200 rounded dark:bg-gray-600 dark:text-white"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleSubmitQuote}
+                disabled={isSubmittingQuote}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+              >
+                {isSubmittingQuote ? "Saving..." : "Submit"}
+              </button>
+            </div>
+          </div>
         </div>
-      ))}
-    </div>
-  )}
-</div>
-
-
-      </div>
-
-      {/* Footer */}
-      <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
-        <button
-          onClick={() => setIsUploadQuoteModalOpen(false)}
-          className="px-4 py-2 bg-gray-200 rounded dark:bg-gray-600 dark:text-white"
-        >
-          Cancel
-        </button>
-
-        <button
-          onClick={handleSubmitQuote}
-          disabled={isSubmittingQuote}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-        >
-          {isSubmittingQuote ? "Saving..." : "Submit"}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
 
       {/* Edit Issue Modal */}
       {selectedIssue && (
@@ -2752,23 +2735,21 @@ await Promise.all(
           onSubmit={async (issueIdOrKey: string, issueData: any) => {
             try {
               await jiraService.updateIssue(issueIdOrKey, issueData);
-              // Refresh the selected issue after update
-              const updatedIssue = await jiraService.getIssueByIdOrKey(issueIdOrKey);
+              const updatedIssue = await jiraService.getIssueByIdOrKey(
+                issueIdOrKey
+              );
               setSelectedIssue(updatedIssue);
               setIsEditModalOpen(false);
-              // Show success message
-              alert('Issue updated successfully');
+              alert("Issue updated successfully");
             } catch (error) {
-              console.error('Error updating issue:', error);
-              alert('Failed to update issue');
+              console.error("Error updating issue:", error);
+              alert("Failed to update issue");
             }
           }}
           issue={convertIssueForEditModal(selectedIssue)}
         />
       )}
     </>
-
-    
   );
 };
 
