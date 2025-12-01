@@ -9,6 +9,8 @@ export interface Comment {
   userId: number;
   userName: string;
   commentText: string;
+  parentCommentId?: number;
+  replies?: Comment[];
   createdAt: string;
   updatedAt: string;
 }
@@ -19,6 +21,7 @@ export interface CreateCommentDto {
   userId: number;
   userName: string;
   commentText: string;
+  parentCommentId?: number;
 }
 
 export const commentService = {
