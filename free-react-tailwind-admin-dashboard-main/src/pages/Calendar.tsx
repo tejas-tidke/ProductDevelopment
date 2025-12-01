@@ -58,6 +58,20 @@ const Calendar: React.FC = () => {
     ]);
   }, []);
 
+  useEffect(() => {
+    // Select the main application header
+    const appHeader = document.querySelector("header");
+    if (appHeader) {
+      if (isOpen) {
+        // Hide header when modal is open
+        appHeader.style.display = "none";
+      } else {
+        // Restore header when modal is closed
+        appHeader.style.display = "flex"; // Or 'block', depending on your layout
+      }
+    }
+  }, [isOpen]);
+
   const handleDateSelect = (selectInfo: DateSelectArg) => {
     resetModalFields();
     setEventStartDate(selectInfo.startStr);

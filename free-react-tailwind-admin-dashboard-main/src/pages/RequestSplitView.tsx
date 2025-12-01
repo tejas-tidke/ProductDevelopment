@@ -438,20 +438,40 @@ const isTransitionDisabled =
   const fetchIssueDetails = async (issueKey: string) => {
     try {
       // Fetch comments using our custom comment service
-      const commentsResponse = await commentService.getCommentsByIssueKey(issueKey);
-      const customComments = commentsResponse.comments || [];
-      
-      // Convert our custom comments to the format expected by the UI
-      const formattedComments: Comment[] = customComments.map((comment: any) => ({
-        id: comment.id.toString(),
-        author: {
-          displayName: comment.userName,
-          avatarUrls: { "48x48": "https://via.placeholder.com/48" }
-        },
-        body: comment.commentText,
-        created: comment.createdAt,
-        updated: comment.updatedAt || comment.createdAt
-      }));
+      // --- START replace block ---
+const commentsResponse = await commentService.getCommentsByIssueKey(issueKey);
+const customComments = commentsResponse.comments || [];
+
+// Helper to resolve avatar URL (checks likely fields + fallback)
+const resolveAvatarUrl = (c: any, fallbackName?: string) => {
+  const name = fallbackName || c.userName || c.user?.displayName || "User";
+  return (
+    c.avatarUrl ||
+    c.userAvatar ||
+    c.user?.avatarUrl ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=E2E8F0&color=111827&rounded=true&size=48`
+  );
+};
+
+const formattedComments: Comment[] = customComments.map((comment: any) => {
+  const name = comment.userName || comment.user?.displayName || "User";
+  const avatar = resolveAvatarUrl(comment, name);
+
+  return {
+    id: String(comment.id),
+    author: {
+      displayName: name,
+      avatarUrls: { "48x48": avatar },
+    },
+    body: comment.commentText,
+    created: comment.createdAt,
+    updated: comment.updatedAt || comment.createdAt,
+  } as Comment;
+});
+
+setComments(formattedComments);
+// --- END replace block ---
+
       
       setComments(formattedComments);
       
@@ -2144,7 +2164,9 @@ await Promise.all(
                               <div className="flex items-start space-x-3">
                                 <img
                                   className="w-8 h-8 rounded-full"
-                                  src="https://via.placeholder.com/48"
+                                 // src="/images/user/user-01.jpg"
+                                  src="/images/user/current.jpg"
+                                 
                                   alt="Current User"
                                 />
                                 <div className="flex-1">

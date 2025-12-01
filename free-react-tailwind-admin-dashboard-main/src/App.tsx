@@ -34,8 +34,8 @@ import AllOpen from "./pages/request-management/AllOpen.tsx";
 import AssignedToMe from "./pages/request-management/AssignedToMe";
 import Unassigned from "./pages/request-management/Unassigned";
 import Resolved from "./pages/request-management/Resolved";
-import IssueDetail from "./pages/IssueDetail";
-import IssuesSplitView from "./pages/IssueSplitView";
+// import IssueDetail from "./pages/IssueDetail";
+// import IssuesSplitView from "./pages/IssueSplitView";
 // import DEMO_REQUEST from "./pages/DEMO_REQUEST";
 // import ADMIN_Approver from "./pages/ADMIN_Approver";
 import VendorList from "./pages/VendorManagement/VendorList";
@@ -232,7 +232,7 @@ export default function App() {
               } 
             />
             
-            {/* Individual Issue Detail */}
+            {/* Individual Issue Detail
             <Route 
               path="/issues/:issueKey" 
               element={
@@ -243,7 +243,7 @@ export default function App() {
             />
             
             {/* Issues Split View */}
-            <Route 
+            {/* <Route 
               path="/issues-split" 
               element={
                 <ProtectedRoute>
@@ -258,7 +258,7 @@ export default function App() {
                   <IssuesSplitView />
                 </ProtectedRoute>
               } 
-            />
+            /> */} 
             
             {/* Users List Page */}
             <Route 
