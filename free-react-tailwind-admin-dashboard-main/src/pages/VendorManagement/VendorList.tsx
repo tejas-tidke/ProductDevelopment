@@ -18,7 +18,7 @@ interface Column {
 const VendorList: React.FC = () => {
   // --- UI / filter state
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<string | null>("nameOfVendor");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +28,7 @@ const VendorList: React.FC = () => {
 
   // column visibility + ordering
   const [allColumns, setAllColumns] = useState<Column[]>([
-    { key: "id", title: "ID", isSortable: true, isSelected: true },
+    { key: "id", title: "Sr. No.", isSortable: true, isSelected: true },
     { key: "nameOfVendor", title: "Vendor Name", isSortable: true, isSelected: true },
     { key: "productName", title: "Product Name", isSortable: true, isSelected: true },
     { key: "productLink", title: "Product Link", isSortable: true, isSelected: true },
@@ -53,7 +53,7 @@ const VendorList: React.FC = () => {
   // --- Delete confirmation modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<ProductItem | null>(null);
-  
+
   // Delete vendor success popup state
   const [deleteSuccess, setDeleteSuccess] = useState(false);
   const [lastDeletedProduct, setLastDeletedProduct] = useState<ProductItem | null>(null);
@@ -268,10 +268,15 @@ const VendorList: React.FC = () => {
     setSortDirection(dir);
   };
 
-  const getCellValue = (product: ProductItem, colKey: string): React.ReactNode => {
+  const getCellValue = (
+    product: ProductItem,
+    colKey: string,
+    index: number
+  ): React.ReactNode => {
     switch (colKey) {
       case "id":
-        return product.id;
+        // Sr. No. (1-based index)
+        return index + 1;
       case "nameOfVendor":
         return product.nameOfVendor || "-";
       case "productName":
@@ -316,7 +321,7 @@ const VendorList: React.FC = () => {
             {openActionId === product.id && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700">
                 <div className="py-1">
-                
+
                   <button
                     aria-label={`Delete ${product.productName} from ${product.nameOfVendor}`}
                     onClick={(e) => {
@@ -500,7 +505,7 @@ const VendorList: React.FC = () => {
                             key={`${product.id || idx}-${col.key}`}
                             className="px-4 py-3 text-sm text-gray-900 dark:text-white align-top border-r border-gray-200 dark:border-gray-700"
                           >
-                            {getCellValue(product, col.key)}
+                            {getCellValue(product, col.key, idx)}
                           </td>
                         ))}
                       </tr>
