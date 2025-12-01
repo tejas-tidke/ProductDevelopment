@@ -183,8 +183,22 @@ async function getLastUploadedAttachment(issueKey: string, fileName: string) {
 
   const attachments = issue?.fields?.attachment || [];
 
-  // Find attachment by filename
-  const latest = attachments.find((a: any) => a.filename === fileName);
+  // Find attachment by filename (try exact match first, then partial match)
+  let latest = attachments.find((a: any) => a.filename === fileName);
+  
+  // If not found, try partial match
+  if (!latest) {
+    latest = attachments.find((a: any) => a.filename && a.filename.includes(fileName));
+  }
+  
+  // If still not found, get the most recent attachment
+  if (!latest && attachments.length > 0) {
+    // Sort by created date and get the most recent
+    const sorted = [...attachments].sort((a: any, b: any) => 
+      new Date(b.created).getTime() - new Date(a.created).getTime()
+    );
+    latest = sorted[0];
+  }
 
   if (!latest) {
     console.warn(`⚠ No attachment found for filename: ${fileName}`);
@@ -379,47 +393,27 @@ transitionIssueCustom: async (issueKey: string, transitionId: string) => {
 
   // Add an attachment to an issue
   addAttachmentToIssue: async (issueIdOrKey: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
 
-  const formData = new FormData();
-  formData.append("file", file);
+    // Use direct fetch to avoid CORS issues with multipart/form-data
+    const response = await fetch(`${API_BASE_URL}/api/jira/issues/${issueIdOrKey}/attachments`, {
+      method: "POST",
+      body: formData,
+      headers: {
+        "X-Atlassian-Token": "no-check"   // Jira-required header
+        // DO NOT SET CONTENT-TYPE - let browser set it with boundary
+      }
+    });
 
-  // ❗ MUST use raw fetch — NOT jiraApiCall()
-  const response = await fetch(`${API_BASE_URL}/api/jira/issues/${issueIdOrKey}/attachments`, {
-    method: "POST",
-    body: formData,
-    headers: {
-      "X-Atlassian-Token": "no-check"   // Jira-required header
-      // DO NOT SET CONTENT-TYPE HERE
-    },
-  });
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`Upload failed: ${err}`);
+    }
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Upload failed: ${err}`);
-  }
-
-  const jiraResponse = await response.json();
-
-  // Extract Jira metadata
-  const attachmentInfo = jiraResponse[0];
-  const metadata = {
-    fileName: attachmentInfo.filename,
-    content: attachmentInfo.content,
-    size: attachmentInfo.size,
-    mimeType: attachmentInfo.mimeType,
-  };
-
-  // Save to your backend DB
-  await jiraApiCall("/api/jira/contracts/save-attachment", {
-    method: "POST",
-    body: JSON.stringify({
-      issueKey: issueIdOrKey,
-      metadata,
-    }),
-  });
-
-  return jiraResponse;
-},
+    const jiraResponse = await response.json();
+    return jiraResponse;
+  },
 
 
 
@@ -535,6 +529,11 @@ createIssueJira: async (payload: ContractIssuePayload) => {
   getLastUploadedAttachment,
 
   getProposalById,
+  
+  // Get attachments by issue key from our database
+  getAttachmentsByIssueKey: (issueKey: string) => {
+    return jiraApiCall(`/api/jira/contracts/attachments/issue/${issueKey}`);
+  },
 }; // END OF OBJECT
 
 export default jiraService;

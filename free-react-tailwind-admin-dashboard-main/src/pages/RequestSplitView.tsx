@@ -7,6 +7,8 @@ import { usePermissions } from "../hooks/usePermissions";
 import EditIssueModal from "../components/modals/EditIssueModal";
 // import { createQuote } from "../services/quoteService";
 import { useNotifications } from "../context/NotificationContext";
+import { useAuth } from "../context/AuthContext";
+import { commentService } from "../services/commentService";
 
 
 // Define minimal ADF interfaces (enough for description rendering)
@@ -159,6 +161,15 @@ interface Attachment {
     avatarUrls?: { "48x48": string };
   };
   created?: string;
+  // Fields from our database
+  fileName?: string;
+  fileUrl?: string;
+  fileSize?: number;
+  uploadedBy?: string;
+  stage?: string;
+  uploadedAt?: string;
+  jiraIssueKey?: string;
+  proposalId?: number;
 }
 
 interface ContractProposalDto {
@@ -172,19 +183,6 @@ interface ContractProposalDto {
   comment: string;
   createdAt: string;
   final: boolean;
-}
-
-
-interface ContractAttachmentMeta {
-  id: number;
-  jiraIssueKey: string;
-  proposalId?: number;
-  fileName: string;
-  fileUrl: string;
-  fileSize: number;
-  uploadedBy?: string;
-  stage?: string;           // "FIRST_PROPOSAL", etc.
-  uploadedAt?: string;
 }
 
 
@@ -265,8 +263,53 @@ const RequestSplitView: React.FC = () => {
   const {
     userRole,
     canAccessDepartmentIssues,
-    canEditIssue: canEditIssueBase,
   } = usePermissions();
+  
+  // Get current user information from AuthContext
+  const { currentUser } = useAuth();
+
+  // — REPLACE EXISTING getAvatarUrl WITH THIS —
+const getAvatarUrl = (avatar?: string | null, name?: string) => {
+  // 1) prefer explicit avatar URL passed from backend/comment/attachment
+  if (avatar && typeof avatar === "string" && avatar.trim() !== "") {
+    return avatar;
+  }
+
+  // 2) try several common fields on currentUser (adjust if your AuthContext uses different names)
+  const authAvatar =
+    (currentUser as any)?.avatarUrl ||
+    (currentUser as any)?.photo ||
+    (currentUser as any)?.profilePicture ||
+    (currentUser as any)?.user?.avatarUrl || // in case useAuth returns a wrapper
+    null;
+
+  if (authAvatar && typeof authAvatar === "string" && authAvatar.trim() !== "") {
+    return authAvatar;
+  }
+
+  // 3) fallback to initials avatar generator (ui-avatars)
+  const displayName =
+    name ||
+    (currentUser && ((currentUser as any).displayName || (currentUser as any).name)) ||
+    "User";
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(
+    displayName
+  )}&background=0D8ABC&color=fff&size=128`;
+};
+
+
+
+
+  // Add this immediately after: const { userData } = useAuth();
+// const getAvatarUrl = (avatar?: string | null, displayName?: string) => {
+//   if (avatar && typeof avatar === "string" && avatar.trim() !== "") return avatar;
+//   // fallback to user's initials avatar (ui-avatars service) — adjust colors/size as desired
+//   const name = displayName || "User";
+//   return `https://ui-avatars.com/api/?name=${encodeURIComponent(
+//     name
+//   )}&background=0D8ABC&color=fff&size=128`;
+// };
+
 
   // ⬇️ FIX: move getFieldValue HERE (before any useState!)
   const getFieldValue = (keys: string[]) => {
@@ -328,23 +371,21 @@ const RequestSplitView: React.FC = () => {
 
   // UI
   const [isMoreDropdownOpen, setIsMoreDropdownOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<
-    "all" | "comments" | "history" | "transitions"
-  >("all");
+  const [activeTab, setActiveTab] = useState<"comments">("comments");
   const [comments, setComments] = useState<Comment[]>([]);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [transitions, setTransitions] = useState<Transition[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
+
   const [newComment, setNewComment] = useState("");
   const [isAddingComment, setIsAddingComment] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [proposals, setProposals] = useState<ContractProposalDto[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [transitions, setTransitions] = useState<Transition[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
 const [isLoadingProposals, setIsLoadingProposals] = useState(false);
 const { issueKey: issueKeyFromParams } = useParams();
 
 
-  const [previewAttachment, setPreviewAttachment] =
-    useState<Attachment | null>(null);
+
   const [selectedTransition, setSelectedTransition] = useState<string>("");
 
   // Edit modal
@@ -360,11 +401,18 @@ const [currentProposal, setCurrentProposal] = useState<
 
 // New proposal fields
 const [unitCost, setUnitCost] = useState("");
-const [editableLicenseCount, setEditableLicenseCount] = useState(
-  getFieldValue(["customfield_10293", "customfield_10294"]) || "0"
-);
+const [editableLicenseCount, setEditableLicenseCount] = useState("0");
+
+// populate editableLicenseCount when selectedIssue loads
+useEffect(() => {
+  if (!selectedIssue) return;
+  const v = getFieldValue(["customfield_10293", "customfield_10294"]) || "0";
+  setEditableLicenseCount(v);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [selectedIssue]); 
+
 const totalCost = Number(editableLicenseCount || 0) * Number(unitCost || 0);
-const [profitValue, setProfitValue] = useState(0);
+
 const [proposalComment, setProposalComment] = useState("");
 
 // Attachments chosen in Upload Quote modal
@@ -376,6 +424,10 @@ const [hasSubmittedFinalQuote, setHasSubmittedFinalQuote] = useState(false);
 const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
 
 const [previewProposal, setPreviewProposal] = useState<ContractProposalDto | null>(null);
+
+const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+const [profitValue, setProfitValue] = useState<number | null>(null);
+
 
 
   // split view
@@ -439,15 +491,89 @@ const isTransitionDisabled =
   // fetch issue details (comments/attachments)
   const fetchIssueDetails = async (issueKey: string) => {
     try {
-      const commentsData = await jiraService.getIssueComments(issueKey);
-      setComments(commentsData.comments || []);
-      const attachmentsData = await jiraService.getIssueAttachments(issueKey);
-      setAttachments(
-        attachmentsData?.attachments || attachmentsData || []
-      );
+      // Fetch comments using our custom comment service
+      const commentsResponse = await commentService.getCommentsByIssueKey(issueKey);
+      const customComments = commentsResponse.comments || [];
+      
+      // Convert our custom comments to the format expected by the UI
+      const formattedComments: Comment[] = customComments.map((comment: any) => {
+  const possibleAvatar =
+    comment.avatarUrl ||
+    comment.avatar ||
+    comment.userAvatar ||
+    comment.userAvatarUrl ||
+    comment.author?.avatarUrls?.["48x48"] ||
+    null;
+
+  const displayName =
+    comment.userName ||
+    comment.userDisplayName ||
+    comment.author?.displayName ||
+    comment.author?.name ||
+    "Unknown";
+
+  return {
+    id: String(comment.id),
+    author: {
+      displayName,
+      avatarUrls: {
+        "48x48": getAvatarUrl(possibleAvatar, displayName),
+      },
+    },
+    body: comment.commentText || comment.body || comment.content || "",
+    created: comment.createdAt || comment.created || new Date().toISOString(),
+    updated:
+      comment.updatedAt ||
+      comment.updated ||
+      comment.createdAt ||
+      new Date().toISOString(),
+  } as Comment;
+});
+
+      
+      setComments(formattedComments);
+      
+      // Fetch attachments from our database instead of Jira directly
+      const attachmentsData = await jiraService.getAttachmentsByIssueKey(issueKey);
+      
+      // Transform our database attachment objects to the format expected by the UI
+      const transformedAttachments: Attachment[] = (attachmentsData || []).map((attachment: any) => {
+  const uploadedByName = attachment.uploadedBy || attachment.author?.displayName || "Unknown";
+  const uploadedByAvatar =
+    attachment.author?.avatarUrls?.["48x48"] ||
+    attachment.uploadedByAvatar ||
+    null;
+
+  return {
+    id: attachment.id?.toString() || "",
+    filename: attachment.fileName || attachment.filename || "Unknown file",
+    content: attachment.fileUrl || attachment.content || "",
+    size: attachment.fileSize || attachment.size || 0,
+    mimeType: attachment.mimeType || "",
+    created: attachment.uploadedAt || attachment.created || new Date().toISOString(),
+    fileName: attachment.fileName,
+    fileUrl: attachment.fileUrl,
+    fileSize: attachment.fileSize,
+    uploadedBy: uploadedByName,
+    // helper prop for UI
+    author: {
+      displayName: uploadedByName,
+      avatarUrls: {
+        "48x48": getAvatarUrl(uploadedByAvatar, uploadedByName),
+      },
+    } as any,
+    stage: attachment.stage,
+    uploadedAt: attachment.uploadedAt,
+    jiraIssueKey: attachment.jiraIssueKey,
+    proposalId: attachment.proposalId,
+  } as Attachment;
+});
+
+      
+      setAttachments(transformedAttachments);
 
       const allActivities: Activity[] = [
-        ...commentsData.comments.map((comment: Comment) => ({
+        ...formattedComments.map((comment: Comment) => ({
           id: `comment-${comment.id}`,
           type: "comment" as const,
           author: comment.author,
@@ -855,45 +981,74 @@ if (data.length > 1) {
   };
 
   const handleAddComment = async () => {
-    if (newComment.trim() && selectedIssue) {
-      try {
-        setIsAddingComment(true);
-        const response = await jiraService.addCommentToIssue(
-          selectedIssue.key,
-          newComment
-        );
-        const comment: Comment = {
-          id: response.id,
-          author: {
-            displayName: response.author?.displayName || "Current User",
-            avatarUrls: {
-              "48x48":
-                response.author?.avatarUrls?.["48x48"] ||
-                "https://via.placeholder.com/48",
-            },
-          },
-          body: response.body || newComment,
-          created: response.created || new Date().toISOString(),
-          updated: response.updated || new Date().toISOString(),
-        };
-        setComments((prev) => [comment, ...prev]);
-        const activity: Activity = {
-          id: `comment-${comment.id}`,
-          type: "comment",
-          author: comment.author,
-          created: comment.created,
-          data: comment,
-        };
-        setActivities((prev) => [activity, ...prev]);
-        setNewComment("");
-        setIsAddingComment(false);
-      } catch (err) {
-        console.error("Error adding comment:", err);
-        alert("Failed to add comment. Please try again.");
-        setIsAddingComment(false);
+  if (newComment.trim() && selectedIssue) {
+    try {
+      setIsAddingComment(true);
+
+      // Use currentUser from AuthContext (fix: userData was undefined here)
+      if (!currentUser) {
+        throw new Error("User not authenticated");
       }
+
+      // call your backend comment service (make sure payload keys match your API)
+      const response = await commentService.addComment({
+        issueKey: selectedIssue.key,
+        userId: (currentUser as any).id ?? (currentUser as any).user?.id,
+        userName:
+          (currentUser as any).displayName ||
+          (currentUser as any).name ||
+          (currentUser as any).user?.name ||
+          "Current User",
+        commentText: newComment,
+      });
+
+      const displayName =
+        response.userName ||
+        response.userDisplayName ||
+        (currentUser as any).displayName ||
+        (currentUser as any).name ||
+        "Current User";
+
+      // read avatar from response or fallback to currentUser
+      const respAvatar =
+        response.avatarUrl ||
+        response.avatar ||
+        response.userAvatar ||
+        (currentUser as any).avatarUrl ||
+        null;
+
+      const comment: Comment = {
+        id: String(response.id || Date.now()),
+        author: {
+          displayName,
+          avatarUrls: {
+            "48x48": getAvatarUrl(respAvatar, displayName),
+          },
+        },
+        body: response.commentText || newComment,
+        created: response.createdAt || new Date().toISOString(),
+        updated: response.updatedAt || new Date().toISOString(),
+      };
+
+      setComments((prev) => [comment, ...prev]);
+      const activity: Activity = {
+        id: `comment-${comment.id}`,
+        type: "comment",
+        author: comment.author,
+        created: comment.created,
+        data: comment,
+      };
+      setActivities((prev) => [activity, ...prev]);
+      setNewComment("");
+      setIsAddingComment(false);
+    } catch (err) {
+      console.error("Error adding comment:", err);
+      alert("Failed to add comment. Please try again.");
+      setIsAddingComment(false);
     }
-  };
+  }
+};
+
 
   const handleEditIssue = () => {
     if (selectedIssue && canEditIssue()) {
@@ -1151,6 +1306,7 @@ const stageMap: Record<typeof currentProposal, string> = {
   final: "FINAL_PROPOSAL",
 };
 
+// For proposal attachments, we'll proxy to Jira since we don't have the file content locally
 await Promise.all(
   uploadedAttachments.map((att) =>
     fetch("http://localhost:8080/api/jira/contracts/save-attachment", {
@@ -1997,21 +2153,25 @@ await Promise.all(
                               key={attachment.id}
                               className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow cursor-pointer"
                               onClick={() => {
+                                // Use fileUrl from our database - this is our own endpoint
+                                const url = attachment.fileUrl;
+                                if (!url) return;
+                                
+                                // For images, show preview modal
                                 if (
-                                  attachment.mimeType?.startsWith("image/")
+                                  (attachment.mimeType || attachment.fileUrl)?.startsWith("image/")
                                 )
                                   setPreviewAttachment(attachment);
                                 else
-                                  window.open(
-                                    attachment.content,
-                                    "_blank"
-                                  );
+                                  // For other files, open in new tab using our own endpoint
+                                  window.open(url, "_blank");
                               }}
                             >
-                              {attachment.mimeType?.startsWith("image/") ? (
+                              {(attachment.mimeType || attachment.fileUrl)?.startsWith("image/") ? (
+                                // For images, use our own endpoint to serve the file content
                                 <img
-                                  src={attachment.content}
-                                  alt={attachment.filename}
+                                  src={attachment.fileUrl}
+                                  alt={attachment.fileName || attachment.filename}
                                   className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200"
                                 />
                               ) : (
@@ -2030,13 +2190,13 @@ await Promise.all(
                                     ></path>
                                   </svg>
                                   <span className="text-xs mt-2 text-gray-600 dark:text-gray-300 truncate w-24 text-center">
-                                    {attachment.filename}
+                                    {attachment.fileName || attachment.filename}
                                   </span>
                                 </div>
                               )}
                               <div className="p-2 text-center border-t border-gray-200 dark:border-gray-600">
                                 <a
-                                  href={attachment.content}
+                                  href={attachment.fileUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-sm text-blue-600 hover:underline dark:text-blue-400"
@@ -2076,189 +2236,7 @@ await Promise.all(
                         </h2>
                       </div>
 
-                      {/* Tabs */}
-                      <div className="mb-4">
-                        <nav
-                          className="flex space-x-8"
-                          aria-label="Tabs"
-                        >
-                          <button
-                            onClick={() => setActiveTab("all")}
-                            className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${
-                              activeTab === "all"
-                                ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-                            }`}
-                          >
-                            All
-                          </button>
-                          <button
-                            onClick={() => setActiveTab("comments")}
-                            className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${
-                              activeTab === "comments"
-                                ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-                            }`}
-                          >
-                            Comments
-                          </button>
-                          <button
-                            onClick={() => setActiveTab("history")}
-                            className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${
-                              activeTab === "history"
-                                ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-                            }`}
-                          >
-                            History
-                          </button>
-                          <button
-                            onClick={() => setActiveTab("transitions")}
-                            className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${
-                              activeTab === "transitions"
-                                ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-                            }`}
-                          >
-                            Transitions
-                          </button>
-                        </nav>
-                      </div>
-
                       <div className="bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        {/* ALL TAB */}
-                        {activeTab === "all" && (
-                          <div className="p-4">
-                            {activities.length > 0 ? (
-                              <div className="space-y-6">
-                                {activities.map((activity: Activity) => (
-                                  <div
-                                    key={activity.id}
-                                    className="flex space-x-3"
-                                  >
-                                    <div className="flex-shrink-0">
-                                      <img
-                                        className="w-8 h-8 rounded-full"
-                                        src={
-                                          activity.author.avatarUrls[
-                                            "48x48"
-                                          ]
-                                        }
-                                        alt={
-                                          activity.author.displayName
-                                        }
-                                      />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center space-x-2">
-                                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                          {activity.author.displayName}
-                                        </span>
-                                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                                          {formatDate(activity.created)}
-                                        </span>
-                                        <span
-                                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                            activity.type === "comment"
-                                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                              : activity.type ===
-                                                "history"
-                                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                              : "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                                          }`}
-                                        >
-                                          {activity.type ===
-                                            "comment" && "💬 Comment"}
-                                          {activity.type ===
-                                            "history" && "📝 History"}
-                                          {activity.type ===
-                                            "transition" &&
-                                            "⚡ Transition"}
-                                        </span>
-                                      </div>
-                                      <div className="mt-1">
-                                        {activity.type ===
-                                          "comment" && (
-                                          <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                            {typeof (
-                                              activity.data as Comment
-                                            ).body === "object"
-                                              ? JSON.stringify(
-                                                  (activity.data as Comment)
-                                                    .body
-                                                )
-                                              : (activity.data as Comment)
-                                                  .body}
-                                          </div>
-                                        )}
-                                        {activity.type ===
-                                          "history" && (
-                                          <div className="text-sm text-gray-700 dark:text-gray-300">
-                                            Changed{" "}
-                                            <strong>
-                                              {
-                                                (activity.data as HistoryItem)
-                                                  .field
-                                              }
-                                            </strong>{" "}
-                                            from "
-                                            {
-                                              (activity.data as HistoryItem)
-                                                .oldValue
-                                            }
-                                            " to "
-                                            {
-                                              (activity.data as HistoryItem)
-                                                .newValue
-                                            }
-                                            "
-                                          </div>
-                                        )}
-                                        {activity.type ===
-                                          "transition" && (
-                                          <div className="text-sm text-gray-700 dark:text-gray-300">
-                                            <strong>
-                                              {
-                                                (activity.data as Transition)
-                                                  .action
-                                              }
-                                            </strong>
-                                            :{" "}
-                                            {
-                                              (activity.data as Transition)
-                                                .details
-                                            }
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                <svg
-                                  className="w-12 h-12 mx-auto text-gray-400 mb-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="2"
-                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                  ></path>
-                                </svg>
-                                <p>No activities yet</p>
-                                <p className="text-sm mt-1">
-                                  Activity timeline will be shown here
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
                         {/* COMMENTS TAB */}
                         {activeTab === "comments" && (
                           <div className="p-4">
@@ -2278,10 +2256,14 @@ await Promise.all(
                             <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
                               <div className="flex items-start space-x-3">
                                 <img
-                                  className="w-8 h-8 rounded-full"
-                                  src="https://via.placeholder.com/48"
-                                  alt="Current User"
-                                />
+  className="w-8 h-8 rounded-full"
+  src={getAvatarUrl(currentUser?.avatarUrl, currentUser?.displayName)}
+  alt={currentUser?.displayName || "User"}
+  onError={(e) => {
+    (e.currentTarget as HTMLImageElement).src = getAvatarUrl(null, currentUser?.displayName);
+  }}
+/>
+
                                 <div className="flex-1">
                                   <textarea
                                     value={newComment}
@@ -2321,12 +2303,15 @@ await Promise.all(
                                   >
                                     <div className="flex-shrink-0">
                                       <img
-                                        className="w-8 h-8 rounded-full"
-                                        src={
-                                          comment.author.avatarUrls["48x48"]
-                                        }
-                                        alt={comment.author.displayName}
-                                      />
+  className="w-8 h-8 rounded-full"
+  src={getAvatarUrl(comment.author.avatarUrls?.["48x48"], comment.author.displayName)}
+  alt={comment.author.displayName}
+  onError={(e) => {
+    (e.currentTarget as HTMLImageElement).src = getAvatarUrl(null, comment.author.displayName);
+  }}
+/>
+
+
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center space-x-2">
@@ -2356,154 +2341,7 @@ await Promise.all(
                           </div>
                         )}
 
-                        {/* HISTORY TAB */}
-                        {activeTab === "history" && (
-                          <div className="p-4">
-                            {history.length > 0 ? (
-                              <div className="space-y-4">
-                                {history.map(
-                                  (historyItem: HistoryItem) => (
-                                    <div
-                                      key={`history-${historyItem.id}`}
-                                      className="flex space-x-3"
-                                    >
-                                      <div className="flex-shrink-0">
-                                        <img
-                                          className="w-8 h-8 rounded-full"
-                                          src={
-                                            historyItem.author.avatarUrls[
-                                              "48x48"
-                                            ]
-                                          }
-                                          alt={
-                                            historyItem.author.displayName
-                                          }
-                                        />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center space-x-2">
-                                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                            {
-                                              historyItem.author
-                                                .displayName
-                                            }
-                                          </span>
-                                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                                            {formatDate(
-                                              historyItem.created
-                                            )}
-                                          </span>
-                                        </div>
-                                        <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                                          Changed{" "}
-                                          <strong>
-                                            {historyItem.field}
-                                          </strong>{" "}
-                                          from "
-                                          {historyItem.oldValue}" to "
-                                          {historyItem.newValue}"
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            ) : (
-                              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                <svg
-                                  className="w-12 h-12 mx-auto text-gray-400 mb-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="2"
-                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                                  ></path>
-                                </svg>
-                                <p>No history available</p>
-                                <p className="text-sm mt-1">
-                                  Issue history will be shown here
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* TRANSITIONS TAB */}
-                        {activeTab === "transitions" && (
-                          <div className="p-4">
-                            {transitions.length > 0 ? (
-                              <div className="space-y-4">
-                                {transitions.map(
-                                  (transition: Transition) => (
-                                    <div
-                                      key={`transition-${transition.id}`}
-                                      className="flex space-x-3"
-                                    >
-                                      <div className="flex-shrink-0">
-                                        <img
-                                          className="w-8 h-8 rounded-full"
-                                          src={
-                                            transition.author.avatarUrls[
-                                              "48x48"
-                                            ]
-                                          }
-                                          alt={
-                                            transition.author.displayName
-                                          }
-                                        />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex items-center space-x-2">
-                                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                                            {
-                                              transition.author
-                                                .displayName
-                                            }
-                                          </span>
-                                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                                            {formatDate(
-                                              transition.created
-                                            )}
-                                          </span>
-                                        </div>
-                                        <div className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                                          <strong>
-                                            {transition.action}
-                                          </strong>
-                                          : {transition.details}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            ) : (
-                              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                                <svg
-                                  className="w-12 h-12 mx-auto text-gray-400 mb-4"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="2"
-                                    d="M9 7h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                                  ></path>
-                                </svg>
-                                <p>No transitions available</p>
-                                <p className="text-sm mt-1">
-                                  Issue transitions will be shown here
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        
                       </div>
                     </div>
                   </div>
@@ -2512,7 +2350,7 @@ await Promise.all(
                   <div className="lg:col-span-1 space-y-6">
                     {/* People */}
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 dark:text:white mb-4 pb-2 border-b border-gray-200 dark:border-gray-600">
+                      <h3 className="font-semibold text-gray-900 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-600">
                         People
                       </h3>
                       <div className="space-y-4">

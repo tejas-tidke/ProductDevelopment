@@ -16,6 +16,7 @@ import com.htc.productdevelopment.service.JiraService;
 import com.htc.productdevelopment.service.ContractDetailsService;
 import com.htc.productdevelopment.service.VendorDetailsService;
 import com.htc.productdevelopment.service.ProposalService;
+import com.htc.productdevelopment.service.ContractAttachmentService;
 
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
@@ -31,8 +32,11 @@ import org.springframework.http.HttpMethod;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -49,7 +53,7 @@ import org.slf4j.LoggerFactory;
  */
 @RestController
 @RequestMapping("/api/jira")
-@CrossOrigin(origins = "http://localhost:5173")
+
 public class JiraController {
 
     // Logger for tracking controller operations
@@ -71,6 +75,9 @@ public class JiraController {
     
     @Autowired
     private ProposalService proposalService;
+    
+    @Autowired
+    private ContractAttachmentService contractAttachmentService;
 
     public JiraController(JiraService jiraService,
                           ContractDetailsService contractDetailsService,
@@ -477,6 +484,37 @@ public class JiraController {
             );
 
             logger.info("📤 Attachment uploaded successfully to Jira!");
+            
+            // Save attachment metadata to our database
+            if (response != null && response.isArray() && response.size() > 0) {
+                JsonNode attachmentInfo = response.get(0);
+                
+                String fileName = attachmentInfo.has("filename") ? attachmentInfo.get("filename").asText() : file.getOriginalFilename();
+                // Use our own endpoint to serve the file instead of Jira's URL
+                String fileUrl = "/api/jira/contracts/attachments/" + attachmentInfo.get("id").asText() + "/content";
+                long fileSize = attachmentInfo.has("size") ? attachmentInfo.get("size").asLong() : file.getSize();
+                String mimeType = attachmentInfo.has("mimeType") ? attachmentInfo.get("mimeType").asText() : file.getContentType();
+                byte[] fileContent = file.getBytes();
+                
+                logger.info("📎 Saving attachment metadata - fileName: {}, fileSize: {}, mimeType: {}", fileName, fileSize, mimeType);
+                
+                // Save to our database
+                ContractAttachment attachment = new ContractAttachment();
+                attachment.setJiraIssueKey(issueIdOrKey);
+                attachment.setFileName(fileName);
+                attachment.setFileUrl(fileUrl);
+                attachment.setFileSize(fileSize);
+                attachment.setMimeType(mimeType);
+                attachment.setUploadedBy("system");
+                attachment.setStage("CREATION");
+                attachment.setFileContent(fileContent);
+                
+                contractAttachmentRepository.save(attachment);
+                
+                logger.info("💾 Attachment metadata saved to database for issue {}", issueIdOrKey);
+            } else {
+                logger.warn("⚠ No attachment response received from Jira for issue {}", issueIdOrKey);
+            }
 
             return ResponseEntity.ok(response);
 
@@ -1059,32 +1097,44 @@ public ResponseEntity<?> saveAttachmentToContract(@RequestBody Map<String, Objec
 
     try {
         String issueKey = (String) payload.get("issueKey");
-        Map<String, Object> metadata = (Map<String, Object>) payload.get("metadata");
-
-        if (metadata == null) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", "metadata object missing in request"));
+        
+        // Extract fields directly from payload (not from metadata object)
+        String fileName = payload.get("fileName") != null ? payload.get("fileName").toString() : "";
+        String fileUrl = payload.get("fileUrl") != null ? payload.get("fileUrl").toString() : "";
+        Long fileSize = payload.get("fileSize") != null ? Long.valueOf(payload.get("fileSize").toString()) : 0L;
+        String mimeType = payload.get("mimeType") != null ? payload.get("mimeType").toString() : "";
+        String uploadedBy = payload.get("uploadedBy") != null ? payload.get("uploadedBy").toString() : "system";
+        String stage = payload.get("stage") != null ? payload.get("stage").toString() : "CREATION";
+        Long proposalId = payload.get("proposalId") != null ? Long.valueOf(payload.get("proposalId").toString()) : null;
+        
+        // Check if we have file content (for initial request attachments)
+        byte[] fileContent = null;
+        if (payload.containsKey("fileContent")) {
+            String fileContentBase64 = (String) payload.get("fileContent");
+            if (fileContentBase64 != null && !fileContentBase64.isEmpty()) {
+                fileContent = java.util.Base64.getDecoder().decode(fileContentBase64);
+            }
         }
-
-        String fileName = metadata.get("fileName") != null ? metadata.get("fileName").toString() : "";
-        String fileUrl = metadata.get("content") != null ? metadata.get("content").toString() : "";
-        Long fileSize = metadata.get("size") != null ? Long.valueOf(metadata.get("size").toString()) : 0L;
-        String mimeType = metadata.get("mimeType") != null ? metadata.get("mimeType").toString() : "";
 
         logger.info("Saving attachment in DB for issueKey={} file={}", issueKey, fileName);
 
-        // ❌ DO NOT CREATE CONTRACT
-        ContractDetails contract = null;
+        // Get proposal if proposalId is provided
+        ContractProposal proposal = null;
+        if (proposalId != null) {
+            proposal = contractProposalRepository.findById(proposalId).orElse(null);
+        }
 
         ContractAttachment attachment = new ContractAttachment();
         attachment.setContract(null);
+        attachment.setProposal(proposal);
         attachment.setJiraIssueKey(issueKey);
         attachment.setFileName(fileName);
         attachment.setFileUrl(fileUrl);
         attachment.setFileSize(fileSize);
         attachment.setMimeType(mimeType);
-        attachment.setUploadedBy("system");
-        attachment.setStage("CREATION");
+        attachment.setUploadedBy(uploadedBy);
+        attachment.setStage(stage);
+        attachment.setFileContent(fileContent);
 
         contractAttachmentRepository.save(attachment);
 
@@ -1186,6 +1236,78 @@ public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
 }
 
 
+    @GetMapping("/contracts/proposals/{proposalId}/attachments")
+    public ResponseEntity<?> getAttachmentsByProposalId(@PathVariable Long proposalId) {
+        try {
+            List<ContractAttachment> attachments = contractAttachmentService.getAttachmentsByProposalId(proposalId);
+            return ResponseEntity.ok(attachments);
+        } catch (Exception e) {
+            logger.error("Error fetching attachments for proposal ID: {}", proposalId, e);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch attachments: " + e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/contracts/attachments/issue/{issueKey}")
+    public ResponseEntity<?> getAttachmentsByIssueKey(@PathVariable String issueKey) {
+        try {
+            List<ContractAttachment> attachments = contractAttachmentService.getAttachmentsByIssueKey(issueKey);
+            return ResponseEntity.ok(attachments);
+        } catch (Exception e) {
+            logger.error("Error fetching attachments for issue key: {}", issueKey, e);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch attachments: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Serve attachment file content
+     * @param attachmentId The attachment ID
+     * @return The attachment file content
+     */
+    @GetMapping("/contracts/attachments/{attachmentId}/content")
+    public ResponseEntity<?> getAttachmentContent(@PathVariable Long attachmentId) {
+        try {
+            ContractAttachment attachment = contractAttachmentRepository.findById(attachmentId)
+                    .orElse(null);
+            
+            if (attachment == null) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            // Check if we have file content stored locally
+            byte[] fileContent = attachment.getFileContent();
+            if (fileContent != null && fileContent.length > 0) {
+                // Serve the file content directly from our database
+                String mimeType = attachment.getMimeType();
+                if (mimeType == null || mimeType.isEmpty()) {
+                    mimeType = "application/octet-stream";
+                }
+                
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_TYPE, mimeType)
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + attachment.getFileName() + "\"")
+                        .body(fileContent);
+            } else {
+                // Proxy to Jira if we don't have the file content locally
+                // Extract Jira attachment ID from our fileUrl
+                String fileUrl = attachment.getFileUrl();
+                if (fileUrl != null && fileUrl.contains("/rest/api/2/attachment/content/")) {
+                    // Already a Jira URL, redirect to it
+                    return ResponseEntity.status(HttpStatus.FOUND)
+                            .header(HttpHeaders.LOCATION, fileUrl)
+                            .build();
+                } else {
+                    // Construct Jira URL from our attachment ID
+                    String jiraFileUrl = "https://your-jira-instance.atlassian.net/rest/api/2/attachment/content/" + attachmentId;
+                    return ResponseEntity.status(HttpStatus.FOUND)
+                            .header(HttpHeaders.LOCATION, jiraFileUrl)
+                            .build();
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error serving attachment content for ID: {}", attachmentId, e);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to serve attachment: " + e.getMessage()));
+        }
+    }
 
 }
 

@@ -12,4 +12,6 @@ public interface ContractAttachmentRepository extends JpaRepository<ContractAtta
     List<ContractAttachment> findByJiraIssueKey(String issueKey);
 
     List<ContractAttachment> findByContractIdAndStage(Long contractId, String stage);
+    
+    List<ContractAttachment> findByProposalId(Long proposalId);
 }
