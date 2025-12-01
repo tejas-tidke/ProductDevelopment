@@ -47,6 +47,10 @@ const VendorList: React.FC = () => {
     "License Based"
   );
 
+  const [addSuccess, setAddSuccess] = useState(false);
+  const [lastAddedProduct, setLastAddedProduct] = useState<ProductItem | null>(null);
+
+
   // --- Actions Dropdown state
   const [openActionId, setOpenActionId] = useState<string | number | null>(null);
 
@@ -122,7 +126,13 @@ const VendorList: React.FC = () => {
         productType: vendorProductType,
       });
 
+      // Update table
       setProducts((prev) => [...prev, created]);
+
+      // 🔹 Save info for success message
+      setLastAddedProduct(created);
+      setAddSuccess(true);
+
       closeVendorModal();
     } catch (err: any) {
       console.error("Failed to create vendor", err);
@@ -418,6 +428,28 @@ const VendorList: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setDeleteSuccess(false)}
+                className="ml-4 text-green-900 hover:text-green-700 dark:text-green-300 dark:hover:text-green-100 font-semibold"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {addSuccess && lastAddedProduct && (
+            <div className="mb-4 flex items-center justify-between rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-700 dark:bg-green-900/40 dark:text-green-200">
+              <span>
+                <span className="font-semibold">
+                  {lastAddedProduct.productName || "Product"}
+                </span>{" "}
+                has been added successfully under vendor{" "}
+                <span className="font-semibold">
+                  {lastAddedProduct.nameOfVendor || "Vendor"}
+                </span>.
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setAddSuccess(false)}
                 className="ml-4 text-green-900 hover:text-green-700 dark:text-green-300 dark:hover:text-green-100 font-semibold"
               >
                 ×
