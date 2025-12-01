@@ -12,6 +12,7 @@ import com.htc.productdevelopment.repository.ContractDetailsRepository;
 import com.htc.productdevelopment.repository.ContractProposalRepository;
 import com.htc.productdevelopment.dto.ContractCompletedRequest;
 import com.htc.productdevelopment.dto.ContractDTO;
+import com.htc.productdevelopment.dto.VendorDetailsDTO;
 import com.htc.productdevelopment.service.JiraService;
 import com.htc.productdevelopment.service.ContractDetailsService;
 import com.htc.productdevelopment.service.VendorDetailsService;
@@ -1308,6 +1309,22 @@ public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
             return ResponseEntity.status(500).body(Map.of("error", "Failed to serve attachment: " + e.getMessage()));
         }
     }
+    
+    @PostMapping("/vendors")
+	public ResponseEntity<VendorDetailsDTO> createVendor(@RequestBody VendorDetailsDTO dto) {
+		VendorDetailsDTO created = vendorDetailsService.createVendor(dto);
+		return ResponseEntity.status(HttpStatus.CREATED).body(created);
+	}
+
+	// -------------------- DELETE VENDOR PRODUCT (BY ID) --------------------
+	@DeleteMapping("/vendors/{id}")
+	public ResponseEntity<Void> deleteVendorProduct(@PathVariable Long id) {
+		boolean deleted = vendorDetailsService.deleteVendorById(id);
+		if (!deleted) {
+			return ResponseEntity.notFound().build(); // 404 if id doesn't exist
+		}
+		return ResponseEntity.noContent().build(); // 204 on success
+	}
 
 }
 

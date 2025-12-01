@@ -14,6 +14,7 @@ public class VendorDetailsService {
 
     @Autowired
     private VendorDetailsRepository vendorDetailsRepository;
+    
 
     // Fetch distinct vendor names for dropdown
     public List<String> getAllVendors() {
@@ -51,4 +52,29 @@ public class VendorDetailsService {
         dto.setProductType(vendorDetails.getProductType());
         return dto;
     }
+    
+    public VendorDetailsDTO createVendor(VendorDetailsDTO dto) {
+        VendorDetails entity = convertToEntity(dto);
+        VendorDetails saved = vendorDetailsRepository.save(entity);
+        return convertToDTO(saved);
+    }
+    
+    private VendorDetails convertToEntity(VendorDetailsDTO dto) {
+		VendorDetails entity = new VendorDetails();
+		entity.setId(dto.getId()); // usually null when creating
+		entity.setNameOfVendor(dto.getNameOfVendor());
+		entity.setProductName(dto.getProductName());
+		entity.setProductLink(dto.getProductLink());
+		entity.setProductType(dto.getProductType());
+		return entity;
+	}
+    
+	public boolean deleteVendorById(Long id) {
+        if (!vendorDetailsRepository.existsById(id)) {
+            return false;
+        }
+        vendorDetailsRepository.deleteById(id);
+        return true;
+    }
+
 }
