@@ -224,6 +224,13 @@ async function getLastUploadedAttachment(issueKey: string, fileName: string) {
   };
 }
 
+// Delete a vendor product by ID
+async function deleteVendorProduct(id: number | string): Promise<void> {
+  await jiraApiCall(`/api/jira/vendors/${id}`, {
+    method: "DELETE",
+  });
+}
+
 
 // Jira API functions
 export const jiraService = {
@@ -271,13 +278,7 @@ export const jiraService = {
       `/api/jira/contracts/license-count?vendor=${vendorName}&product=${productName}`
     ),
 
-  createVendor: async (payload: CreateVendorPayload) => {
-    return jiraApiCall("/api/jira/vendors", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-
+  
   // 9️⃣ Create Contract Issue (NEW API)
   createContractIssue: async (payload: any) => {
     return jiraApiCall("/api/jira/contracts/create", {
@@ -285,9 +286,17 @@ export const jiraService = {
       body: JSON.stringify(payload),
     });
   },
+   
+   //  Create Vendor
+  createVendor: async (payload: CreateVendorPayload) => {
+    return jiraApiCall("/api/jira/vendors", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
 
-
-
+   // Remove Vendor
+  deleteVendorProduct: (id: number | string) => deleteVendorProduct(id),
 
   // Get recent projects
   getRecentProjects: () => jiraApiCall("/api/jira/projects/recent"),
@@ -566,5 +575,8 @@ export const jiraService = {
 
   getProposalById,
 }; // END OF OBJECT
+
+
+
 
 export default jiraService;

@@ -1196,4 +1196,14 @@ public class JiraController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(created);
 	}
 
+	// -------------------- DELETE VENDOR PRODUCT (BY ID) --------------------
+	@DeleteMapping("/vendors/{id}")
+	public ResponseEntity<Void> deleteVendorProduct(@PathVariable Long id) {
+		boolean deleted = vendorDetailsService.deleteVendorById(id);
+		if (!deleted) {
+			return ResponseEntity.notFound().build(); // 404 if id doesn't exist
+		}
+		return ResponseEntity.noContent().build(); // 204 on success
+	}
+
 }

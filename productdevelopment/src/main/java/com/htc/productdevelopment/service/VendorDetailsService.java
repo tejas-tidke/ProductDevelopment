@@ -66,4 +66,35 @@ public class VendorDetailsService {
 		entity.setProductType(dto.getProductType());
 		return entity;
 	}
+	
+	
+	
+	// -------------------- DELETE VENDOR PRODUCT BY ID --------------------
+	public boolean deleteVendorById(Long id) {
+	    if (!vendorDetailsRepository.existsById(id)) {
+	        return false; // not found
+	    }
+	    vendorDetailsRepository.deleteById(id);
+	    return true;
+	}
+
+	
+	
+//	//-------------------- CREATE NEW VENDOR --------------------
+//    public VendorDetailsDTO createVendor(VendorDetailsDTO dto) {
+//        VendorDetails entity = convertToEntity(dto); // convert DTO → entity
+//        VendorDetails saved = vendorDetailsRepository.save(entity);
+//        return convertToDTO(saved); // return saved DTO
+//    }
+//
+//    //-------------------- DTO → ENTITY --------------------
+//    private VendorDetails convertToEntity(VendorDetailsDTO dto) {
+//        VendorDetails entity = new VendorDetails();
+//        entity.setId(dto.getId()); // usually null when creating
+//        entity.setNameOfVendor(dto.getNameOfVendor());
+//        entity.setProductName(dto.getProductName());
+//        entity.setProductLink(dto.getProductLink());
+//        entity.setProductType(dto.getProductType());
+//        return entity;
+//    }
 }

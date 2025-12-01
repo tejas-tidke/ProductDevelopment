@@ -6,7 +6,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import PageMeta from "../../components/common/PageMeta";
 import { jiraService, ProductItem } from "../../services/jiraService";
 import { Modal } from "../../components/ui/modal/index.tsx";
-// import { useModal } from "../../hooks/useModal"; // not used right now
+
 
 interface Column {
   key: string;
@@ -33,6 +33,7 @@ const VendorList: React.FC = () => {
     { key: "productName", title: "Product Name", isSortable: true, isSelected: true },
     { key: "productLink", title: "Product Link", isSortable: true, isSelected: true },
     { key: "productType", title: "Product Type", isSortable: true, isSelected: true },
+    { key: "actions", title: "Action", isSortable: false, isSelected: true },
   ]);
 
   const visibleColumns = allColumns.filter((c) => c.isSelected);
@@ -45,6 +46,53 @@ const VendorList: React.FC = () => {
   const [vendorProductType, setVendorProductType] = useState<"License Based" | "Usage Based">(
     "License Based"
   );
+
+  // --- Actions Dropdown state
+  const [openActionId, setOpenActionId] = useState<string | number | null>(null);
+
+  // --- Delete confirmation modal state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<ProductItem | null>(null);
+  // Delete vendor success popup state
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
+  const [lastDeletedProduct, setLastDeletedProduct] = useState<ProductItem | null>(null);
+
+
+  const toggleActionMenu = (id: string | number) => {
+    setOpenActionId(openActionId === id ? null : id);
+  };
+
+  // Open delete confirmation modal
+  const handleDelete = (product: ProductItem) => {
+    setProductToDelete(product);
+    setIsDeleteModalOpen(true);
+    setOpenActionId(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return;
+
+    try {
+      await jiraService.deleteVendorProduct(Number(productToDelete.id));
+
+      // Remove from UI
+      setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
+
+      // 🔹 Save info for success message
+      setLastDeletedProduct(productToDelete);
+      setDeleteSuccess(true);
+
+      console.log(`Deleted product with id: ${productToDelete.id}`);
+    } catch (err) {
+      console.error("Failed to delete vendor product", err);
+      alert("Failed to delete vendor product. Please try again.");
+    } finally {
+      setIsDeleteModalOpen(false);
+      setProductToDelete(null);
+    }
+  };
+
+
 
   const openVendorModal = () => {
     setVendorName("");
@@ -242,6 +290,59 @@ const VendorList: React.FC = () => {
         );
       case "productType":
         return product.productType || "-";
+      case "actions":
+        return (
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleActionMenu(product.id);
+              }}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+              </svg>
+            </button>
+
+            {openActionId === product.id && (
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700">
+                <div className="py-1">
+                  {/* 🔻 THIS IS THE BUTTON YOU ASKED ABOUT 🔻 */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(product);
+                    }}
+                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-red-400"
+                  >
+                    {/* icon + text */}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4 mr-2"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
       default:
         // @ts-ignore
         return product[colKey] || "-";
@@ -290,6 +391,31 @@ const VendorList: React.FC = () => {
       <PageMeta title="Vendor List" description="List of all vendor products" />
       <div className="mx-auto max-w-7xl px-4 py-8">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+
+          {deleteSuccess && lastDeletedProduct && (
+            <div className="mb-4 flex items-center justify-between rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-700 dark:bg-green-900/40 dark:text-green-200">
+              <span>
+                <span className="font-semibold">
+                  {lastDeletedProduct.productName || "Product"}
+                </span>{" "}
+                from vendor{" "}
+                <span className="font-semibold">
+                  {lastDeletedProduct.nameOfVendor || "Vendor"}
+                </span>{" "}
+                has been deleted successfully.
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setDeleteSuccess(false)}
+                className="ml-4 text-green-900 hover:text-green-700 dark:text-green-300 dark:hover:text-green-100 font-semibold"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Vendor List</h1>
             <div className="flex space-x-4">
@@ -497,6 +623,56 @@ const VendorList: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setProductToDelete(null);
+        }}
+        className="max-w-[450px] p-6"
+      >
+        <div className="flex flex-col">
+          <h5 className="mb-3 font-semibold text-gray-800 text-lg dark:text-white/90">
+            Delete Vendor Product
+          </h5>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold">
+              {productToDelete?.productName || "this product"}
+            </span>{" "}
+            from vendor{" "}
+            <span className="font-semibold">
+              {productToDelete?.nameOfVendor || "-"}
+            </span>
+            ?
+            <br />
+            This action cannot be undone.
+          </p>
+
+          <div className="flex items-center gap-3 mt-6 sm:justify-end">
+            <button
+              onClick={() => {
+                setIsDeleteModalOpen(false);
+                setProductToDelete(null);
+              }}
+              type="button"
+              className="flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDelete}
+              type="button"
+              className="flex w-full justify-center rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 sm:w-auto"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </Modal>
+
     </>
   );
 };
