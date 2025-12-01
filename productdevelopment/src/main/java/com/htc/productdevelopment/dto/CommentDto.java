@@ -20,4 +20,6 @@ public class CommentDto {
     private List<CommentDto> replies;
     private Date createdAt;
     private Date updatedAt;
+
 }
+

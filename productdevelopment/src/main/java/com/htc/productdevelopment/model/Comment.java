@@ -66,4 +66,6 @@ public class Comment {
     protected void onUpdate() {
         this.updatedAt = new Date();
     }
+
 }
+

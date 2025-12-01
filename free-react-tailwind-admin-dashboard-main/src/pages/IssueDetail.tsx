@@ -226,6 +226,10 @@
     const [isMoreDropdownOpen, setIsMoreDropdownOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'all' | 'comments' | 'history' | 'transitions'>('comments');
     const [comments, setComments] = useState<Comment[]>([]);
+    //for reply functionality 
+    const [replyingTo, setReplyingTo] = useState<string | null>(null);
+const [replyText, setReplyText] = useState("");
+
     const [history, setHistory] = useState<HistoryItem[]>([]);
     // Remove unused state variables
     const [newComment, setNewComment] = useState('');
@@ -378,6 +382,23 @@
         setIsAddingComment(false);
       }
     };
+    // function for  reply functionality
+    const submitReply = async (parentId: string) => {
+  if (!replyText.trim()) return;
+
+  try {
+    await commentService.addComment(issueKey, replyText, parentId);
+
+    setReplyText("");
+    setReplyingTo(null);
+
+    // Re-load comments so the reply appears
+    fetchComments();
+  } catch (error) {
+    console.error("Error adding reply:", error);
+  }
+};
+
 
     // Fetch issue data
     useEffect(() => {
@@ -1085,8 +1106,32 @@
                                           typeof comment.body === 'object' 
                                             ? JSON.stringify(comment.body)
                                             : comment.body
+
                                         ) : ""}
                                       </div>
+                                      <button
+  onClick={() => setReplyingTo(comment.id)}
+  className="text-blue-600 text-sm mt-2 hover:underline"
+>
+  Reply
+</button>
+{replyingTo === comment.id && (
+  <div className="mt-3 ml-8">
+    <textarea
+      className="w-full border rounded p-2 text-sm"
+      placeholder="Write a reply..."
+      value={replyText}
+      onChange={(e) => setReplyText(e.target.value)}
+    />
+    <button
+      onClick={() => submitReply(comment.id)}
+      className="mt-2 bg-blue-600 text-white px-3 py-1 rounded text-sm"
+    >
+      Submit Reply
+    </button>
+  </div>
+)}
+
                                     </div>
                                   </div>
                                 </div>

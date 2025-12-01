@@ -11,4 +11,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     // We use this in the service to build the hierarchy
     List<Comment> findByIssueKeyOrderByCreatedAtAsc(String issueKey);
+
 }
+

@@ -13,4 +13,6 @@ public class CreateCommentDto {
     private String userName;
     private String commentText;
     private Long parentCommentId;  // null for top-level comments, set for replies
+
 }
+
