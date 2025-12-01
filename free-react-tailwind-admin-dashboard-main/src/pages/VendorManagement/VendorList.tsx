@@ -53,6 +53,7 @@ const VendorList: React.FC = () => {
   // --- Delete confirmation modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<ProductItem | null>(null);
+  
   // Delete vendor success popup state
   const [deleteSuccess, setDeleteSuccess] = useState(false);
   const [lastDeletedProduct, setLastDeletedProduct] = useState<ProductItem | null>(null);
@@ -294,12 +295,14 @@ const VendorList: React.FC = () => {
         return (
           <div className="relative">
             <button
+              aria-label="Open action menu"
               onClick={(e) => {
                 e.stopPropagation();
                 toggleActionMenu(product.id);
               }}
               className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
             >
+
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="h-5 w-5"
@@ -313,14 +316,16 @@ const VendorList: React.FC = () => {
             {openActionId === product.id && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700">
                 <div className="py-1">
-                  {/* 🔻 THIS IS THE BUTTON YOU ASKED ABOUT 🔻 */}
+                
                   <button
+                    aria-label={`Delete ${product.productName} from ${product.nameOfVendor}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDelete(product);
                     }}
                     className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-red-400"
                   >
+
                     {/* icon + text */}
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
