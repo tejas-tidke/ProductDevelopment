@@ -456,102 +456,115 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     }
 
     // 🔽🔽🔽 REPLACE THIS PART WITH BELOW 🔽🔽🔽
-if (contractType === 'existing') {
-  if (!selectedExistingContractId) {
-    newErrors.selectedExistingContractId = 'Select an existing contract';
-  }
-  if (!vendorContractType) {
-    newErrors.vendorContractType = 'Existing contract has no billing type';
-  }
-  if (!renewalType) {
-    newErrors.renewalType = 'Select renewal type';
-  }
-  if (!dueDate) {
-    newErrors.dueDate = 'Due date is required';
-  }
-  if (contractDuration && Number(contractDuration) < 0) {
-    newErrors.contractDuration = 'Contract duration cannot be negative';
-  }
+    if (contractType === 'existing') {
+      if (!selectedExistingContractId) {
+        newErrors.selectedExistingContractId = 'Select an existing contract';
+      }
+      if (!vendorContractType) {
+        newErrors.vendorContractType = 'Existing contract has no billing type';
+      }
+      if (!renewalType) {
+        newErrors.renewalType = 'Select renewal type';
+      }
+      if (!dueDate) {
+        newErrors.dueDate = 'Due date is required';
+      } else if (renewalDate) {
+        const due = new Date(dueDate);
+        const renewal = new Date(renewalDate);
 
-  // ========== USAGE CONTRACT (existing) ==========
-  if (vendorContractType === 'usage' && renewalType !== 'flat') {
-    // allow 0, only block empty
-    if (newUsageCount === '') {
-      newErrors.newUsageCount = 'Enter new renewal usage amount';
-    }
-
-    if (!renewalNewUnits && newUsageCount === '') {
-      newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
-    }
-
-    if (renewalNewUnits === 'others' && !renewalNewUnitsOther) {
-      newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
-    }
-
-    if (
-      typeof currentUsageCount === 'number' &&
-      typeof newUsageCount === 'number'
-    ) {
-      // 🔼 UPGRADE: new MUST be >= current
-      if (
-        renewalType === 'upgrade' &&
-        !newErrors.newUsageCount &&
-        newUsageCount < currentUsageCount
-      ) {
-        newErrors.newUsageCount =
-          `For upgrade, new usage must be greater than or equal to current usage (${currentUsageCount}).`;
+        // Existing contract rule:
+        // Due Date must NOT be earlier than Renewal Date
+        if (due < renewal) {
+          newErrors.dueDate =
+            'For existing contracts, Due Date cannot be earlier than Renewal Date.';
+        }
       }
 
-      // 🔽 DOWNGRADE: new MUST be <= current
-      if (
-        renewalType === 'downgrade' &&
-        !newErrors.newUsageCount &&
-        newUsageCount > currentUsageCount
-      ) {
-        newErrors.newUsageCount =
-          `For downgrade, new usage must not be more than current usage (${currentUsageCount}).`;
-      }
-    }
-  }
 
-  // ========== LICENSE CONTRACT (existing) ==========
-  if (vendorContractType === 'license' && renewalType !== 'flat') {
-    // allow 0, only block empty
-    if (renewalNewLicenseCount === '') {
-      newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
-    }
 
-    if (!renewalLicenseUnit) {
-      newErrors.renewalLicenseUnit =
-        'Select license unit (agents / users) for renewal';
-    }
-
-    if (
-      typeof currentLicenseCount === 'number' &&
-      typeof renewalNewLicenseCount === 'number'
-    ) {
-      // 🔼 UPGRADE: new MUST be >= current
-      if (
-        renewalType === 'upgrade' &&
-        !newErrors.renewalNewLicenseCount &&
-        renewalNewLicenseCount < currentLicenseCount
-      ) {
-        newErrors.renewalNewLicenseCount =
-          `For upgrade, renewal license count must be greater than or equal to current license count (${currentLicenseCount}).`;
+      if (contractDuration && Number(contractDuration) < 0) {
+        newErrors.contractDuration = 'Contract duration cannot be negative';
       }
 
-      // 🔽 DOWNGRADE: new MUST be <= current
-      if (
-        renewalType === 'downgrade' &&
-        !newErrors.renewalNewLicenseCount &&
-        renewalNewLicenseCount > currentLicenseCount
-      ) {
-        newErrors.renewalNewLicenseCount =
-          `For downgrade, renewal license count must not be more than current license count (${currentLicenseCount}).`;
+      // ========== USAGE CONTRACT (existing) ==========
+      if (vendorContractType === 'usage' && renewalType !== 'flat') {
+        // allow 0, only block empty
+        if (newUsageCount === '') {
+          newErrors.newUsageCount = 'Enter new renewal usage amount';
+        }
+
+        if (!renewalNewUnits && newUsageCount === '') {
+          newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
+        }
+
+        if (renewalNewUnits === 'others' && !renewalNewUnitsOther) {
+          newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
+        }
+
+        if (
+          typeof currentUsageCount === 'number' &&
+          typeof newUsageCount === 'number'
+        ) {
+          // 🔼 UPGRADE: new MUST be >= current
+          if (
+            renewalType === 'upgrade' &&
+            !newErrors.newUsageCount &&
+            newUsageCount < currentUsageCount
+          ) {
+            newErrors.newUsageCount =
+              `For upgrade, new usage must be greater than or equal to current usage (${currentUsageCount}).`;
+          }
+
+          // 🔽 DOWNGRADE: new MUST be <= current
+          if (
+            renewalType === 'downgrade' &&
+            !newErrors.newUsageCount &&
+            newUsageCount > currentUsageCount
+          ) {
+            newErrors.newUsageCount =
+              `For downgrade, new usage must not be more than current usage (${currentUsageCount}).`;
+          }
+        }
+      }
+
+      // ========== LICENSE CONTRACT (existing) ==========
+      if (vendorContractType === 'license' && renewalType !== 'flat') {
+        // allow 0, only block empty
+        if (renewalNewLicenseCount === '') {
+          newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
+        }
+
+        if (!renewalLicenseUnit) {
+          newErrors.renewalLicenseUnit =
+            'Select license unit (agents / users) for renewal';
+        }
+
+        if (
+          typeof currentLicenseCount === 'number' &&
+          typeof renewalNewLicenseCount === 'number'
+        ) {
+          // 🔼 UPGRADE: new MUST be >= current
+          if (
+            renewalType === 'upgrade' &&
+            !newErrors.renewalNewLicenseCount &&
+            renewalNewLicenseCount < currentLicenseCount
+          ) {
+            newErrors.renewalNewLicenseCount =
+              `For upgrade, renewal license count must be greater than or equal to current license count (${currentLicenseCount}).`;
+          }
+
+          // 🔽 DOWNGRADE: new MUST be <= current
+          if (
+            renewalType === 'downgrade' &&
+            !newErrors.renewalNewLicenseCount &&
+            renewalNewLicenseCount > currentLicenseCount
+          ) {
+            newErrors.renewalNewLicenseCount =
+              `For downgrade, renewal license count must not be more than current license count (${currentLicenseCount}).`;
+          }
+        }
       }
     }
-  }
-}
 
 
 
@@ -710,6 +723,7 @@ if (contractType === 'existing') {
   const focusDueDate = () => openDatePicker(dueDateRef.current);
   const focusRenewalDate = () => openDatePicker(renewalDateRef.current);
 
+  const todayStr = new Date().toISOString().split('T')[0];
   if (!isOpen) return null;
 
   const inputClass =
@@ -1154,7 +1168,7 @@ if (contractType === 'existing') {
                   <div className="mt-6">
                     <label htmlFor="dueDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Due Date <span className="text-red-500">*</span></label>
                     <div className="relative">
-                      <input id="dueDate" ref={dueDateRef} type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputClass} />
+                      <input id="dueDate" ref={dueDateRef} type="date" min={renewalDate || todayStr} value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputClass} />
                     </div>
                     {errors.dueDate && <p className="mt-1 text-sm text-red-600">{errors.dueDate}</p>}
                   </div>
@@ -1217,96 +1231,96 @@ if (contractType === 'existing') {
                       </div>
 
                       {renewalType !== 'flat' && renewalType !== '' && (
-  <div className="mt-3">
-    <label
-      htmlFor="renewalNewUsageCount"
-      className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
-    >
-      New renewal usage count
-    </label>
-    <div className="flex items-end space-x-3">
-      <div className="flex-1">
-        <input
-          id="renewalNewUsageCount"
-          type="number"
-          min={0}
-          value={newUsageCount}
-          onChange={(e) => {
-            const value = e.target.value;
+                        <div className="mt-3">
+                          <label
+                            htmlFor="renewalNewUsageCount"
+                            className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
+                          >
+                            New renewal usage count
+                          </label>
+                          <div className="flex items-end space-x-3">
+                            <div className="flex-1">
+                              <input
+                                id="renewalNewUsageCount"
+                                type="number"
+                                min={0}
+                                value={newUsageCount}
+                                onChange={(e) => {
+                                  const value = e.target.value;
 
-            if (value === '') {
-              setNewUsageCount('');
-              return;
-            }
+                                  if (value === '') {
+                                    setNewUsageCount('');
+                                    return;
+                                  }
 
-            let num = Number(value);
-            if (Number.isNaN(num)) {
-              return;
-            }
+                                  let num = Number(value);
+                                  if (Number.isNaN(num)) {
+                                    return;
+                                  }
 
-            // ⬅️ Hard clamp: never store negative numbers
-            num = Math.max(0, num);
-            setNewUsageCount(num);
-          }}
-          placeholder="Enter renewal usage"
-          className={inputClass}
-        />
-        {errors.newUsageCount && (
-          <p className="mt-1 text-sm text-red-600">
-            {errors.newUsageCount}
-          </p>
-        )}
-      </div>
-      <div style={{ minWidth: 140 }}>
-        <label
-          htmlFor="renewalNewUnits"
-          className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
-        >
-          Unit
-        </label>
-        <select
-          id="renewalNewUnits"
-          value={renewalNewUnits || newUnits}
-          onChange={(e) => setRenewalNewUnits(e.target.value as any)}
-          className={inputClass}
-        >
-          <option value="">Select unit</option>
-          <option value="credits">Credits</option>
-          <option value="minutes">Minutes</option>
-          <option value="others">Others</option>
-        </select>
-        {errors.renewalNewUnits && (
-          <p className="mt-1 text-sm text-red-600">
-            {errors.renewalNewUnits}
-          </p>
-        )}
-      </div>
-    </div>
+                                  // ⬅️ Hard clamp: never store negative numbers
+                                  num = Math.max(0, num);
+                                  setNewUsageCount(num);
+                                }}
+                                placeholder="Enter renewal usage"
+                                className={inputClass}
+                              />
+                              {errors.newUsageCount && (
+                                <p className="mt-1 text-sm text-red-600">
+                                  {errors.newUsageCount}
+                                </p>
+                              )}
+                            </div>
+                            <div style={{ minWidth: 140 }}>
+                              <label
+                                htmlFor="renewalNewUnits"
+                                className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
+                              >
+                                Unit
+                              </label>
+                              <select
+                                id="renewalNewUnits"
+                                value={renewalNewUnits || newUnits}
+                                onChange={(e) => setRenewalNewUnits(e.target.value as any)}
+                                className={inputClass}
+                              >
+                                <option value="">Select unit</option>
+                                <option value="credits">Credits</option>
+                                <option value="minutes">Minutes</option>
+                                <option value="others">Others</option>
+                              </select>
+                              {errors.renewalNewUnits && (
+                                <p className="mt-1 text-sm text-red-600">
+                                  {errors.renewalNewUnits}
+                                </p>
+                              )}
+                            </div>
+                          </div>
 
-    {renewalNewUnits === 'others' && (
-      <div className="mt-2">
-        <label
-          htmlFor="renewalNewUnitsOther"
-          className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
-        >
-          Specify other unit for renewal
-        </label>
-        <input
-          id="renewalNewUnitsOther"
-          value={renewalNewUnitsOther}
-          onChange={(e) => setRenewalNewUnitsOther(e.target.value)}
-          placeholder="Type unit (e.g. transactions)"
-          className={inputClass}
-        />
-        {errors.renewalNewUnitsOther && (
-          <p className="mt-1 text-sm text-red-600">
-            {errors.renewalNewUnitsOther}
-          </p>
-        )}
-      </div>
-    )}
-  </div>
-)}
+                          {renewalNewUnits === 'others' && (
+                            <div className="mt-2">
+                              <label
+                                htmlFor="renewalNewUnitsOther"
+                                className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
+                              >
+                                Specify other unit for renewal
+                              </label>
+                              <input
+                                id="renewalNewUnitsOther"
+                                value={renewalNewUnitsOther}
+                                onChange={(e) => setRenewalNewUnitsOther(e.target.value)}
+                                placeholder="Type unit (e.g. transactions)"
+                                className={inputClass}
+                              />
+                              {errors.renewalNewUnitsOther && (
+                                <p className="mt-1 text-sm text-red-600">
+                                  {errors.renewalNewUnitsOther}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                     </div>
                   )}
@@ -1385,11 +1399,26 @@ if (contractType === 'existing') {
                   </div>
 
                   <div className="mt-6">
-                    <label htmlFor="dueDateExisting" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Due Date</label>
+                    <label
+                      htmlFor="dueDateExisting"
+                      className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
+                    >
+                      Due Date
+                    </label>
                     <div className="relative">
-                      <input id="dueDateExisting" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputClass} />
+                      <input
+                        id="dueDateExisting"
+                        type="date"
+                        value={dueDate}
+                        onChange={e => setDueDate(e.target.value)}
+                        className={inputClass}
+                      />
                     </div>
+                    {errors.dueDate && (
+                      <p className="mt-1 text-sm text-red-600">{errors.dueDate}</p>
+                    )}
                   </div>
+
                 </>
               )}
 
