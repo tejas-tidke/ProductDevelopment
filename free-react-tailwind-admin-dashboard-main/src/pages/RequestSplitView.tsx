@@ -458,33 +458,45 @@ const RequestSplitView: React.FC = () => {
       const flatComments = flattenComments(formattedComments);
 
       // Fetch attachments from our database instead of Jira directly
-      const attachmentsData = await jiraService.getAttachmentsByIssueKey(
-        issueKey
-      );
+     const transformedAttachments: Attachment[] = (attachmentsData || []).map(
+  (attachment: any) => {
+    // Always ensure we have a usable URL
+    const backendUrl = `/api/jira/contracts/attachments/${attachment.id}/content`;
 
-      const transformedAttachments: Attachment[] = (attachmentsData || []).map(
-        (attachment: any) => ({
-          id: attachment.id?.toString() || "",
-          filename: attachment.fileName || attachment.filename || "Unknown file",
-          content: attachment.fileUrl || attachment.content || "",
-          size: attachment.fileSize || attachment.size || 0,
-          mimeType: attachment.mimeType || "",
-          created:
-            attachment.uploadedAt ||
-            attachment.created ||
-            new Date().toISOString(),
-          fileName: attachment.fileName,
-          fileUrl: attachment.fileUrl,
-          fileSize: attachment.fileSize,
-          uploadedBy: attachment.uploadedBy,
-          stage: attachment.stage,
-          uploadedAt: attachment.uploadedAt,
-          jiraIssueKey: attachment.jiraIssueKey,
-          proposalId: attachment.proposalId,
-        })
-      );
+    const fileUrl: string =
+      (attachment.fileUrl && typeof attachment.fileUrl === "string"
+        ? attachment.fileUrl
+        : null) ||
+      (attachment.content && typeof attachment.content === "string"
+        ? attachment.content
+        : null) ||
+      backendUrl;
 
-      setAttachments(transformedAttachments);
+    return {
+      id: attachment.id?.toString() || "",
+      filename: attachment.fileName || attachment.filename || "Unknown file",
+      size: attachment.fileSize || attachment.size || 0,
+      mimeType: attachment.mimeType || "",
+      created:
+        attachment.uploadedAt ||
+        attachment.created ||
+        new Date().toISOString(),
+
+      // fields actually used by the UI
+      fileName: attachment.fileName || attachment.filename,
+      fileUrl,
+      fileSize: attachment.fileSize || attachment.size,
+      uploadedBy: attachment.uploadedBy,
+      stage: attachment.stage,
+      uploadedAt: attachment.uploadedAt,
+      jiraIssueKey: attachment.jiraIssueKey,
+      proposalId: attachment.proposalId,
+    };
+  }
+);
+
+setAttachments(transformedAttachments);
+
 
       const allActivities: Activity[] = [
         ...flatComments.map((comment: Comment) => ({
@@ -2088,32 +2100,28 @@ const RequestSplitView: React.FC = () => {
                             <div
                               key={attachment.id}
                               className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow cursor-pointer"
-                              onClick={() => {
-                                const url = attachment.fileUrl;
-                                if (!url) return;
+                             onClick={() => {
+  const url =
+    attachment.fileUrl ||
+    `/api/jira/contracts/attachments/${attachment.id}/content`;
+  if (!url) return;
 
-                                if (
-                                  (attachment.mimeType ||
-                                    attachment.fileUrl
-                                  )?.startsWith("image/")
-                                ) {
-                                  // if you have a previewAttachment state, use it here
-                                  window.open(url, "_blank");
-                                } else {
-                                  window.open(url, "_blank");
-                                }
-                              }}
+  window.open(url, "_blank");
+}}
+
                             >
                               {(attachment.mimeType ||
                                 attachment.fileUrl
                               )?.startsWith("image/") ? (
-                                <img
-                                  src={attachment.fileUrl}
-                                  alt={
-                                    attachment.fileName || attachment.filename
-                                  }
-                                  className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200"
-                                />
+                               <img
+  src={
+    attachment.fileUrl ||
+    `/api/jira/contracts/attachments/${attachment.id}/content`
+  }
+  alt={attachment.fileName || attachment.filename}
+  className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200"
+/>
+
                               ) : (
                                 <div className="flex flex-col items-center justify-center h-32 bg-gray-100 dark:bg-gray-700">
                                   <svg
@@ -2135,15 +2143,19 @@ const RequestSplitView: React.FC = () => {
                                 </div>
                               )}
                               <div className="p-2 text-center border-t border-gray-200 dark:border-gray-600">
-                                <a
-                                  href={attachment.fileUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-sm text-blue-600 hover:underline dark:text-blue-400"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  View / Download
-                                </a>
+                            <a
+  href={
+    attachment.fileUrl ||
+    `/api/jira/contracts/attachments/${attachment.id}/content`
+  }
+  target="_blank"
+  rel="noopener noreferrer"
+  className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+  onClick={(e) => e.stopPropagation()}
+>
+  View / Download
+</a>
+
                               </div>
                             </div>
                           ))}

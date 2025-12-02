@@ -794,86 +794,101 @@ span.flatpickr-weekday,
 
 /* Highlight State / Clickable State / Hover State */
  
+/* Highlight State / Clickable State / Hover State */
+/* Base menu item – clean, readable, modern */
 .menu-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  transition: background-color 150ms ease, transform 120ms ease,
-    box-shadow 150ms ease, color 120ms ease;
-  color: #374151; /* gray-700 */
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.65rem;
+  transition:
+    background-color 150ms ease,
+    transform 120ms ease,
+    box-shadow 150ms ease,
+    color 120ms ease;
+  color: #111827; /* slate-900 – dark, sharp text */
+  background: transparent;
+  font-weight: 500;
 }
- 
- 
+
+/* Inherit color for nested elements */
 .menu-item .menu-item-text,
 .menu-item .menu-item-icon-size,
 .menu-item a,
 .menu-item button {
-  color: inherit ;
+  color: inherit;
 }
- 
- 
+
+/* Inactive state = just text over your gradient/lavender bg */
 .menu-item-inactive {
-  background : transparent ;
+  background: transparent;
 }
- 
-/* if you want to change the background when hover*/
+
+/* Hover – soft glassy pill with subtle movement */
 .menu-item.group:hover,
 .menu-item-inactive:hover,
 .menu-item:hover {
-  background-color: #eff6ff; /* very light blue */
-  color: #1d4ed8; /* blue-700 */
-  transform: translateX(4px);
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.08);
+  background: rgba(255, 255, 255, 0.78); /* soft white pill */
+  color: #0f172a; /* slightly darker text */
+  transform: translateX(3px);
+  box-shadow:
+    0 8px 18px rgba(15, 23, 42, 0.16),
+    0 0 0 1px rgba(148, 163, 184, 0.35); /* subtle outline */
 }
- 
-/* Focus Keyboard */
+
+/* Keyboard focus – clear but not ugly */
 .menu-item:focus-within,
 .menu-item.group:focus-within {
   outline: none;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12); /* BlueFocus Ring Around every button*/
-  background-color: #eff6ff;
-  color: #1d4ed8;
+  background: rgba(255, 255, 255, 0.9);
+  color: #020617;
+  box-shadow:
+    0 0 0 1px rgba(116, 209, 207, 0.7),   /* turquoise ring */
+    0 0 0 4px rgba(200, 227, 255, 0.6);   /* soft outer glow */
 }
- 
-/* Color for clickable state*/
+
+/* Active / current route – premium pill + accent border */
 .menu-item-active {
-  background-color: #e6ffe7; /* Blue  Light */
-  color: #1d4ed8; /* blue-700 */
-  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.06);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.96),
+    rgba(200, 243, 240, 0.96) /* hint of turquoise */
+  );
+  color: #020617;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
+  border-left: 3px solid #74d1cf; /* matches "Room" color */
 }
- 
-/* Icon Color Active and  inactive */
+
+/* Icon colors – subtle when inactive, vivid when active */
 .menu-item-icon-inactive {
-  color: #6b7280 ;
+  color: #64748b; /* slate-500 */
 }
-/* Grey Color Background Shades */
+
 .menu-item-icon-active {
-  color: #1d4ed8;
-} /* blue-700 */
- 
-/* Small Badges for Spacing detail */
+  color: #4f46e5; /* indigo accent to match your purple theme */
+}
+
+/* Small badges / detail text */
 .menu-item .ml-2,
 .menu-item .text-xs {
   font-size: 0.72rem;
 }
- 
- 
+
+/* Disabled */
 .menu-item.is-disabled,
 .menu-item[aria-disabled="true"],
 .menu-item.disabled {
-  opacity: 0.6;
+  opacity: 0.45;
   pointer-events: none;
   cursor: not-allowed;
-  color: #9ca3af; /* gray-400 */
+  color: #94a3b8; /* muted slate */
   background: transparent;
   transform: none;
   box-shadow: none;
 }
 
-
-/* for Star Pattern to be Mandatory RED */ 
+/* Mandatory star */
 label.required::after {
   content: " *";
   color: red;

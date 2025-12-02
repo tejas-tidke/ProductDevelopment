@@ -160,7 +160,7 @@ export const DEFAULT_DEPARTMENT_ACCESS: Record<string, DepartmentAccessRule> = {
   ADMIN: {
     roleId: 'ADMIN',
     departmentId: null, // Can access all departments
-    canViewAllDepartments: true
+    canViewAllDepartments: false
   },
   APPROVER: {
     roleId: 'APPROVER',

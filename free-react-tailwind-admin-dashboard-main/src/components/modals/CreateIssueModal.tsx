@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router';
 import { jiraService } from '../../services/jiraService';
 import { useAuth } from '../../context/AuthContext';
 
+const DOCUMENT_API_BASE = 'http://localhost:8080/api/documents';
+
 interface ExistingContract {
   id: string;
   vendorName: string;
@@ -37,6 +39,12 @@ interface ProductItem {
   nameOfVendor?: string;
   productLink?: string;
   productType?: 'license' | 'usage';
+}
+
+interface DocumentResponse {
+  id: number;
+  fileName: string;
+  contentType: string;
 }
 
 const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
@@ -101,7 +109,12 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // attachment states
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [uploadedDocuments, setUploadedDocuments] = useState<DocumentResponse[]>([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -119,7 +132,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     if (!isOpen) return;
     if (initialContractType) setContractType(initialContractType);
     else setContractType('');
-    if (initialContractType === 'existing' && initialExistingContractId) setSelectedExistingContractId(initialExistingContractId);
+    if (initialContractType === 'existing' && initialExistingContractId)
+      setSelectedExistingContractId(initialExistingContractId);
     else if (!initialExistingContractId) setSelectedExistingContractId('');
   }, [isOpen, initialContractType, initialExistingContractId]);
 
@@ -152,9 +166,9 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
               additionalComment: c.additionalComment ?? '',
               vendorUnit: c.currentUnits ?? c.unit ?? '',
               vendorUsage:
-                (typeof c.currentUsageCount !== 'undefined' && c.currentUsageCount !== null)
+                typeof c.currentUsageCount !== 'undefined' && c.currentUsageCount !== null
                   ? Number(c.currentUsageCount)
-                  : (typeof c.currentLicenseCount !== 'undefined' && c.currentLicenseCount !== null)
+                  : typeof c.currentLicenseCount !== 'undefined' && c.currentLicenseCount !== null
                   ? Number(c.currentLicenseCount)
                   : undefined,
             }))
@@ -203,7 +217,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
   useEffect(() => {
     if (contractType === 'existing' && selectedExistingContractId) {
-      const found = existingContracts.find(c => c.id === selectedExistingContractId);
+      const found = existingContracts.find((c) => c.id === selectedExistingContractId);
       if (!found) return;
       setVendorName(found.vendorName);
       setProductName(found.productName);
@@ -256,7 +270,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
   useEffect(() => {
     if (contractType === 'new' && selectedExistingContractId) {
-      const found = existingContracts.find(c => c.id === selectedExistingContractId);
+      const found = existingContracts.find((c) => c.id === selectedExistingContractId);
       if (!found) return;
       if (typeof found.vendorUsage !== 'undefined' && found.vendorUsage !== null) {
         const usageNum = Number(found.vendorUsage) || 0;
@@ -272,7 +286,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
           setVendorContractType('usage');
         } else if (found.vendorContractType === 'license') {
           setNewLicenseCount(usageNum);
-          if (found.vendorUnit === 'agents' || found.vendorUnit === 'users') setNewLicenseUnit(found.vendorUnit as any);
+          if (found.vendorUnit === 'agents' || found.vendorUnit === 'users')
+            setNewLicenseUnit(found.vendorUnit as any);
           setVendorContractType('license');
         }
         if (!vendorName) setVendorName(found.vendorName);
@@ -345,42 +360,58 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       if (!vendorName) newErrors.vendorName = 'Vendor is required';
       if (!productName) newErrors.productName = 'Product is required';
       if (!contractDuration) newErrors.contractDuration = 'Contract duration is required';
-      if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
+      if (contractDuration && Number(contractDuration) < 0)
+        newErrors.contractDuration = 'Contract duration cannot be negative';
       if (!dueDate) newErrors.dueDate = 'Due date is required';
       if (dueDate) {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         const selectedDate = new Date(dueDate);
-        if (selectedDate < today) newErrors.dueDate = 'Due date cannot be in the past for new contracts';
+        if (selectedDate < today)
+          newErrors.dueDate = 'Due date cannot be in the past for new contracts';
       }
       if (!vendorContractType) newErrors.vendorContractType = 'Select usage or license';
       if (vendorContractType === 'usage') {
-        if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter usage amount';
+        if (newUsageCount === '' || newUsageCount === 0)
+          newErrors.newUsageCount = 'Enter usage amount';
         if (!newUnits) newErrors.newUnits = 'Select unit';
-        if (newUnits === 'others' && !newUnitsOther) newErrors.newUnitsOther = 'Enter custom unit';
+        if (newUnits === 'others' && !newUnitsOther)
+          newErrors.newUnitsOther = 'Enter custom unit';
       }
       if (vendorContractType === 'license') {
-        if (newLicenseCount === '' || newLicenseCount === 0) newErrors.newLicenseCount = 'Enter license count';
-        if (!newLicenseUnit) newErrors.newLicenseUnit = 'Select license unit (agents / users)';
+        if (newLicenseCount === '' || newLicenseCount === 0)
+          newErrors.newLicenseCount = 'Enter license count';
+        if (!newLicenseUnit)
+          newErrors.newLicenseUnit = 'Select license unit (agents / users)';
       }
     }
 
     if (contractType === 'existing') {
-      if (!selectedExistingContractId) newErrors.selectedExistingContractId = 'Select an existing contract';
+      if (!selectedExistingContractId)
+        newErrors.selectedExistingContractId = 'Select an existing contract';
       if (!vendorContractType) newErrors.vendorContractType = 'Existing contract has no billing type';
       if (!renewalType) newErrors.renewalType = 'Select renewal type';
       if (!dueDate) newErrors.dueDate = 'Due date is required';
-      if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
+      if (contractDuration && Number(contractDuration) < 0)
+        newErrors.contractDuration = 'Contract duration cannot be negative';
       if (vendorContractType === 'usage') {
         if (renewalType !== 'flat') {
-          if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0)) newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
-          if (renewalNewUnits === 'others' && !renewalNewUnitsOther) newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
-          if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter new renewal usage amount';
+          if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0))
+            newErrors.renewalNewUnits =
+              'Select unit for renewal or enter new usage';
+          if (renewalNewUnits === 'others' && !renewalNewUnitsOther)
+            newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
+          if (newUsageCount === '' || newUsageCount === 0)
+            newErrors.newUsageCount = 'Enter new renewal usage amount';
         }
       }
       if (vendorContractType === 'license') {
         if (renewalType !== 'flat') {
-          if (renewalNewLicenseCount === '' || renewalNewLicenseCount === 0) newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
-          if (!renewalLicenseUnit) newErrors.renewalLicenseUnit = 'Select license unit (agents / users) for renewal';
+          if (renewalNewLicenseCount === '' || renewalNewLicenseCount === 0)
+            newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
+          if (!renewalLicenseUnit)
+            newErrors.renewalLicenseUnit =
+              'Select license unit (agents / users) for renewal';
         }
       }
     }
@@ -417,6 +448,47 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     setRenewalNewLicenseCount('');
     setRenewalLicenseUnit('');
     setAttachments([]);
+    setUploadedDocuments([]);
+  };
+
+  // NEW: upload attachments via /api/documents
+  const handleAttachmentsChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const files = Array.from(e.target.files || []);
+    setAttachments(files);
+
+    if (!files.length) return;
+
+    try {
+      setUploadingAttachments(true);
+      const uploaded: DocumentResponse[] = [];
+
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch(`${DOCUMENT_API_BASE}/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || 'Upload failed');
+        }
+
+        const doc = (await res.json()) as DocumentResponse;
+        uploaded.push(doc);
+      }
+
+      setUploadedDocuments((prev) => [...prev, ...uploaded]);
+    } catch (err) {
+      console.error('Error uploading attachments', err);
+      alert('Failed to upload attachments. Please try again.');
+    } finally {
+      setUploadingAttachments(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -430,11 +502,15 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       productName,
       vendorContractType,
       currentUsageCount: currentUsageCount || undefined,
-      currentUnits: currentUnits === 'others' ? currentUnitsOther || undefined : currentUnits || undefined,
+      currentUnits:
+        currentUnits === 'others'
+          ? currentUnitsOther || undefined
+          : currentUnits || undefined,
       currentLicenseCount: currentLicenseCount || undefined,
       currentLicenseUnit: currentLicenseUnit || undefined,
       newUsageCount: newUsageCount || undefined,
-      newUnits: newUnits === 'others' ? newUnitsOther || undefined : newUnits || undefined,
+      newUnits:
+        newUnits === 'others' ? newUnitsOther || undefined : newUnits || undefined,
       newLicenseCount: newLicenseCount || undefined,
       newLicenseUnit: newLicenseUnit || undefined,
       contractDuration: contractDuration || undefined,
@@ -446,13 +522,19 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       department: userDepartmentName || '',
       organization: userOrganizationName || '',
       contractMode: contractType,
-      selectedExistingContractId: contractType === 'existing' ? selectedExistingContractId : undefined,
-      renewalType: contractType === 'existing' ? renewalType || undefined : undefined,
-      renewalNewUnits: renewalNewUnits === 'others' ? renewalNewUnitsOther || undefined : renewalNewUnits || undefined,
+      selectedExistingContractId:
+        contractType === 'existing' ? selectedExistingContractId : undefined,
+      renewalType:
+        contractType === 'existing' ? renewalType || undefined : undefined,
+      renewalNewUnits:
+        renewalNewUnits === 'others'
+          ? renewalNewUnitsOther || undefined
+          : renewalNewUnits || undefined,
       renewalNewUnitsOther: renewalNewUnitsOther || undefined,
       renewalNewLicenseCount: renewalNewLicenseCount || undefined,
       renewalLicenseUnit: renewalLicenseUnit || undefined,
-      attachments,
+      // send list of uploaded document IDs instead of raw File objects
+      documentIds: uploadedDocuments.map((d) => d.id),
     };
 
     console.log('📤 Vendor Details being sent:', vendorDetails);
@@ -460,15 +542,48 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       const payload = { vendorDetails };
       const created = await jiraService.createContractIssue(payload);
 
-      if (attachments.length > 0 && created.key) {
-        try {
-          for (const file of attachments) {
-            await jiraService.addAttachmentToIssue(created.key, file);
+      // Save uploaded documents as attachments linked to the issue
+    // After issue created
+if (uploadedDocuments.length > 0 && created.key) {
+  try {
+    const issueKey = created.key;
+
+    await Promise.all(
+      uploadedDocuments.map(async (doc) => {
+        // 1️⃣ Get stored document details (size, type, etc.)
+        const response = await fetch(`${DOCUMENT_API_BASE}/${doc.id}`, {
+          method: "GET",
+        });
+        if (!response.ok) throw new Error("Failed to get document details");
+
+        const documentDetails = await response.json();
+
+        // 2️⃣ Save as DB attachment (used by RequestSplitView)
+        return fetch(
+          "http://localhost:8080/api/jira/contracts/save-attachment",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              issueKey,
+              fileName: doc.fileName,
+              fileUrl: `${DOCUMENT_API_BASE}/${doc.id}/download`, // file actual downloadable URL
+              fileSize: documentDetails.size || 0,
+              uploadedBy: userData?.user?.name || "Unknown",
+              stage: "REQUEST_CREATION",
+              proposalId: null,
+            }),
           }
-        } catch (err) {
-          console.error('Error uploading attachments:', err);
-        }
-      }
+        );
+      })
+    );
+
+    console.log("✔ Attachments saved to DB successfully!");
+  } catch (err) {
+    console.error("❌ Error while saving attachments:", err);
+  }
+}
+
 
       setSuccessMessage('Request successfully created');
       setErrorMessage('');
@@ -536,12 +651,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
       {/* Full-screen container */}
       <div className="fixed inset-0 z-[9999] overflow-y-auto">
-        {/* Frosted / blurred backdrop similar to provided image */}
+        {/* Frosted / blurred backdrop */}
         <div
           className="fixed inset-0"
           onClick={onClose}
           style={{
-            // translucent overlay color + frosted blur
             background:
               'linear-gradient(180deg, rgba(232,236,243,0.55), rgba(220,224,233,0.55))',
             backdropFilter: 'blur(30px) saturate(110%)',
@@ -559,9 +673,9 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby="create-procurement-title"
-            onClick={(e) => e.stopPropagation()} // prevent clicks inside modal from closing backdrop
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Close button (round) */}
+            {/* Close button */}
             <button
               onClick={() => { resetForm(); onClose(); }}
               aria-label="Close modal"
@@ -588,6 +702,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                 <div className="mb-4 rounded-md border bg-red-50 border-red-200 px-4 py-2 text-sm text-red-800">{errorMessage}</div>
               )}
 
+              {/* Type of contract */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type of Contract <span className="text-red-500">*</span></label>
                 <div className="flex flex-wrap items-center gap-4 sm:gap-5">
@@ -638,6 +753,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                 {errors.contractType && <p className="mt-1 text-sm text-red-600">{errors.contractType}</p>}
               </div>
 
+              {/* === NEW CONTRACT SECTION === */}
               {contractType === 'new' && (
                 <>
                   <div className="mt-6">
@@ -662,7 +778,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                     <label className="block mb-4 text-sm font-medium text-gray-700 dark:text-gray-400">Contract Billing</label>
                     <div className="flex flex-wrap items-center gap-4 sm:gap-5">
                       <div className="n-chk">
-                        <div className={`form-check form-check-usage form-check-inline`}>
+                        <div className="form-check form-check-usage form-check-inline">
                           <label className="flex items-center text-sm text-gray-700 form-check-label dark:text-gray-400" htmlFor="billingUsage">
                             <span className="relative">
                               <input
@@ -684,7 +800,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                       </div>
 
                       <div className="n-chk">
-                        <div className={`form-check form-check-license form-check-inline`}>
+                        <div className="form-check form-check-license form-check-inline">
                           <label className="flex items-center text-sm text-gray-700 form-check-label dark:text-gray-400" htmlFor="billingLicense">
                             <span className="relative">
                               <input
@@ -778,6 +894,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                 </>
               )}
 
+              {/* === EXISTING CONTRACT SECTION === */}
               {contractType === 'existing' && (
                 <>
                   <div className="mt-6">
@@ -924,6 +1041,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                 </>
               )}
 
+              {/* COMMON FIELDS */}
               {contractType && (
                 <>
                   <div className="mt-6">
@@ -931,15 +1049,48 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                     <textarea id="additionalComment" value={additionalComment} onChange={e => setAdditionalComment(e.target.value)} rows={3} className={inputClass} placeholder="Enter additional comment" />
                   </div>
 
+                  {/* ATTACHMENTS SECTION (UPDATED) */}
                   <div className="mt-6">
                     <label htmlFor="attachments" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Attachments</label>
-                    <input id="attachments" type="file" multiple onChange={(e) => setAttachments(Array.from(e.target.files || []))} className={inputClass} />
-                    {attachments.length > 0 && (
+                    <input
+                      id="attachments"
+                      type="file"
+                      multiple
+                      onChange={handleAttachmentsChange}
+                      className={inputClass}
+                    />
+                    {uploadingAttachments && (
+                      <p className="mt-1 text-xs text-gray-500">Uploading attachments...</p>
+                    )}
+
+                    {uploadedDocuments.length > 0 && (
                       <div className="mt-2">
-                        <p className="text-sm text-gray-600">Selected files:</p>
-                        <ul className="list-disc list-inside text-sm text-gray-500">
-                          {attachments.map((file, index) => (
-                            <li key={index}>{file.name} ({(file.size / 1024).toFixed(2)} KB)</li>
+                        <p className="text-sm text-gray-600">Uploaded files:</p>
+                        <ul className="list-disc list-inside text-sm text-gray-500 space-y-1">
+                          {uploadedDocuments.map((doc) => (
+                            <li key={doc.id} className="flex items-center gap-2">
+                              <span>{doc.fileName}</span>
+                              <button
+                                type="button"
+                                className="text-blue-600 hover:underline text-xs"
+                                onClick={() =>
+                                  window.open(`${DOCUMENT_API_BASE}/${doc.id}/view`, '_blank')
+                                }
+                              >
+                                View
+                              </button>
+                              <button
+                                type="button"
+                                className="text-red-500 hover:underline text-xs"
+                                onClick={() =>
+                                  setUploadedDocuments((prev) =>
+                                    prev.filter((d) => d.id !== doc.id)
+                                  )
+                                }
+                              >
+                                Remove
+                              </button>
+                            </li>
                           ))}
                         </ul>
                       </div>

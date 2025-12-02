@@ -1,6 +1,7 @@
 package com.htc.productdevelopment.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.htc.productdevelopment.config.JiraConfig;
 import com.htc.productdevelopment.model.ContractDetails;
@@ -49,6 +50,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import com.htc.productdevelopment.repository.UserDepartmentRepository;
 //import org.json.JSONArray;
 //import org.json.JSONObject;
  
@@ -92,6 +94,9 @@ public class JiraService {
     
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private UserDepartmentRepository userDepartmentRepository;
     
     // JSON parser for handling API responses
     private final ObjectMapper objectMapper;
@@ -357,6 +362,23 @@ public class JiraService {
 
                 String orgField = jiraFieldConfig.getOrganizationName();   // "Organization"
                 String deptField = jiraFieldConfig.getDepartmentName();    // "Department"
+             // 🔥 Resolve all departments for the user from user_departments
+                List<String> userDepartmentNames = new ArrayList<>();
+                String userUid = null;
+
+                try {
+                    if (userEmail != null) {
+                        User user = userRepository.findByEmail(userEmail).orElse(null);
+                        if (user != null && user.getUid() != null) {
+                            userUid = user.getUid();
+                            userDepartmentNames = userDepartmentRepository.findDepartmentsByUserUid(userUid);
+                        }
+                    }
+                    logger.info("User UID: {}", userUid);
+                    logger.info("Departments from user_departments: {}", userDepartmentNames);
+                } catch (Exception e) {
+                    logger.warn("Failed to resolve departments from user_departments for email {}", userEmail, e);
+                }
 
                 switch (userRole) {
 
@@ -365,16 +387,63 @@ public class JiraService {
                         break;
 
                     case "ADMIN":
-                    case "APPROVER":
-                        logger.info("ADMIN/APPROVER → Filter by org + dept");
+                        logger.info("ADMIN → Filter by org + ALL user departments from user_departments");
 
-                        if (organizationName != null)
-                            jqlBuilder.append(" AND \"").append(orgField).append("\" = \"").append(organizationName).append("\"");
+                        if (organizationName != null) {
+                            jqlBuilder.append(" AND \"")
+                                      .append(orgField)
+                                      .append("\" = \"")
+                                      .append(organizationName)
+                                      .append("\"");
+                        }
 
-                        if (departmentName != null)
-                            jqlBuilder.append(" AND \"").append(deptField).append("\" = \"").append(departmentName).append("\"");
+                        // Prefer departments from user_departments
+                        if (userDepartmentNames != null && !userDepartmentNames.isEmpty()) {
+                            // "Department" in ("Dept A", "Dept B")
+                            jqlBuilder.append(" AND \"")
+                                      .append(deptField)
+                                      .append("\" in (");
+
+                            for (int i = 0; i < userDepartmentNames.size(); i++) {
+                                String depName = userDepartmentNames.get(i);
+                                jqlBuilder.append("\"").append(depName.replace("\"", "\\\"")).append("\"");
+                                if (i < userDepartmentNames.size() - 1) {
+                                    jqlBuilder.append(", ");
+                                }
+                            }
+                            jqlBuilder.append(")");
+                        } else if (departmentName != null) {
+                            // Fallback: single department from user.department_id (if still used)
+                            jqlBuilder.append(" AND \"")
+                                      .append(deptField)
+                                      .append("\" = \"")
+                                      .append(departmentName)
+                                      .append("\"");
+                        }
 
                         break;
+
+                    case "APPROVER":
+                        logger.info("APPROVER → Filter by org + dept (single dept as before)");
+
+                        if (organizationName != null) {
+                            jqlBuilder.append(" AND \"")
+                                      .append(orgField)
+                                      .append("\" = \"")
+                                      .append(organizationName)
+                                      .append("\"");
+                        }
+
+                        if (departmentName != null) {
+                            jqlBuilder.append(" AND \"")
+                                      .append(deptField)
+                                      .append("\" = \"")
+                                      .append(departmentName)
+                                      .append("\"");
+                        }
+
+                        break;
+
 
                     case "REQUESTER":
                         logger.info("REQUESTER → Filter by Org + Dept + Requester Email");
@@ -399,7 +468,7 @@ public class JiraService {
                                       .append("\" = \"")
                                       .append(requesterUser.getEmail())
                                       .append("\"");
-                        }
+                        } break;
 
 
 
