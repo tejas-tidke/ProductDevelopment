@@ -575,6 +575,24 @@ createIssueJira: async (payload: ContractIssuePayload) => {
   getAttachmentsByIssueKey: (issueKey: string) => {
     return jiraApiCall(`/api/jira/contracts/attachments/issue/${issueKey}`);
   },
+  
+  // Get local attachments by issue key
+  getLocalAttachmentsByIssueKey: (issueKey: string) => {
+    return jiraApiCall(`/api/jira/contracts/local-attachments/issue/${issueKey}`);
+  },
+  
+  // Get local attachment content
+  getLocalAttachmentContent: (attachmentId: number) => {
+    return jiraApiCall(`/api/jira/contracts/local-attachments/${attachmentId}/content`);
+  },
+  
+  // Save attachment to contract
+  saveAttachmentToContract: async (attachmentData: any) => {
+    return jiraApiCall(`/api/jira/contracts/save-attachment`, {
+      method: "POST",
+      body: JSON.stringify(attachmentData),
+    });
+  },
 }; // END OF OBJECT
 
 export default jiraService;

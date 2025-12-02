@@ -626,7 +626,7 @@ case 'additionalComments':
           <div className="mt-3 text-sm text-gray-500">Showing {filteredIssues.length} of {issues.length} requests</div>
 
           {/* Modals */}
-          {selectedIssue && <EditIssueModal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setSelectedIssue(null); }} onSubmit={async (key, data) => { await jiraService.updateIssue(key, data); /* Refresh simplified */ }} issue={selectedIssue} />}
+          {selectedIssue && <EditIssueModal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setSelectedIssue(null); }} onSubmit={async (key, data) => { await jiraService.updateIssue(key, data); /* Refresh simplified */ }} issue ={selectedIssue} />}
 
         </div>
         </div>

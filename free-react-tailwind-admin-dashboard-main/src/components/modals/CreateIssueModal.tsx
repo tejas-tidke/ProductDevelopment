@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { jiraService } from '../../services/jiraService';
 import { useAuth } from '../../context/AuthContext';
+import AttachmentPreview from '../AttachmentPreview';
 
 interface ExistingContract {
   id: string;
@@ -55,6 +56,213 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     return d.toISOString().split('T')[0];
   };
 
+  // Date picker functions
+  const toggleDatePicker = (field: string) => {
+    setCurrentDateField(field);
+    setShowDatePicker(prev => ({
+      ...prev,
+      [field]: !prev[field]
+    }));
+  };
+
+  const closeDatePicker = () => {
+    setShowDatePicker({
+      dueDate: false,
+      renewalDate: false,
+      dueDateExisting: false,
+      renewalDateExisting: false
+    });
+    setCurrentDateField('');
+  };
+
+  const handleDateSelect = (date: Date) => {
+    // Format date as YYYY-MM-DD without timezone conversion
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day}`;
+    
+    switch(currentDateField) {
+      case 'dueDate':
+        setDueDate(formattedDate);
+        break;
+      case 'renewalDate':
+        setRenewalDate(formattedDate);
+        break;
+      case 'dueDateExisting':
+        setDueDate(formattedDate);
+        break;
+      case 'renewalDateExisting':
+        setRenewalDate(formattedDate);
+        break;
+      default:
+        break;
+    }
+    
+    closeDatePicker();
+  };
+
+  // Get current date value for the active field
+  const getCurrentDateValue = () => {
+    switch(currentDateField) {
+      case 'dueDate':
+      case 'dueDateExisting':
+        return dueDate;
+      case 'renewalDate':
+      case 'renewalDateExisting':
+        return renewalDate;
+      default:
+        return '';
+    }
+  };
+
+  // Custom Date Picker Component
+  const DatePicker = ({ fieldId }: { fieldId: string }) => {
+    const datePickerRef = useRef<HTMLDivElement>(null);
+    const [displayMonth, setDisplayMonth] = useState<number>(
+      getCurrentDateValue() ? new Date(getCurrentDateValue()).getMonth() : new Date().getMonth()
+    );
+    const [displayYear, setDisplayYear] = useState<number>(
+      getCurrentDateValue() ? new Date(getCurrentDateValue()).getFullYear() : new Date().getFullYear()
+    );
+    
+    // Close date picker when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
+          if (showDatePicker[fieldId]) {
+            closeDatePicker();
+          }
+        }
+      };
+
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }, [showDatePicker, fieldId]);
+
+    // Reset display month/year when date picker is opened
+    useEffect(() => {
+      if (showDatePicker[fieldId]) {
+        const currentDate = getCurrentDateValue() ? new Date(getCurrentDateValue()) : new Date();
+        setDisplayMonth(currentDate.getMonth());
+        setDisplayYear(currentDate.getFullYear());
+      }
+    }, [showDatePicker[fieldId]]);
+
+    if (!showDatePicker[fieldId]) return null;
+    
+    // Generate calendar days
+    const getDaysInMonth = (year: number, month: number) => {
+      return new Date(year, month + 1, 0).getDate();
+    };
+    
+    const getFirstDayOfMonth = (year: number, month: number) => {
+      return new Date(year, month, 1).getDay();
+    };
+    
+    const daysInMonth = getDaysInMonth(displayYear, displayMonth);
+    const firstDayOfMonth = getFirstDayOfMonth(displayYear, displayMonth);
+    
+    const days = [];
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < firstDayOfMonth; i++) {
+      days.push(null);
+    }
+    // Add days of the month
+    for (let i = 1; i <= daysInMonth; i++) {
+      // Create date string in YYYY-MM-DD format to avoid timezone issues
+      const monthStr = String(displayMonth + 1).padStart(2, '0');
+      const dayStr = String(i).padStart(2, '0');
+      const dateString = `${displayYear}-${monthStr}-${dayStr}`;
+      // Store as a simple object instead of Date to avoid timezone conversion
+      days.push({
+        date: i,
+        dateString: dateString,
+        fullDate: new Date(displayYear, displayMonth, i)
+      });
+    }
+    
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    
+    return (
+      <div ref={datePickerRef} className="absolute z-50 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-3">
+          <button 
+            onClick={() => {
+              if (displayMonth === 0) {
+                setDisplayYear(displayYear - 1);
+                setDisplayMonth(11);
+              } else {
+                setDisplayMonth(displayMonth - 1);
+              }
+            }}
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="font-medium text-gray-800 dark:text-gray-200">
+            {monthNames[displayMonth]} {displayYear}
+          </div>
+          <button 
+            onClick={() => {
+              if (displayMonth === 11) {
+                setDisplayYear(displayYear + 1);
+                setDisplayMonth(0);
+              } else {
+                setDisplayMonth(displayMonth + 1);
+              }
+            }}
+            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+          >
+            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {dayNames.map(day => (
+            <div key={day} className="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-1">
+              {day}
+            </div>
+          ))}
+        </div>
+        
+        <div className="grid grid-cols-7 gap-1">
+          {days.map((dateObj, index) => (
+            <div key={index} className="flex justify-center">
+              {dateObj ? (
+                <button
+                  onClick={() => handleDateSelect(dateObj.fullDate)}
+                  className={`w-8 h-8 text-sm rounded-full flex items-center justify-center 
+                    ${getCurrentDateValue() === dateObj.dateString 
+                      ? 'bg-blue-500 text-white' 
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}
+                    ${dateObj.dateString === new Date().toISOString().split('T')[0] 
+                      ? 'border border-blue-300' 
+                      : ''}`}
+                >
+                  {dateObj.date}
+                </button>
+              ) : (
+                <div className="w-8 h-8"></div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const [requesterName, setRequesterName] = useState('');
   const [requesterMail, setRequesterMail] = useState('');
 
@@ -102,7 +310,19 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Date picker states
+  const [showDatePicker, setShowDatePicker] = useState<{[key: string]: boolean}>({
+    dueDate: false,
+    renewalDate: false,
+    dueDateExisting: false,
+    renewalDateExisting: false
+  });
+  const [currentDateField, setCurrentDateField] = useState<string>('');
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const dueDateRef = useRef<HTMLInputElement | null>(null);
@@ -127,6 +347,25 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     if (isOpen && contractType === 'existing') fetchExistingContracts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, contractType]);
+
+  // Calculate renewal date based on due date and contract duration
+  useEffect(() => {
+    if (dueDate && contractDuration && contractDuration > 0) {
+      // Parse the due date string properly to avoid timezone issues
+      const [year, month, day] = dueDate.split('-').map(Number);
+      const dueDateObj = new Date(year, month - 1, day); // month is 0-indexed
+      // Add contract duration months to due date
+      dueDateObj.setMonth(dueDateObj.getMonth() + contractDuration);
+      // Format the date properly without timezone conversion
+      const renewalYear = dueDateObj.getFullYear();
+      const renewalMonth = String(dueDateObj.getMonth() + 1).padStart(2, '0');
+      const renewalDay = String(dueDateObj.getDate()).padStart(2, '0');
+      const renewalDateString = `${renewalYear}-${renewalMonth}-${renewalDay}`;
+      setRenewalDate(renewalDateString);
+    } else {
+      setRenewalDate('');
+    }
+  }, [dueDate, contractDuration]);
 
   const fetchExistingContracts = async () => {
     try {
@@ -306,13 +545,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     }
   }, [newLicenseCount, selectedExistingContractId, contractType]);
 
-  useEffect(() => {
-    if ((contractType === 'new' || contractType === 'existing') && contractDuration) {
-      const today = new Date().toISOString().split('T')[0];
-      const newRenewalDate = addMonths(today, contractDuration);
-      setRenewalDate(newRenewalDate);
-    }
-  }, [contractType, contractDuration]);
+
 
   const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedProductName = e.target.value;
@@ -352,6 +585,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
         const selectedDate = new Date(dueDate);
         if (selectedDate < today) newErrors.dueDate = 'Due date cannot be in the past for new contracts';
       }
+      if (renewalDate) {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const selectedDate = new Date(renewalDate);
+        if (selectedDate < today) newErrors.renewalDate = 'Renewal date cannot be in the past';
+      }
       if (!vendorContractType) newErrors.vendorContractType = 'Select usage or license';
       if (vendorContractType === 'usage') {
         if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter usage amount';
@@ -387,6 +625,25 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  // Handle file selection
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setAttachments(prev => [...prev, ...files]);
+    }
+  };
+
+  // Handle removing an attachment
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Handle previewing an attachment
+  const handlePreviewAttachment = (file: File) => {
+    setPreviewFile(file);
+    setShowPreview(true);
   };
 
   const resetForm = () => {
@@ -462,11 +719,56 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
       if (attachments.length > 0 && created.key) {
         try {
+          // First, upload attachments to Jira
+          const uploadedAttachments = [];
           for (const file of attachments) {
-            await jiraService.addAttachmentToIssue(created.key, file);
+            const jiraResponse = await jiraService.addAttachmentToIssue(created.key, file);
+            uploadedAttachments.push({ file, jiraResponse });
           }
+          
+          // TODO: Temporarily disabled local attachment storage
+          // For now, we only send attachments to Jira
+          /*
+          for (const { file } of uploadedAttachments) {
+            try {
+              // Convert file to base64 for storage
+              const fileContentBase64 = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+              });
+              
+              // Extract base64 data part (remove data URL prefix)
+              const base64Data = fileContentBase64.split(',')[1] || fileContentBase64;
+              
+              // Validate base64 data
+              if (!base64Data || typeof base64Data !== 'string') {
+                console.error('Invalid base64 data for file:', file.name);
+                throw new Error(`Invalid file data for ${file.name}`);
+              }
+              
+              // Save to our database
+              await jiraService.saveAttachmentToContract({
+                issueKey: created.key,
+                fileName: file.name,
+                fileUrl: `/api/jira/contracts/attachments/content/${file.name}`, // This will be updated by the backend
+                fileSize: file.size,
+                mimeType: file.type || "application/octet-stream",
+                uploadedBy: userData?.user?.name || "Unknown",
+                stage: "CREATION",
+                fileContent: base64Data
+              });
+            } catch (dbErr) {
+              console.error('Error saving attachment metadata to database:', dbErr);
+              const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
+              throw new Error(`Failed to save attachment ${file.name}: ${errorMessage}`);
+            }
+          }
+          */
         } catch (err) {
           console.error('Error uploading attachments:', err);
+          throw err; // Re-throw to prevent success message
         }
       }
 
@@ -485,7 +787,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       }, 1200);
     } catch (err) {
       console.error('Create failed', err);
-      setErrorMessage('Failed to create request. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create request. Please try again.';
+      setErrorMessage(errorMessage);
       setSuccessMessage('');
     } finally {
       setIsSubmitting(false);
@@ -532,6 +835,14 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
         <div className="fixed top-5 right-5 z-[100000] bg-green-600 text-white px-4 py-2 rounded shadow-lg animate-fade-in">
           🎉 Issue Created Successfully!
         </div>
+      )}
+
+      {/* Attachment Preview Modal */}
+      {showPreview && previewFile && (
+        <AttachmentPreview 
+          file={previewFile} 
+          onClose={() => setShowPreview(false)} 
+        />
       )}
 
       {/* Full-screen container */}
@@ -771,9 +1082,43 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                   <div className="mt-6">
                     <label htmlFor="dueDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Due Date <span className="text-red-500">*</span></label>
                     <div className="relative">
-                      <input id="dueDate" ref={dueDateRef} type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputClass} />
+                      <input 
+                        id="dueDate" 
+                        ref={dueDateRef} 
+                        type="text" 
+                        value={dueDate || ''} 
+                        readOnly 
+                        className={inputClass} 
+                        onClick={() => toggleDatePicker('dueDate')}
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer" onClick={() => toggleDatePicker('dueDate')}>
+                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <DatePicker fieldId="dueDate" />
                     </div>
                     {errors.dueDate && <p className="mt-1 text-sm text-red-600">{errors.dueDate}</p>}
+                  </div>
+
+                  <div className="mt-6">
+                    <label htmlFor="renewalDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Renewal Date</label>
+                    <div className="relative">
+                      <input 
+                        id="renewalDate" 
+                        ref={renewalDateRef} 
+                        type="text" 
+                        value={renewalDate || ''} 
+                        readOnly 
+                        className={`${inputClass} bg-gray-100`} 
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </div>
+                    {errors.renewalDate && <p className="mt-1 text-sm text-red-600">{errors.renewalDate}</p>}
                   </div>
                 </>
               )}
@@ -911,14 +1256,39 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                   <div className="mt-6">
                     <label htmlFor="renewalDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Renewal Date</label>
                     <div className="relative">
-                      <input id="renewalDate" ref={renewalDateRef} type="date" value={renewalDate} readOnly disabled className={`${inputClass} bg-gray-100`} />
+                      <input 
+                        id="renewalDate" 
+                        ref={renewalDateRef} 
+                        type="text" 
+                        value={renewalDate || ''} 
+                        readOnly 
+                        className={`${inputClass} bg-gray-100`} 
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                        </svg>
+                      </div>
                     </div>
                   </div>
 
                   <div className="mt-6">
                     <label htmlFor="dueDateExisting" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Due Date</label>
                     <div className="relative">
-                      <input id="dueDateExisting" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className={inputClass} />
+                      <input 
+                        id="dueDateExisting" 
+                        type="text" 
+                        value={dueDate || ''} 
+                        readOnly 
+                        className={inputClass} 
+                        onClick={() => toggleDatePicker('dueDateExisting')}
+                      />
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer" onClick={() => toggleDatePicker('dueDateExisting')}>
+                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <DatePicker fieldId="dueDateExisting" />
                     </div>
                   </div>
                 </>
@@ -933,17 +1303,108 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
                   <div className="mt-6">
                     <label htmlFor="attachments" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Attachments</label>
-                    <input id="attachments" type="file" multiple onChange={(e) => setAttachments(Array.from(e.target.files || []))} className={inputClass} />
-                    {attachments.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-sm text-gray-600">Selected files:</p>
-                        <ul className="list-disc list-inside text-sm text-gray-500">
-                          {attachments.map((file, index) => (
-                            <li key={index}>{file.name} ({(file.size / 1024).toFixed(2)} KB)</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    <div className="border border-gray-300 rounded-md p-3 dark:border-gray-600">
+                      {/* File input */}
+                      <input
+                        type="file"
+                        multiple
+                        onChange={handleFileChange}
+                        className="hidden"
+                        id="attachment-input"
+                      />
+                      <label
+                        htmlFor="attachment-input"
+                        className="cursor-pointer inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600"
+                      >
+                        <svg
+                          className="mr-2 -ml-1 h-5 w-5 text-gray-500"
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M8 4a3 3 0 00-3 7v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        Add Files
+                      </label>
+
+                      {/* Selected attachments */}
+                      {attachments.length > 0 && (
+                        <div className="mt-3">
+                          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Selected Files:
+                          </h4>
+                          <ul className="space-y-2">
+                            {attachments.map((file, index) => (
+                              <li
+                                key={`${file.name}-${file.size}`}
+                                className="flex items-center justify-between text-sm bg-gray-100 rounded p-2 dark:bg-gray-700"
+                              >
+                                <div className="flex items-center truncate max-w-xs">
+                                  <svg
+                                    className="flex-shrink-0 h-5 w-5 text-gray-400 mr-2"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                  <span className="truncate">{file.name}</span>
+                                </div>
+                                <div className="flex items-center space-x-2 flex-shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePreviewAttachment(file)}
+                                    className="text-blue-500 hover:text-blue-700"
+                                    title="Preview"
+                                  >
+                                    <svg
+                                      className="h-5 w-5"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 20 20"
+                                      fill="currentColor"
+                                    >
+                                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveAttachment(index)}
+                                    className="text-red-500 hover:text-red-700"
+                                    title="Remove"
+                                  >
+                                    <svg
+                                      className="h-5 w-5"
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      viewBox="0 0 20 20"
+                                      fill="currentColor"
+                                    >
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}

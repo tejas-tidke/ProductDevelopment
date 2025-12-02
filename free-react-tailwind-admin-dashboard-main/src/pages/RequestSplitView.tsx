@@ -8,6 +8,7 @@ import EditIssueModal from "../components/modals/EditIssueModal";
 import { useNotifications } from "../context/NotificationContext";
 import { useAuth } from "../context/AuthContext";
 import { commentService } from "../services/commentService";
+import AttachmentPreview from "../components/AttachmentPreview";
 
 // Define minimal ADF interfaces (enough for description rendering)
 interface AdfNode {
@@ -171,6 +172,9 @@ interface Attachment {
   uploadedAt?: string;
   jiraIssueKey?: string;
   proposalId?: number;
+  // Local attachment fields
+  localAttachmentId?: number;
+  hasLocalCopy?: boolean;
 }
 
 interface ContractProposalDto {
@@ -334,6 +338,8 @@ const RequestSplitView: React.FC = () => {
   const [transitions, setTransitions] = useState<Transition[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoadingProposals, setIsLoadingProposals] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  const [showAttachmentPreview, setShowAttachmentPreview] = useState(false);
   const { issueKey: issueKeyFromParams } = useParams();
 
   const [selectedTransition, setSelectedTransition] = useState<string>("");
@@ -429,18 +435,26 @@ const RequestSplitView: React.FC = () => {
       const customComments = commentsResponse.comments || [];
 
       // Recursive mapper: backend CommentDto -> UI Comment
-      const mapDtoToUiComment = (dto: any): Comment => ({
-        id: dto.id.toString(),
-        author: {
-          displayName: dto.userName,
-          avatarUrls: { "48x48": "https://via.placeholder.com/48" },
-        },
-        body: dto.commentText,
-        created: dto.createdAt,
-        updated: dto.updatedAt || dto.createdAt,
-        parentCommentId: dto.parentCommentId ?? null,
-        replies: (dto.replies || []).map(mapDtoToUiComment),
-      });
+      const mapDtoToUiComment = (dto: any): Comment => {
+        // Get avatar from the comment's user, otherwise use default
+        let avatarUrl = "https://via.placeholder.com/48";
+        if (dto.userAvatar) {
+          avatarUrl = dto.userAvatar;
+        }
+
+        return {
+          id: dto.id.toString(),
+          author: {
+            displayName: dto.userName,
+            avatarUrls: { "48x48": avatarUrl },
+          },
+          body: dto.commentText,
+          created: dto.createdAt,
+          updated: dto.updatedAt || dto.createdAt,
+          parentCommentId: dto.parentCommentId ?? null,
+          replies: (dto.replies || []).map(mapDtoToUiComment),
+        };
+      }
 
       const formattedComments: Comment[] = customComments.map(mapDtoToUiComment);
       setComments(formattedComments);
@@ -457,31 +471,59 @@ const RequestSplitView: React.FC = () => {
 
       const flatComments = flattenComments(formattedComments);
 
-      // Fetch attachments from our database instead of Jira directly
-      const attachmentsData = await jiraService.getAttachmentsByIssueKey(
-        issueKey
-      );
+      // TODO: Fetch attachments directly from Jira since we're not saving to our database
+      // This is the new approach to avoid database errors
+      
+      // Fetch attachments directly from Jira
+      let attachmentsData = [];
+      try {
+        const jiraAttachments = await jiraService.getIssueAttachments(issueKey);
+        attachmentsData = Array.isArray(jiraAttachments) ? jiraAttachments : 
+                        (jiraAttachments && jiraAttachments.attachments) ? jiraAttachments.attachments : [];
+      } catch (jiraError) {
+        console.warn('Failed to fetch attachments from Jira:', jiraError);
+        attachmentsData = [];
+      }
+      
+      // Skip fetching from our database and local storage since we're not saving there anymore
+      const localAttachmentsData: any[] = [];
+
+      // Create a map of local attachments by file name for quick lookup
+      const localAttachmentsMap = (localAttachmentsData || []).reduce((acc: any, localAttachment: any) => {
+        acc[localAttachment.originalFileName] = localAttachment;
+        return acc;
+      }, {});
 
       const transformedAttachments: Attachment[] = (attachmentsData || []).map(
-        (attachment: any) => ({
-          id: attachment.id?.toString() || "",
-          filename: attachment.fileName || attachment.filename || "Unknown file",
-          content: attachment.fileUrl || attachment.content || "",
-          size: attachment.fileSize || attachment.size || 0,
-          mimeType: attachment.mimeType || "",
-          created:
-            attachment.uploadedAt ||
-            attachment.created ||
-            new Date().toISOString(),
-          fileName: attachment.fileName,
-          fileUrl: attachment.fileUrl,
-          fileSize: attachment.fileSize,
-          uploadedBy: attachment.uploadedBy,
-          stage: attachment.stage,
-          uploadedAt: attachment.uploadedAt,
-          jiraIssueKey: attachment.jiraIssueKey,
-          proposalId: attachment.proposalId,
-        })
+        (attachment: any) => {
+          // Check if we have local metadata for this attachment
+          const localAttachment = localAttachmentsMap[attachment.fileName || attachment.filename];
+          
+          return {
+            id: attachment.id?.toString() || "",
+            filename: attachment.fileName || attachment.filename || "Unknown file",
+            content: attachment.fileUrl || attachment.content || "",
+            size: attachment.fileSize || attachment.size || 0,
+            mimeType: attachment.mimeType || attachment.mimeType || "",
+            created:
+              attachment.uploadedAt ||
+              attachment.created ||
+              new Date().toISOString(),
+            fileName: attachment.fileName || attachment.filename,
+            // Use Jira's content URL for fileUrl to enable direct preview
+            fileUrl: attachment.content || attachment.fileUrl || 
+                     (attachment.id ? `http://localhost:8080/api/jira/attachment/content/${attachment.id}` : ""),
+            fileSize: attachment.fileSize || attachment.size,
+            uploadedBy: attachment.uploadedBy || "Unknown",
+            stage: attachment.stage || "Unknown",
+            uploadedAt: attachment.uploadedAt || attachment.created || new Date().toISOString(),
+            jiraIssueKey: attachment.jiraIssueKey || issueKey,
+            proposalId: attachment.proposalId || null,
+            localAttachmentId: localAttachment?.id || null,
+            // Since we're not saving local copies anymore, always allow preview
+            hasLocalCopy: true
+          };
+        }
       );
 
       setAttachments(transformedAttachments);
@@ -915,15 +957,22 @@ const RequestSplitView: React.FC = () => {
           userId: userData.user.id,
           userName: userData.user.name,
           commentText: newComment,
-          parentCommentId: null,
         });
+
+        // Get avatar from response if available, otherwise use default
+        let avatarUrl = "https://via.placeholder.com/48";
+        if (response.userAvatar) {
+          avatarUrl = response.userAvatar;
+        } else if (userData && userData.user && userData.user.avatar) {
+          avatarUrl = userData.user.avatar;
+        }
 
         const comment: Comment = {
           id: response.id.toString(),
           author: {
             displayName: response.userName || userData.user.name,
             avatarUrls: {
-              "48x48": "https://via.placeholder.com/48",
+              "48x48": avatarUrl,
             },
           },
           body: response.commentText || newComment,
@@ -932,7 +981,7 @@ const RequestSplitView: React.FC = () => {
             response.updatedAt ||
             response.createdAt ||
             new Date().toISOString(),
-          parentCommentId: response.parentCommentId ?? null,
+          parentCommentId: response.parentCommentId ? Number(response.parentCommentId) : null,
           replies: [],
         };
 
@@ -973,12 +1022,20 @@ const RequestSplitView: React.FC = () => {
         parentCommentId: Number(parentId),
       });
 
+      // Get avatar from response if available, otherwise use default
+      let avatarUrl = "https://via.placeholder.com/48";
+      if (response.userAvatar) {
+        avatarUrl = response.userAvatar;
+      } else if (userData && userData.user && userData.user.avatar) {
+        avatarUrl = userData.user.avatar;
+      }
+
       const replyComment: Comment = {
         id: response.id.toString(),
         author: {
           displayName: response.userName || userData.user.name,
           avatarUrls: {
-            "48x48": "https://via.placeholder.com/48",
+            "48x48": avatarUrl,
           },
         },
         body: response.commentText || replyText,
@@ -987,7 +1044,7 @@ const RequestSplitView: React.FC = () => {
           response.updatedAt ||
           response.createdAt ||
           new Date().toISOString(),
-        parentCommentId: response.parentCommentId ?? Number(parentId),
+        parentCommentId: response.parentCommentId ? Number(response.parentCommentId) : Number(parentId),
         replies: [],
       };
 
@@ -1339,7 +1396,7 @@ const RequestSplitView: React.FC = () => {
   const renderCommentsTree = (
     nodes: Comment[],
     level: number = 0
-  ): JSX.Element[] => {
+  ): React.JSX.Element[] => {
     return nodes.map((comment) => (
       <div
         key={`comment-${comment.id}`}
@@ -2036,7 +2093,7 @@ const RequestSplitView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Description */}
+                    {/* Description
                     <div className="mb-6">
                       <div className="border-b border-gray-200 dark:border-gray-700 pb-2 mb-4">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -2060,7 +2117,7 @@ const RequestSplitView: React.FC = () => {
                           </p>
                         )}
                       </div>
-                    </div>
+                    </div> */}
 
                     {/* Attachments */}
                     <div className="border-b border-gray-200 dark:border-gray-700 pb-2 mb-4">
@@ -2087,33 +2144,25 @@ const RequestSplitView: React.FC = () => {
                           {attachments.map((attachment) => (
                             <div
                               key={attachment.id}
-                              className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow cursor-pointer"
-                              onClick={() => {
-                                const url = attachment.fileUrl;
-                                if (!url) return;
-
-                                if (
-                                  (attachment.mimeType ||
-                                    attachment.fileUrl
-                                  )?.startsWith("image/")
-                                ) {
-                                  // if you have a previewAttachment state, use it here
-                                  window.open(url, "_blank");
-                                } else {
-                                  window.open(url, "_blank");
-                                }
-                              }}
+                              className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden shadow-sm bg-white dark:bg-gray-800 hover:shadow-md transition-shadow"
                             >
                               {(attachment.mimeType ||
                                 attachment.fileUrl
                               )?.startsWith("image/") ? (
-                                <img
-                                  src={attachment.fileUrl}
-                                  alt={
-                                    attachment.fileName || attachment.filename
-                                  }
-                                  className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200"
-                                />
+                                <a 
+                                  href={attachment.fileUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block"
+                                >
+                                  <img
+                                    src={attachment.fileUrl}
+                                    alt={
+                                      attachment.fileName || attachment.filename
+                                    }
+                                    className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200"
+                                  />
+                                </a>
                               ) : (
                                 <div className="flex flex-col items-center justify-center h-32 bg-gray-100 dark:bg-gray-700">
                                   <svg
@@ -2139,11 +2188,13 @@ const RequestSplitView: React.FC = () => {
                                   href={attachment.fileUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-sm text-blue-600 hover:underline dark:text-blue-400"
-                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-sm text-blue-600 hover:underline dark:text-blue-400 block"
                                 >
-                                  View / Download
+                                  {attachment.fileName || attachment.filename}
                                 </a>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {Math.round((attachment.fileSize || 0) / 1024)} KB
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -2195,7 +2246,7 @@ const RequestSplitView: React.FC = () => {
                               <div className="flex items-start space-x-3">
                                 <img
                                   className="w-8 h-8 rounded-full"
-                                  src="https://via.placeholder.com/48"
+                                  src={userData?.user?.avatar || "https://via.placeholder.com/48"}
                                   alt="Current User"
                                 />
                                 <div className="flex-1">
@@ -2747,6 +2798,22 @@ const RequestSplitView: React.FC = () => {
             }
           }}
           issue={convertIssueForEditModal(selectedIssue)}
+        />
+      )}
+      
+      {/* Attachment Preview Modal */}
+      {showAttachmentPreview && previewAttachment && (
+        <AttachmentPreview 
+          file={new File(
+            [],
+            previewAttachment.fileName || previewAttachment.filename || "attachment",
+            {
+              type: previewAttachment.mimeType || "application/octet-stream",
+            }
+          )}
+          fileUrl={previewAttachment.fileUrl || ""}
+          hasLocalCopy={previewAttachment.hasLocalCopy}
+          onClose={() => setShowAttachmentPreview(false)}
         />
       )}
     </>
