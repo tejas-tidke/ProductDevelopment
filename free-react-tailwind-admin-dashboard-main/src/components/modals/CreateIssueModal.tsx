@@ -3,6 +3,44 @@ import { useNavigate } from 'react-router';
 import { jiraService } from '../../services/jiraService';
 import { useAuth } from '../../context/AuthContext';
 
+function normalizeVendorType(
+  type: string | null | undefined
+): 'usage' | 'license' | '' {
+  if (!type) return '';
+
+  const t = type.toLowerCase();
+
+  // usage-based keywords
+  if (
+    t.includes('usage') ||
+    t.includes('consumption') ||
+    t.includes('credits') ||
+    t.includes('minute') ||
+    t.includes('volume') ||
+    t.includes('pay as you go') ||
+    t.includes('usage based')
+  ) {
+    return 'usage';
+  }
+
+  // license-based keywords
+  if (
+    t.includes('license') ||
+    t.includes('licence') || // British spelling
+    t.includes('user') ||
+    t.includes('agent') ||
+    t.includes('seat') ||
+    t.includes('per user') ||
+    t.includes('per agent') ||
+    t.includes('license based')
+  ) {
+    return 'license';
+  }
+
+  return '';
+}
+
+
 interface ExistingContract {
   id: string;
   vendorName: string;
@@ -140,33 +178,72 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       setLoadingExistingContracts(true);
       if (typeof jiraService.getContractsByTypeAsDTO === 'function') {
         const data: unknown = await jiraService.getContractsByTypeAsDTO('new');
-        const mapped = Array.isArray(data)
-          ? data.map((c: any) => ({
-            id: String(c.id ?? c.contractId ?? c.key ?? ''),
-            vendorName: c.vendorName ?? c.nameOfVendor ?? '',
-            productName: c.productName ?? '',
-            requesterName: c.requesterName ?? '',
-            requesterMail: c.requesterMail ?? c.requesterEmail ?? '',
-            vendorContractType:
-              (c.vendorContractType ||
-                c.billingType ||
-                c.billing_type ||
-                c.contractBilling ||
-                c.vendor_contract_type ||
-                '') as 'usage' | 'license' | '',
-            vendorStartDate: String(c.dueDate ?? ''),
-            vendorEndDate: String(c.renewalDate ?? ''),
-            additionalComment: c.additionalComment ?? '',
-            vendorUnit: c.currentUnits ?? c.unit ?? '',
-            vendorUsage:
-              (typeof c.currentUsageCount !== 'undefined' && c.currentUsageCount !== null)
-                ? Number(c.currentUsageCount)
-                : (typeof c.currentLicenseCount !== 'undefined' && c.currentLicenseCount !== null)
-                  ? Number(c.currentLicenseCount)
-                  : undefined,
-          }))
-          : [];
-        setExistingContracts(mapped);
+        const mapped: ExistingContract[] = Array.isArray(data)
+  ? data.map((c: any) => {
+      // 1. Get raw type from backend (same fields you already used)
+      const rawType =
+        c.vendorContractType ||
+        c.billingType ||
+        c.billing_type ||
+        c.contractBilling ||
+        c.vendor_contract_type ||
+        '';
+
+      // 2. Normalize it like Procurement-renewal.tsx
+      const normalizedType = normalizeVendorType(rawType);
+
+      // 3. Decide which numeric field is "current" based on type
+      let vendorUsage: number | undefined;
+
+      if (normalizedType === 'usage') {
+        const usageVal =
+          c.currentUsageCount ??
+          c.newUsageCount ??
+          null;
+
+        if (usageVal !== null && usageVal !== undefined) {
+          vendorUsage = Number(usageVal);
+        }
+      } else if (normalizedType === 'license') {
+        const licenseVal =
+          c.currentLicenseCount ??
+          c.newLicenseCount ??
+          null;
+
+        if (licenseVal !== null && licenseVal !== undefined) {
+          vendorUsage = Number(licenseVal);
+        }
+      } else {
+        // fallback: keep your previous behaviour as backup
+        const anyVal =
+          c.currentUsageCount ??
+          c.currentLicenseCount ??
+          c.newUsageCount ??
+          c.newLicenseCount ??
+          null;
+
+        if (anyVal !== null && anyVal !== undefined) {
+          vendorUsage = Number(anyVal);
+        }
+      }
+
+      return {
+        id: String(c.id ?? c.contractId ?? c.key ?? ''),
+        vendorName: c.vendorName ?? c.nameOfVendor ?? '',
+        productName: c.productName ?? '',
+        requesterName: c.requesterName ?? '',
+        requesterMail: c.requesterMail ?? c.requesterEmail ?? '',
+        vendorContractType: normalizedType,  // 👈 IMPORTANT: now strictly 'usage' | 'license' | ''
+        vendorStartDate: String(c.dueDate ?? ''),
+        vendorEndDate: String(c.renewalDate ?? ''),
+        additionalComment: c.additionalComment ?? '',
+        vendorUnit: c.currentUnits ?? c.unit ?? '',
+        vendorUsage,
+      };
+    })
+  : [];
+setExistingContracts(mapped);
+
       }
     } catch (err) {
       console.error('Error fetching existing contracts', err);
