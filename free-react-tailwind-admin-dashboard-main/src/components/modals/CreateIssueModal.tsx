@@ -315,6 +315,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   const [showPreview, setShowPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+<<<<<<< HEAD
   // Date picker states
   const [showDatePicker, setShowDatePicker] = useState<{[key: string]: boolean}>({
     dueDate: false,
@@ -325,6 +326,16 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   const [currentDateField, setCurrentDateField] = useState<string>('');
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+=======
+  // const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+
+  const vendorDropdownRef = useRef<HTMLDivElement | null>(null);
+  const productDropdownRef = useRef<HTMLDivElement | null>(null);
+
+
+>>>>>>> feature/UI-changes
   const dueDateRef = useRef<HTMLInputElement | null>(null);
   const renewalDateRef = useRef<HTMLInputElement | null>(null);
 
@@ -374,29 +385,29 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
         const data: unknown = await jiraService.getContractsByTypeAsDTO('new');
         const mapped = Array.isArray(data)
           ? data.map((c: any) => ({
-              id: String(c.id ?? c.contractId ?? c.key ?? ''),
-              vendorName: c.vendorName ?? c.nameOfVendor ?? '',
-              productName: c.productName ?? '',
-              requesterName: c.requesterName ?? '',
-              requesterMail: c.requesterMail ?? c.requesterEmail ?? '',
-              vendorContractType:
-                (c.vendorContractType ||
-                  c.billingType ||
-                  c.billing_type ||
-                  c.contractBilling ||
-                  c.vendor_contract_type ||
-                  '') as 'usage' | 'license' | '',
-              vendorStartDate: String(c.dueDate ?? ''),
-              vendorEndDate: String(c.renewalDate ?? ''),
-              additionalComment: c.additionalComment ?? '',
-              vendorUnit: c.currentUnits ?? c.unit ?? '',
-              vendorUsage:
-                (typeof c.currentUsageCount !== 'undefined' && c.currentUsageCount !== null)
-                  ? Number(c.currentUsageCount)
-                  : (typeof c.currentLicenseCount !== 'undefined' && c.currentLicenseCount !== null)
+            id: String(c.id ?? c.contractId ?? c.key ?? ''),
+            vendorName: c.vendorName ?? c.nameOfVendor ?? '',
+            productName: c.productName ?? '',
+            requesterName: c.requesterName ?? '',
+            requesterMail: c.requesterMail ?? c.requesterEmail ?? '',
+            vendorContractType:
+              (c.vendorContractType ||
+                c.billingType ||
+                c.billing_type ||
+                c.contractBilling ||
+                c.vendor_contract_type ||
+                '') as 'usage' | 'license' | '',
+            vendorStartDate: String(c.dueDate ?? ''),
+            vendorEndDate: String(c.renewalDate ?? ''),
+            additionalComment: c.additionalComment ?? '',
+            vendorUnit: c.currentUnits ?? c.unit ?? '',
+            vendorUsage:
+              (typeof c.currentUsageCount !== 'undefined' && c.currentUsageCount !== null)
+                ? Number(c.currentUsageCount)
+                : (typeof c.currentLicenseCount !== 'undefined' && c.currentLicenseCount !== null)
                   ? Number(c.currentLicenseCount)
                   : undefined,
-            }))
+          }))
           : [];
         setExistingContracts(mapped);
       }
@@ -426,6 +437,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   useEffect(() => {
     const loadProducts = async () => {
       if (!vendorName || contractType !== 'new') return;
+
+      // Only load when vendorName matches one from the list (avoid calls on "a", "ab", etc.)
+      const exactMatch = vendors.includes(vendorName);
+      if (!exactMatch) return;
+
       try {
         setLoadingProducts(true);
         const list = await jiraService.getProductsByVendor(vendorName);
@@ -438,7 +454,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       }
     };
     loadProducts();
-  }, [vendorName, contractType]);
+  }, [vendorName, contractType, vendors]);
+
 
   useEffect(() => {
     if (contractType === 'existing' && selectedExistingContractId) {
@@ -545,6 +562,25 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     }
   }, [newLicenseCount, selectedExistingContractId, contractType]);
 
+<<<<<<< HEAD
+
+=======
+  // useEffect(() => {
+  //   if ((contractType === 'new' || contractType === 'existing') && contractDuration) {
+  //     const today = new Date().toISOString().split('T')[0];
+  //     const newRenewalDate = addMonths(today, contractDuration);
+  //     setRenewalDate(newRenewalDate);
+  //   }
+  // }, [contractType, contractDuration]);
+  useEffect(() => {
+    // ✅ Only calculate renewal date when creating a NEW contract
+    if (contractType === 'new' && contractDuration) {
+      const today = new Date().toISOString().split('T')[0];
+      const newRenewalDate = addMonths(today, contractDuration);
+      setRenewalDate(newRenewalDate);
+    }
+  }, [contractType, contractDuration]);
+>>>>>>> feature/UI-changes
 
 
   const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -568,23 +604,82 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     }
   };
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    if (!requesterName) newErrors.requesterName = 'Requester name required';
-    if (!requesterMail) newErrors.requesterMail = 'Requester email required';
-    if (!contractType) newErrors.contractType = 'Select contract type';
+  // const validateForm = () => {
+  //   const newErrors: Record<string, string> = {};
+  //   if (!requesterName) newErrors.requesterName = 'Requester name required';
+  //   if (!requesterMail) newErrors.requesterMail = 'Requester email required';
+  //   if (!contractType) newErrors.contractType = 'Select contract type';
 
-    if (contractType === 'new') {
-      if (!vendorName) newErrors.vendorName = 'Vendor is required';
-      if (!productName) newErrors.productName = 'Product is required';
-      if (!contractDuration) newErrors.contractDuration = 'Contract duration is required';
-      if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
-      if (!dueDate) newErrors.dueDate = 'Due date is required';
-      if (dueDate) {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        const selectedDate = new Date(dueDate);
-        if (selectedDate < today) newErrors.dueDate = 'Due date cannot be in the past for new contracts';
+  //   if (contractType === 'new') {
+  //     if (!vendorName) newErrors.vendorName = 'Vendor is required';
+  //     if (!productName) newErrors.productName = 'Product is required';
+  //     if (!contractDuration) newErrors.contractDuration = 'Contract duration is required';
+  //     // if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
+  //     if (!dueDate) newErrors.dueDate = 'Due date is required';
+  //     if (dueDate) {
+  //       const today = new Date(); today.setHours(0, 0, 0, 0);
+  //       const selectedDate = new Date(dueDate);
+  //       if (selectedDate < today) newErrors.dueDate = 'Due date cannot be in the past for new contracts';
+  //     }
+  //     if (!vendorContractType) newErrors.vendorContractType = 'Select usage or license';
+  //     if (vendorContractType === 'usage') {
+  //       if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter usage amount';
+  //       if (!newUnits) newErrors.newUnits = 'Select unit';
+  //       if (newUnits === 'others' && !newUnitsOther) newErrors.newUnitsOther = 'Enter custom unit';
+  //     }
+  //     if (vendorContractType === 'license') {
+  //       if (newLicenseCount === '' || newLicenseCount === 0) newErrors.newLicenseCount = 'Enter license count';
+  //       if (!newLicenseUnit) newErrors.newLicenseUnit = 'Select license unit (agents / users)';
+  //     }
+  //   }
+
+  //   if (contractType === 'existing') {
+  //     if (!selectedExistingContractId) newErrors.selectedExistingContractId = 'Select an existing contract';
+  //     if (!vendorContractType) newErrors.vendorContractType = 'Existing contract has no billing type';
+  //     if (!renewalType) newErrors.renewalType = 'Select renewal type';
+  //     if (!dueDate) newErrors.dueDate = 'Due date is required';
+  //     if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
+  //     if (vendorContractType === 'usage') {
+  //       if (renewalType !== 'flat') {
+  //         if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0)) newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
+  //         if (renewalNewUnits === 'others' && !renewalNewUnitsOther) newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
+  //         if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter new renewal usage amount';
+  //       }
+  //     }
+  //     if (vendorContractType === 'license') {
+  //       if (renewalType !== 'flat') {
+  //         if (renewalNewLicenseCount === '' || renewalNewLicenseCount === 0) newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
+  //         if (!renewalLicenseUnit) newErrors.renewalLicenseUnit = 'Select license unit (agents / users) for renewal';
+  //       }
+  //     }
+  //   }
+
+  //   setErrors(newErrors);
+  //   return Object.keys(newErrors).length === 0;
+  // };
+
+  const validateForm = () => {
+  const newErrors: Record<string, string> = {};
+  if (!requesterName) newErrors.requesterName = 'Requester name required';
+  if (!requesterMail) newErrors.requesterMail = 'Requester email required';
+  if (!contractType) newErrors.contractType = 'Select contract type';
+
+  if (contractType === 'new') {
+    if (!vendorName) newErrors.vendorName = 'Vendor is required';
+    if (!productName) newErrors.productName = 'Product is required';
+    if (!contractDuration) newErrors.contractDuration = 'Contract duration is required';
+    if (contractDuration && Number(contractDuration) < 0) {
+      newErrors.contractDuration = 'Contract duration cannot be negative';
+    }
+    if (!dueDate) newErrors.dueDate = 'Due date is required';
+    if (dueDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selectedDate = new Date(dueDate);
+      if (selectedDate < today) {
+        newErrors.dueDate = 'Due date cannot be in the past for new contracts';
       }
+<<<<<<< HEAD
       if (renewalDate) {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const selectedDate = new Date(renewalDate);
@@ -595,37 +690,124 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
         if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter usage amount';
         if (!newUnits) newErrors.newUnits = 'Select unit';
         if (newUnits === 'others' && !newUnitsOther) newErrors.newUnitsOther = 'Enter custom unit';
+=======
+    }
+    if (!vendorContractType) newErrors.vendorContractType = 'Select usage or license';
+
+    if (vendorContractType === 'usage') {
+      if (newUsageCount === '' || newUsageCount === 0) {
+        newErrors.newUsageCount = 'Enter usage amount';
+>>>>>>> feature/UI-changes
       }
-      if (vendorContractType === 'license') {
-        if (newLicenseCount === '' || newLicenseCount === 0) newErrors.newLicenseCount = 'Enter license count';
-        if (!newLicenseUnit) newErrors.newLicenseUnit = 'Select license unit (agents / users)';
+      if (!newUnits) newErrors.newUnits = 'Select unit';
+      if (newUnits === 'others' && !newUnitsOther) {
+        newErrors.newUnitsOther = 'Enter custom unit';
       }
     }
 
-    if (contractType === 'existing') {
-      if (!selectedExistingContractId) newErrors.selectedExistingContractId = 'Select an existing contract';
-      if (!vendorContractType) newErrors.vendorContractType = 'Existing contract has no billing type';
-      if (!renewalType) newErrors.renewalType = 'Select renewal type';
-      if (!dueDate) newErrors.dueDate = 'Due date is required';
-      if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
-      if (vendorContractType === 'usage') {
-        if (renewalType !== 'flat') {
-          if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0)) newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
-          if (renewalNewUnits === 'others' && !renewalNewUnitsOther) newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
-          if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter new renewal usage amount';
-        }
+    if (vendorContractType === 'license') {
+      if (newLicenseCount === '' || newLicenseCount === 0) {
+        newErrors.newLicenseCount = 'Enter license count';
       }
-      if (vendorContractType === 'license') {
-        if (renewalType !== 'flat') {
-          if (renewalNewLicenseCount === '' || renewalNewLicenseCount === 0) newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
-          if (!renewalLicenseUnit) newErrors.renewalLicenseUnit = 'Select license unit (agents / users) for renewal';
+      if (!newLicenseUnit) {
+        newErrors.newLicenseUnit = 'Select license unit (agents / users)';
+      }
+    }
+  }
+
+  // 🔽🔽🔽 REPLACE THIS PART WITH BELOW 🔽🔽🔽
+  if (contractType === 'existing') {
+    if (!selectedExistingContractId) {
+      newErrors.selectedExistingContractId = 'Select an existing contract';
+    }
+    if (!vendorContractType) {
+      newErrors.vendorContractType = 'Existing contract has no billing type';
+    }
+    if (!renewalType) {
+      newErrors.renewalType = 'Select renewal type';
+    }
+    if (!dueDate) {
+      newErrors.dueDate = 'Due date is required';
+    }
+    if (contractDuration && Number(contractDuration) < 0) {
+      newErrors.contractDuration = 'Contract duration cannot be negative';
+    }
+
+    // ---- USAGE CONTRACT ----
+    if (vendorContractType === 'usage' && renewalType !== 'flat') {
+      if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0)) {
+        newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
+      }
+      if (renewalNewUnits === 'others' && !renewalNewUnitsOther) {
+        newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
+      }
+      if (newUsageCount === '' || newUsageCount === 0) {
+        newErrors.newUsageCount = 'Enter new renewal usage amount';
+      }
+
+      // ✅ Compare with current volumes based on renewalType
+      if (
+        typeof currentUsageCount === 'number' &&
+        typeof newUsageCount === 'number'
+      ) {
+        if (
+          renewalType === 'upgrade' &&
+          !newErrors.newUsageCount &&            // don't override existing message
+          newUsageCount <= currentUsageCount
+        ) {
+          newErrors.newUsageCount = `For upgrade, new usage must be greater than current usage (${currentUsageCount}).`;
+        }
+
+        if (
+          renewalType === 'downgrade' &&
+          !newErrors.newUsageCount &&
+          newUsageCount >= currentUsageCount
+        ) {
+          newErrors.newUsageCount = `For downgrade, new usage must be less than current usage (${currentUsageCount}).`;
         }
       }
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    // ---- LICENSE CONTRACT ----
+    if (vendorContractType === 'license' && renewalType !== 'flat') {
+      if (renewalNewLicenseCount === '' || renewalNewLicenseCount === 0) {
+        newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
+      }
+      if (!renewalLicenseUnit) {
+        newErrors.renewalLicenseUnit = 'Select license unit (agents / users) for renewal';
+      }
+
+      // ✅ Compare with current license count based on renewalType
+      if (
+        typeof currentLicenseCount === 'number' &&
+        typeof renewalNewLicenseCount === 'number'
+      ) {
+        if (
+          renewalType === 'upgrade' &&
+          !newErrors.renewalNewLicenseCount &&
+          renewalNewLicenseCount <= currentLicenseCount
+        ) {
+          newErrors.renewalNewLicenseCount =
+            `For upgrade, renewal license count must be greater than current license count (${currentLicenseCount}).`;
+        }
+
+        if (
+          renewalType === 'downgrade' &&
+          !newErrors.renewalNewLicenseCount &&
+          renewalNewLicenseCount >= currentLicenseCount
+        ) {
+          newErrors.renewalNewLicenseCount =
+            `For downgrade, renewal license count must be less than current license count (${currentLicenseCount}).`;
+        }
+      }
+    }
+  }
+  // 🔼🔼🔼 END OF REPLACED PART 🔼🔼🔼
+
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
+
 
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -795,15 +977,31 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     }
   };
 
+  // useEffect(() => {
+  //   const handleClickOutside = (e: MouseEvent) => {
+  //     if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+  //       dropdownRef.current.classList.add('hidden');
+  //     }
+  //   };
+  //   document.addEventListener('mousedown', handleClickOutside);
+  //   return () => document.removeEventListener('mousedown', handleClickOutside);
+  // }, []);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        dropdownRef.current.classList.add('hidden');
+      if (vendorDropdownRef.current && !vendorDropdownRef.current.contains(e.target as Node)) {
+        setShowVendorDropdown(false);
+      }
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
+        setShowProductDropdown(false);
       }
     };
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+
 
   const openDatePicker = (inputEl: HTMLInputElement | null | undefined) => {
     if (!inputEl) return;
@@ -818,7 +1016,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       inputEl.dispatchEvent(evt);
       inputEl.click();
     } catch {
-      try { inputEl?.focus(); } catch {}
+      try { inputEl?.focus(); } catch { }
     }
   };
   const focusDueDate = () => openDatePicker(dueDateRef.current);
@@ -951,26 +1149,155 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
               {contractType === 'new' && (
                 <>
-                  <div className="mt-6">
+                  {/* <div className="mt-6">
                     <label htmlFor="vendorName" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Vendor Name <span className="text-red-500">*</span></label>
                     <select id="vendorName" value={vendorName} onChange={(e) => setVendorName(e.target.value)} className={inputClass}>
                       <option value="">{loadingVendors ? 'Loading vendors...' : 'Select Vendor'}</option>
                       {vendors.map(v => <option key={v} value={v}>{v}</option>)}
                     </select>
                     {errors.vendorName && <p className="mt-1 text-sm text-red-600">{errors.vendorName}</p>}
+                  </div> */}
+
+                  <div className="mt-6">
+                    <label
+                      htmlFor="vendorName"
+                      className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
+                    >
+                      Vendor Name <span className="text-red-500">*</span>
+                    </label>
+
+                    <div className="relative" ref={vendorDropdownRef}>
+                      <input
+                        id="vendorName"
+                        value={vendorName}
+                        onChange={(e) => {
+                          setVendorName(e.target.value);
+                          setShowVendorDropdown(true);
+                        }}
+                        onFocus={() => setShowVendorDropdown(true)}
+                        placeholder={loadingVendors ? 'Loading vendors...' : 'Start typing or click to see all vendors'}
+                        className={inputClass}
+                        autoComplete="off"
+                      />
+
+                      {showVendorDropdown && (
+                        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                          {(vendorName
+                            ? vendors.filter((v) =>
+                              v.toLowerCase().startsWith(vendorName.toLowerCase())
+                            )
+                            : vendors
+                          ).map((v) => (
+                            <button
+                              type="button"
+                              key={v}
+                              onClick={() => {
+                                setVendorName(v);
+                                setShowVendorDropdown(false);
+                              }}
+                              className="block w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+                            >
+                              {v}
+                            </button>
+                          ))}
+
+                          {(vendorName
+                            ? vendors.filter((v) =>
+                              v.toLowerCase().startsWith(vendorName.toLowerCase())
+                            )
+                            : vendors
+                          ).length === 0 && (
+                              <div className="px-3 py-2 text-xs text-gray-400">
+                                No vendors found
+                              </div>
+                            )}
+                        </div>
+                      )}
+                    </div>
+
+                    {errors.vendorName && (
+                      <p className="mt-1 text-sm text-red-600">{errors.vendorName}</p>
+                    )}
                   </div>
 
                   <div className="mt-6">
-                    <label htmlFor="productName" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Product Name <span className="text-red-500">*</span></label>
-                    <select id="productName" value={productName} onChange={handleProductChange} className={inputClass}>
-                      <option value="">{loadingProducts ? 'Loading products...' : 'Select Product'}</option>
-                      {products.map(p => <option key={p.id} value={p.productName}>{p.productName}</option>)}
-                    </select>
-                    {errors.productName && <p className="mt-1 text-sm text-red-600">{errors.productName}</p>}
+                    <label
+                      htmlFor="productName"
+                      className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
+                    >
+                      Product Name <span className="text-red-500">*</span>
+                    </label>
+
+                    <div className="relative" ref={productDropdownRef}>
+                      <input
+                        id="productName"
+                        value={productName}
+                        onChange={(e) => {
+                          setProductName(e.target.value);
+                          setShowProductDropdown(true);
+                        }}
+                        onFocus={() => setShowProductDropdown(true)}
+                        placeholder={
+                          loadingProducts
+                            ? 'Loading products...'
+                            : vendorName
+                              ? 'Start typing or click to see all products'
+                              : 'Select vendor first'
+                        }
+                        className={inputClass}
+                        autoComplete="off"
+                        disabled={!vendorName}
+                      />
+
+                      {showProductDropdown && !!vendorName && (
+                        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                          {(productName
+                            ? products.filter((p) =>
+                              p.productName.toLowerCase().startsWith(productName.toLowerCase())
+                            )
+                            : products
+                          ).map((p) => (
+                            <button
+                              type="button"
+                              key={p.id}
+                              onClick={() => {
+                                setProductName(p.productName);
+                                setShowProductDropdown(false);
+                                handleProductChange({
+                                  target: { value: p.productName },
+                                } as React.ChangeEvent<HTMLSelectElement>);
+                              }}
+                              className="block w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+                            >
+                              {p.productName}
+                            </button>
+                          ))}
+
+                          {(productName
+                            ? products.filter((p) =>
+                              p.productName.toLowerCase().startsWith(productName.toLowerCase())
+                            )
+                            : products
+                          ).length === 0 && (
+                              <div className="px-3 py-2 text-xs text-gray-400">
+                                No products found
+                              </div>
+                            )}
+                        </div>
+                      )}
+                    </div>
+
+                    {errors.productName && (
+                      <p className="mt-1 text-sm text-red-600">{errors.productName}</p>
+                    )}
                   </div>
 
                   <div className="mt-6">
-                    <label className="block mb-4 text-sm font-medium text-gray-700 dark:text-gray-400">Contract Billing</label>
+                    {/* <label className="block mb-4 text-sm font-medium text-gray-700 dark:text-gray-400">Contract Billing</label> */}
+                    <label className="block mb-4 text-sm font-medium text-gray-700 dark:text-gray-400">
+                      Contract Billing <span className="text-red-500">*</span>
+                    </label>
+
                     <div className="flex flex-wrap items-center gap-4 sm:gap-5">
                       <div className="n-chk">
                         <div className={`form-check form-check-usage form-check-inline`}>
@@ -1026,7 +1353,22 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                         <div className="mt-3 flex items-end space-x-3">
                           <div className="flex-1">
                             <label htmlFor="newUsageCount" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">How many volumes you want? <span className="text-red-500">*</span></label>
-                            <input id="newUsageCount" placeholder="Enter number of volumes" value={newUsageCount} onChange={e => setNewUsageCount(e.target.value === '' ? '' : Number(e.target.value))} className={inputClass} />
+                            <input id="newUsageCount" placeholder="Enter number of volumes" value={newUsageCount} onChange={(e) => {
+  const value = e.target.value;
+
+  if (value === '') {
+    setNewUsageCount('');
+    return;
+  }
+
+  const num = Number(value);
+  if (Number.isNaN(num)) {
+    return;
+  }
+
+  setNewUsageCount(num);
+}}
+ className={inputClass} />
                             {selectedExistingContractId && currentUsageCount !== '' && (<p className="mt-1 text-xs text-gray-500">Current: {currentUsageCount} {currentUnits === 'others' ? currentUnitsOther || '' : currentUnits || ''}</p>)}
                             {errors.newUsageCount && <p className="mt-1 text-sm text-red-600">{errors.newUsageCount}</p>}
                           </div>
@@ -1056,7 +1398,31 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                       <div className="mt-3">
                         <label htmlFor="newLicenseCount" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">How many licenses do you want? <span className="text-red-500">*</span></label>
                         <div className="flex items-end space-x-3">
-                          <input id="newLicenseCount" type="number" value={newLicenseCount} onChange={e => setNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="License Count" className={inputClass} />
+                          <input
+  id="newLicenseCount"
+  type="number"
+  min={0}                               // ⬅️ UI will not allow negative values via arrows
+  value={newLicenseCount}
+  onChange={(e) => {
+    const value = e.target.value;
+
+    if (value === '') {
+      setNewLicenseCount('');
+      return;
+    }
+
+    const num = Number(value);
+    if (Number.isNaN(num)) {
+      return;
+    }
+
+    // ⬅️ Hard clamp: never store negative numbers
+    setNewLicenseCount(Math.max(0, num));
+  }}
+  placeholder="License Count"
+  className={inputClass}
+/>
+
                           <div style={{ minWidth: 140 }}>
                             <label htmlFor="newLicenseUnit" className="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Unit</label>
                             <select id="newLicenseUnit" value={newLicenseUnit} onChange={e => setNewLicenseUnit(e.target.value as any)} className={inputClass}>
@@ -1075,7 +1441,33 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
                   <div className="mt-6">
                     <label htmlFor="contractDuration" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Contract Duration (months) <span className="text-red-500">*</span></label>
-                    <input id="contractDuration" type="number" value={contractDuration} onChange={e => setContractDuration(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter duration in months" className={inputClass} />
+                    {/* <input id="contractDuration" type="number" value={contractDuration} onChange={e => setContractDuration(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter duration in months" className={inputClass} /> */}
+                    <input
+                      id="contractDuration"
+                      type="number"
+                      min={0}                                // ⬅️ Stops negative typing
+                      value={contractDuration}
+                      onChange={(e) => {
+  const value = e.target.value;
+
+  if (value === '') {
+    setContractDuration('');
+    return;
+  }
+
+  const num = Number(value);
+  if (Number.isNaN(num)) {
+    // ignore invalid characters and don't update state
+    return;
+  }
+
+  setContractDuration(Math.max(0, num));
+}}
+
+                      placeholder="Enter duration in months"
+                      className={inputClass}
+                    />
+
                     {errors.contractDuration && <p className="mt-1 text-sm text-red-600">{errors.contractDuration}</p>}
                   </div>
 
@@ -1231,7 +1623,30 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                         <div className="mt-3">
                           <label htmlFor="renewalNewLicenseCount" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">How many licenses do you want to renew?</label>
                           <div className="flex items-end space-x-3">
-                            <input id="renewalNewLicenseCount" type="number" value={renewalNewLicenseCount} onChange={e => setRenewalNewLicenseCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter renewal license count" className={inputClass} />
+                            <input
+  id="renewalNewLicenseCount"
+  type="number"
+  min={0}
+  value={renewalNewLicenseCount}
+  onChange={(e) => {
+    const value = e.target.value;
+
+    if (value === '') {
+      setRenewalNewLicenseCount('');
+      return;
+    }
+
+    const num = Number(value);
+    if (Number.isNaN(num)) {
+      return;
+    }
+
+    setRenewalNewLicenseCount(Math.max(0, num));
+  }}
+  placeholder="Enter renewal license count"
+  className={inputClass}
+/>
+
                             <div style={{ minWidth: 140 }}>
                               <label htmlFor="renewalLicenseUnit" className="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Unit</label>
                               <select id="renewalLicenseUnit" value={renewalLicenseUnit} onChange={e => setRenewalLicenseUnit(e.target.value as any)} className={inputClass}>
@@ -1248,10 +1663,10 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                     </div>
                   )}
 
-                  <div className="mt-6">
+                  {/* <div className="mt-6">
                     <label htmlFor="contractDurationExisting" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Contract Duration (months) <span className="text-red-500">*</span></label>
                     <input id="contractDurationExisting" type="number" value={contractDuration} onChange={e => setContractDuration(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter duration in months" className={inputClass} />
-                  </div>
+                  </div> */}
 
                   <div className="mt-6">
                     <label htmlFor="renewalDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Renewal Date</label>
