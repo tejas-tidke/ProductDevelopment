@@ -13,6 +13,7 @@ interface ExistingContract {
   vendorContractType: 'usage' | 'license' | '';
   vendorStartDate: string;
   vendorEndDate: string;
+  contractDuration?: number;
   additionalComment?: string;
   vendorUnit?: string;
   vendorUsage?: number;
@@ -315,7 +316,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   const [showPreview, setShowPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-<<<<<<< HEAD
   // Date picker states
   const [showDatePicker, setShowDatePicker] = useState<{[key: string]: boolean}>({
     dueDate: false,
@@ -326,7 +326,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   const [currentDateField, setCurrentDateField] = useState<string>('');
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
-=======
   // const dropdownRef = useRef<HTMLDivElement | null>(null);
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -335,7 +334,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   const productDropdownRef = useRef<HTMLDivElement | null>(null);
 
 
->>>>>>> feature/UI-changes
   const dueDateRef = useRef<HTMLInputElement | null>(null);
   const renewalDateRef = useRef<HTMLInputElement | null>(null);
 
@@ -360,8 +358,10 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   }, [isOpen, contractType]);
 
   // Calculate renewal date based on due date and contract duration
+  // Only for new contracts or when user explicitly selects a new due date for existing contracts
   useEffect(() => {
-    if (dueDate && contractDuration && contractDuration > 0) {
+    // For new contracts, always calculate renewal date
+    if (contractType === 'new' && dueDate && contractDuration && contractDuration > 0) {
       // Parse the due date string properly to avoid timezone issues
       const [year, month, day] = dueDate.split('-').map(Number);
       const dueDateObj = new Date(year, month - 1, day); // month is 0-indexed
@@ -373,10 +373,39 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       const renewalDay = String(dueDateObj.getDate()).padStart(2, '0');
       const renewalDateString = `${renewalYear}-${renewalMonth}-${renewalDay}`;
       setRenewalDate(renewalDateString);
-    } else {
+    } 
+    // For existing contracts, only calculate if user has selected a new due date
+    // (Don't override the existing renewal date from DB)
+    else if (contractType === 'existing' && dueDate && contractDuration && contractDuration > 0) {
+      // Check if this is a user-selected due date (not from DB)
+      // We can detect this by checking if the dueDate differs from the original DB value
+      const originalContract = existingContracts.find(c => c.id === selectedExistingContractId);
+      if (originalContract && dueDate !== originalContract.vendorStartDate) {
+        // User has selected a new due date, calculate renewal date
+        const [year, month, day] = dueDate.split('-').map(Number);
+        const dueDateObj = new Date(year, month - 1, day); // month is 0-indexed
+        dueDateObj.setMonth(dueDateObj.getMonth() + contractDuration);
+        const renewalYear = dueDateObj.getFullYear();
+        const renewalMonth = String(dueDateObj.getMonth() + 1).padStart(2, '0');
+        const renewalDay = String(dueDateObj.getDate()).padStart(2, '0');
+        const renewalDateString = `${renewalYear}-${renewalMonth}-${renewalDay}`;
+        setRenewalDate(renewalDateString);
+      }
+      // If dueDate matches DB value, keep the original renewal date
+    }
+    // Clear renewal date if required fields are missing (but not for existing contracts with DB values)
+    else if (contractType === 'new' && (!dueDate || !contractDuration || contractDuration <= 0)) {
       setRenewalDate('');
     }
-  }, [dueDate, contractDuration]);
+    // For existing contracts, clear renewal date only if user has explicitly changed due date or contract duration
+    else if (contractType === 'existing' && (!dueDate || !contractDuration || contractDuration <= 0)) {
+      // Check if this is a user-selected due date (not from DB)
+      const originalContract = existingContracts.find(c => c.id === selectedExistingContractId);
+      if (originalContract && dueDate !== originalContract.vendorStartDate) {
+        setRenewalDate('');
+      }
+    }
+  }, [dueDate, contractDuration, contractType, existingContracts, selectedExistingContractId]);
 
   const fetchExistingContracts = async () => {
     try {
@@ -399,6 +428,10 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                 '') as 'usage' | 'license' | '',
             vendorStartDate: String(c.dueDate ?? ''),
             vendorEndDate: String(c.renewalDate ?? ''),
+            contractDuration: 
+              (typeof c.contractDuration !== 'undefined' && c.contractDuration !== null)
+                ? Number(c.contractDuration)
+                : undefined,
             additionalComment: c.additionalComment ?? '',
             vendorUnit: c.currentUnits ?? c.unit ?? '',
             vendorUsage:
@@ -465,8 +498,14 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       setProductName(found.productName);
       setVendorContractType(found.vendorContractType);
       setDueDate(found.vendorStartDate || '');
+      // For existing contracts, initially show the renewal date from DB
       setRenewalDate(found.vendorEndDate || '');
-      setAdditionalComment(found.additionalComment ?? '');
+      // Clear additional comments for renewal requests
+      setAdditionalComment('');
+      // Set contract duration if available in the contract data
+      if (typeof found.contractDuration !== 'undefined' && found.contractDuration !== null) {
+        setContractDuration(found.contractDuration);
+      }
       if (found.requesterName) setRequesterName(found.requesterName);
       if (found.requesterMail) setRequesterMail(found.requesterMail);
       setRenewalType('');
@@ -562,25 +601,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     }
   }, [newLicenseCount, selectedExistingContractId, contractType]);
 
-<<<<<<< HEAD
-
-=======
-  // useEffect(() => {
-  //   if ((contractType === 'new' || contractType === 'existing') && contractDuration) {
-  //     const today = new Date().toISOString().split('T')[0];
-  //     const newRenewalDate = addMonths(today, contractDuration);
-  //     setRenewalDate(newRenewalDate);
-  //   }
-  // }, [contractType, contractDuration]);
-  useEffect(() => {
-    // ✅ Only calculate renewal date when creating a NEW contract
-    if (contractType === 'new' && contractDuration) {
-      const today = new Date().toISOString().split('T')[0];
-      const newRenewalDate = addMonths(today, contractDuration);
-      setRenewalDate(newRenewalDate);
-    }
-  }, [contractType, contractDuration]);
->>>>>>> feature/UI-changes
 
 
   const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -679,7 +699,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       if (selectedDate < today) {
         newErrors.dueDate = 'Due date cannot be in the past for new contracts';
       }
-<<<<<<< HEAD
       if (renewalDate) {
         const today = new Date(); today.setHours(0, 0, 0, 0);
         const selectedDate = new Date(renewalDate);
@@ -690,14 +709,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
         if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter usage amount';
         if (!newUnits) newErrors.newUnits = 'Select unit';
         if (newUnits === 'others' && !newUnitsOther) newErrors.newUnitsOther = 'Enter custom unit';
-=======
-    }
-    if (!vendorContractType) newErrors.vendorContractType = 'Select usage or license';
-
-    if (vendorContractType === 'usage') {
-      if (newUsageCount === '' || newUsageCount === 0) {
-        newErrors.newUsageCount = 'Enter usage amount';
->>>>>>> feature/UI-changes
       }
       if (!newUnits) newErrors.newUnits = 'Select unit';
       if (newUnits === 'others' && !newUnitsOther) {
@@ -1493,25 +1504,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                     {errors.dueDate && <p className="mt-1 text-sm text-red-600">{errors.dueDate}</p>}
                   </div>
 
-                  <div className="mt-6">
-                    <label htmlFor="renewalDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Renewal Date</label>
-                    <div className="relative">
-                      <input 
-                        id="renewalDate" 
-                        ref={renewalDateRef} 
-                        type="text" 
-                        value={renewalDate || ''} 
-                        readOnly 
-                        className={`${inputClass} bg-gray-100`} 
-                      />
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                        <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    </div>
-                    {errors.renewalDate && <p className="mt-1 text-sm text-red-600">{errors.renewalDate}</p>}
-                  </div>
+                  {/* Hide renewal date field for new contracts as it's auto-calculated */}
                 </>
               )}
 
@@ -1663,10 +1656,32 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                     </div>
                   )}
 
-                  {/* <div className="mt-6">
+                  <div className="mt-6">
                     <label htmlFor="contractDurationExisting" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Contract Duration (months) <span className="text-red-500">*</span></label>
-                    <input id="contractDurationExisting" type="number" value={contractDuration} onChange={e => setContractDuration(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter duration in months" className={inputClass} />
-                  </div> */}
+                    <input 
+                      id="contractDurationExisting" 
+                      type="number" 
+                      min={0}
+                      value={contractDuration}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        
+                        if (value === '') {
+                          setContractDuration('');
+                          return;
+                        }
+                        
+                        const num = Number(value);
+                        if (Number.isNaN(num)) {
+                          return;
+                        }
+                        
+                        setContractDuration(Math.max(0, num));
+                      }} 
+                      placeholder="Enter duration in months" 
+                      className={inputClass} 
+                    />
+                  </div>
 
                   <div className="mt-6">
                     <label htmlFor="renewalDate" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Renewal Date</label>
