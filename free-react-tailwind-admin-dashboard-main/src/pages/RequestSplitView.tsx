@@ -356,6 +356,19 @@ const RequestSplitView: React.FC = () => {
     "first" | "second" | "third" | "final"
   >("first");
 
+  // Track which proposals have been submitted
+  const [submittedProposals, setSubmittedProposals] = useState<Record<string, boolean>>({
+    first: false,
+    second: false,
+    third: false,
+    final: false
+  });
+
+  // Track if total profit has been submitted
+  const [hasSubmittedTotalProfit, setHasSubmittedTotalProfit] = useState(false);
+  
+  // Store the total profit fetched from backend
+  const [totalProfit, setTotalProfit] = useState<number | null>(null);
   const [unitCost, setUnitCost] = useState("");
   const [editableLicenseCount, setEditableLicenseCount] = useState(
     getFieldValue(["customfield_10293", "customfield_10294"]) || "0"
@@ -379,6 +392,19 @@ const RequestSplitView: React.FC = () => {
 
   const isInNegotiationStage =
     selectedIssue?.fields?.status?.name === "Negotiation Stage";
+
+  // Load proposals when modal opens
+  useEffect(() => {
+    if (isUploadQuoteModalOpen && issueKeyFromParams) {
+      loadProposals(issueKeyFromParams);
+    }
+  }, [isUploadQuoteModalOpen, issueKeyFromParams]);
+
+  // Reset profit state when selected issue changes
+  useEffect(() => {
+    setTotalProfit(null);
+    setHasSubmittedFinalQuote(false);
+  }, [selectedIssue?.key]);
 
   const isTransitionDisabled =
     userRole !== "SUPER_ADMIN" &&
@@ -427,6 +453,12 @@ const RequestSplitView: React.FC = () => {
 
   // fetch issue details (comments/attachments)
   const fetchIssueDetails = async (issueKey: string) => {
+    // Ensure we have a valid issue key before proceeding
+    if (!issueKey || issueKey === 'undefined') {
+      console.warn('Attempted to fetch issue details with invalid issue key:', issueKey);
+      return;
+    }
+    
     try {
       // Fetch comments using our custom comment service
       const commentsResponse = await commentService.getCommentsByIssueKey(
@@ -480,17 +512,34 @@ const RequestSplitView: React.FC = () => {
         const jiraAttachments = await jiraService.getIssueAttachments(issueKey);
         attachmentsData = Array.isArray(jiraAttachments) ? jiraAttachments : 
                         (jiraAttachments && jiraAttachments.attachments) ? jiraAttachments.attachments : [];
-      } catch (jiraError) {
+      } catch (jiraError: any) {
         console.warn('Failed to fetch attachments from Jira:', jiraError);
+        // Show user-friendly error message for common issues
+        if (jiraError.message && jiraError.message.includes('404')) {
+          console.warn(`Issue ${issueKey} not found in Jira or you don't have permission to access it`);
+        } else if (jiraError.message && jiraError.message.includes('connect')) {
+          console.warn('Unable to connect to Jira API');
+        }
         attachmentsData = [];
       }
       
-      // Skip fetching from our database and local storage since we're not saving there anymore
-      const localAttachmentsData: any[] = [];
+      // Also fetch attachments from our database to get proposal IDs
+      let localAttachmentsData: any[] = [];
+      try {
+        const localResponse = await fetch(
+          `http://localhost:8080/api/jira/contracts/attachments/issue/${issueKey}`
+        );
+        if (localResponse.ok) {
+          localAttachmentsData = await localResponse.json();
+        }
+      } catch (localError) {
+        console.warn('Failed to fetch attachments from local database:', localError);
+        localAttachmentsData = [];
+      }
 
       // Create a map of local attachments by file name for quick lookup
       const localAttachmentsMap = (localAttachmentsData || []).reduce((acc: any, localAttachment: any) => {
-        acc[localAttachment.originalFileName] = localAttachment;
+        acc[localAttachment.fileName] = localAttachment;
         return acc;
       }, {});
 
@@ -514,11 +563,11 @@ const RequestSplitView: React.FC = () => {
             fileUrl: attachment.content || attachment.fileUrl || 
                      (attachment.id ? `http://localhost:8080/api/jira/attachment/content/${attachment.id}` : ""),
             fileSize: attachment.fileSize || attachment.size,
-            uploadedBy: attachment.uploadedBy || "Unknown",
-            stage: attachment.stage || "Unknown",
-            uploadedAt: attachment.uploadedAt || attachment.created || new Date().toISOString(),
-            jiraIssueKey: attachment.jiraIssueKey || issueKey,
-            proposalId: attachment.proposalId || null,
+            uploadedBy: attachment.uploadedBy || localAttachment?.uploadedBy || "Unknown",
+            stage: attachment.stage || localAttachment?.stage || "Unknown",
+            uploadedAt: attachment.uploadedAt || localAttachment?.uploadedAt || attachment.created || new Date().toISOString(),
+            jiraIssueKey: attachment.jiraIssueKey || localAttachment?.jiraIssueKey || issueKey,
+            proposalId: attachment.proposalId || localAttachment?.proposalId || null,
             localAttachmentId: localAttachment?.id || null,
             // Since we're not saving local copies anymore, always allow preview
             hasLocalCopy: true
@@ -527,6 +576,9 @@ const RequestSplitView: React.FC = () => {
       );
 
       setAttachments(transformedAttachments);
+
+      // Skip automatic profit data fetching to prevent repeated server errors
+      // Users can manually refresh if needed using the retry button
 
       const allActivities: Activity[] = [
         ...flatComments.map((comment: Comment) => ({
@@ -580,13 +632,55 @@ const RequestSplitView: React.FC = () => {
       const data: ContractProposalDto[] = await res.json();
       setProposals(data || []);
 
+      // Update submitted proposals state based on loaded data
+      const submitted: Record<string, boolean> = {
+        first: false,
+        second: false,
+        third: false,
+        final: false
+      };
+
+      data.forEach(proposal => {
+        // Map proposal types to our state keys
+        // Handle both the new explicit types and the old generic types
+        const typeMap: Record<string, string> = {
+          "FIRST": "first",
+          "SECOND": "second",
+          "THIRD": "third",
+          "FINAL": "final",
+          "PROPOSAL 1": "first",
+          "PROPOSAL 2": "second",
+          "PROPOSAL 3": "third"
+        };
+        
+        const key = typeMap[proposal.proposalType];
+        if (key) {
+          submitted[key] = true;
+        } else if (proposal.final) {
+          // If it's marked as final but doesn't match our explicit types
+          submitted.final = true;
+        }
+      });
+
+      setSubmittedProposals(submitted);
+
       // If any proposal is final → allow transition from negotiation
       const hasFinal = (data || []).some((p) => p.final);
       setHasSubmittedFinalQuote(hasFinal);
+
+      // Skip automatic profit data fetching to prevent repeated server errors
+      // Users can manually refresh if needed using the retry button
     } catch (err) {
       console.error("Error loading proposals:", err);
       setProposals([]);
       setHasSubmittedFinalQuote(false);
+      // Reset submitted proposals on error
+      setSubmittedProposals({
+        first: false,
+        second: false,
+        third: false,
+        final: false
+      });
     } finally {
       setIsLoadingProposals(false);
     }
@@ -608,7 +702,7 @@ const RequestSplitView: React.FC = () => {
   }, [isMoreDropdownOpen]);
 
   useEffect(() => {
-    if (selectedIssue) fetchIssueDetails(selectedIssue.key);
+    if (selectedIssue?.key) fetchIssueDetails(selectedIssue.key);
   }, [selectedIssue]);
 
   useEffect(() => {
@@ -624,7 +718,17 @@ const RequestSplitView: React.FC = () => {
         setLoading(true);
         setError(null);
         const projectsData = await jiraService.getAllProjects();
-        const validProjects = projectsData
+        
+        // Ensure projectsData is an array before filtering
+        const projectsArray = Array.isArray(projectsData) ? projectsData : 
+                             (projectsData && typeof projectsData === 'object' && 'projects' in projectsData) ? projectsData.projects : [];
+        
+        if (!Array.isArray(projectsArray)) {
+          console.error('Unexpected projects data format:', projectsData);
+          throw new Error('Invalid projects data received from server');
+        }
+        
+        const validProjects = projectsArray
           .filter((p: Project) => p.id || p.key)
           .map((project: Project) => ({
             id: project.id || project.key,
@@ -747,14 +851,26 @@ const RequestSplitView: React.FC = () => {
 
   // Fetch full issue details when page is opened
   useEffect(() => {
-    if (!issueKey) return;
+    // Ensure we have a valid issue key before proceeding
+    if (!issueKey || issueKey === 'undefined') return;
 
     const loadFullIssue = async () => {
       try {
         const fullIssue = await jiraService.getIssueByIdOrKey(issueKey);
         setSelectedIssue(fullIssue);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error loading full issue:", err);
+        // Show user-friendly error message
+        if (err.message && err.message.includes('connect')) {
+          alert('Unable to connect to Jira. Please check your internet connection and try again.');
+        } else if (err.message && err.message.includes('Failed to fetch issue')) {
+          alert(`Error loading issue details: ${err.message}`);
+        } else if (err.message && err.message.includes('404')) {
+          console.warn(`Issue ${issueKey} not found in Jira or you don't have permission to access it`);
+          alert(`Issue ${issueKey} not found or you don't have permission to access it.`);
+        } else {
+          alert('Failed to load issue details. Please try again later.');
+        }
       }
     };
 
@@ -1227,6 +1343,12 @@ const RequestSplitView: React.FC = () => {
       return;
     }
 
+    // Check if this proposal type has already been submitted
+    if (submittedProposals[currentProposal]) {
+      alert(`The ${currentProposal} proposal has already been submitted. Please select a different proposal type.`);
+      return;
+    }
+
     setIsSubmittingQuote(true);
 
     try {
@@ -1304,18 +1426,93 @@ const RequestSplitView: React.FC = () => {
       if (isFinal) {
         setHasSubmittedFinalQuote(true);
 
-        await fetch(
-          "http://localhost:8080/api/jira/contracts/update-license-count",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              issueKey,
-              newLicenseCount: editableLicenseCount,
-            }),
+        // Calculate total profit before saving
+        let calculatedTotalProfit = 0;
+        if (proposals.length > 0) {
+          // Find the last submitted non-final proposal based on user's path
+          let lastNonFinalProposal = null;
+          const sortedProposals = [...proposals]
+            .filter(p => !p.final)
+            .sort((a, b) => a.proposalNumber - b.proposalNumber);
+          
+          // Get the last non-final proposal (user's path)
+          if (sortedProposals.length > 0) {
+            lastNonFinalProposal = sortedProposals[sortedProposals.length - 1];
           }
-        );
+
+          const lastTotalCost = lastNonFinalProposal 
+            ? Number(lastNonFinalProposal.totalCost || 0)
+            : 0;
+          const currentTotalCost = Number(totalCost || 0);
+          calculatedTotalProfit = lastTotalCost - currentTotalCost;
+        }
+
+        // Set the total profit state
+        setTotalProfit(calculatedTotalProfit);
+
+        // Save total profit along with license count
+        try {
+          // Log the payload for debugging
+          // Ensure editableLicenseCount is a number
+          const licenseCountValue = typeof editableLicenseCount === 'string' ? 
+            parseInt(editableLicenseCount, 10) : editableLicenseCount;
+          
+          // Validate required fields
+          if (!issueKey) {
+            console.warn('Cannot update license count: issueKey is missing');
+            return;
+          }
+          
+          if (licenseCountValue === null || licenseCountValue === undefined || isNaN(licenseCountValue)) {
+            console.warn('Cannot update license count: invalid license count value', editableLicenseCount);
+            return;
+          }
+          
+          const payload = {
+            issueKey,
+            newLicenseCount: licenseCountValue,
+            licenseCount: licenseCountValue,  // Alternative field name
+            totalProfit: calculatedTotalProfit
+          };
+          console.log('Sending update-license-count request with payload:', payload);
+          
+          const response = await fetch(
+            "http://localhost:8080/api/jira/contracts/update-license-count",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            }
+          );
+          
+          if (!response.ok) {
+            // Try to get error details from response
+            let errorDetails = '';
+            try {
+              const errorData = await response.json();
+              errorDetails = JSON.stringify(errorData, null, 2);
+            } catch (parseError) {
+              try {
+                const text = await response.text();
+                errorDetails = text || `${response.status} ${response.statusText}`;
+              } catch (textError) {
+                errorDetails = `${response.status} ${response.statusText}`;
+              }
+            }
+            console.warn('Failed to update license count: Server returned', response.status, response.statusText, 'Details:', errorDetails);
+            alert(`Failed to update license count: ${response.status} ${response.statusText}. Please check the console for details.`);
+          }
+        } catch (error) {
+          console.warn('Failed to update license count:', error);
+          alert('Failed to update license count. Please check the console for details.');
+        }
       }
+
+      // Mark this proposal as submitted
+      setSubmittedProposals(prev => ({
+        ...prev,
+        [currentProposal]: true
+      }));
 
       setProposalComment("");
       setQuoteAttachments([]);
@@ -1332,6 +1529,88 @@ const RequestSplitView: React.FC = () => {
       alert("Failed to submit proposal. Please try again.");
     } finally {
       setIsSubmittingQuote(false);
+    }
+  };
+
+  const handleFinalSubmit = async () => {
+    if (!selectedIssue) {
+      alert("No issue selected");
+      return;
+    }
+
+    setIsSubmittingQuote(true);
+
+    try {
+      const issueKey = selectedIssue.key;
+      
+      // Trigger final submission process
+      const response = await fetch(
+        `http://localhost:8080/api/jira/contracts/final-submit/${issueKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to finalize submission");
+      }
+
+      // Refresh issue details to get updated status
+      await fetchIssueDetails(issueKey);
+      
+      // Try to fetch profit data after successful final submission
+      try {
+        const profitResponse = await fetch(
+          `http://localhost:8080/api/jira/contracts/profit/${issueKey}`
+        );
+        if (profitResponse.ok) {
+          const profitData = await profitResponse.json();
+          setTotalProfit(profitData.totalProfit);
+          if (profitData.hasSubmittedFinalQuote) {
+            setHasSubmittedFinalQuote(true);
+          }
+        }
+      } catch (profitError) {
+        console.warn('Failed to fetch profit data after final submission:', profitError);
+      }
+      
+      // Close the modal
+      setIsUploadQuoteModalOpen(false);
+
+      addNotification({
+        title: "Final submission completed",
+        message: `Final submission for ${issueKey} completed successfully.`,
+        issueKey: issueKey,
+      });
+    } catch (error) {
+      console.error("Error in final submission:", error);
+      alert("Failed to complete final submission. Please try again.");
+    } finally {
+      setIsSubmittingQuote(false);
+    }
+  };
+
+  const refreshProfitData = async () => {
+    if (!selectedIssue?.key) return;
+    
+    try {
+      const profitResponse = await fetch(
+        `http://localhost:8080/api/jira/contracts/profit/${selectedIssue.key}`
+      );
+      if (profitResponse.ok) {
+        const profitData = await profitResponse.json();
+        setTotalProfit(profitData.totalProfit);
+        if (profitData.hasSubmittedFinalQuote) {
+          setHasSubmittedFinalQuote(true);
+        }
+      } else {
+        console.warn('Failed to fetch profit data: Server returned', profitResponse.status, profitResponse.statusText);
+        alert('Failed to refresh profit data. Please try again later.');
+      }
+    } catch (error) {
+      console.warn('Failed to fetch profit data:', error);
+      alert('Failed to refresh profit data. Please try again later.');
     }
   };
 
@@ -1910,9 +2189,10 @@ const RequestSplitView: React.FC = () => {
                         "Negotiation Stage" && (
                         <button
                           onClick={() => setIsUploadQuoteModalOpen(true)}
-                          className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          disabled={hasSubmittedFinalQuote}
+                          className={`inline-flex items-center px-3 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${hasSubmittedFinalQuote ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
                         >
-                          Upload Quote
+                          {hasSubmittedFinalQuote ? "Quote Submitted" : "Upload Quote"}
                         </button>
                       )}
                   </div>
@@ -2000,6 +2280,35 @@ const RequestSplitView: React.FC = () => {
                               </div>
                             </div>
                           </>
+                        )}
+
+                        {/* Display total profit if final proposal has been submitted */}
+                        {hasSubmittedFinalQuote && (
+                          <div>
+                            <div className="flex justify-between items-center">
+                              <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
+                                Total Profit
+                              </h4>
+                              {totalProfit === null && (
+                                <button 
+                                  onClick={refreshProfitData}
+                                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                                  title="Refresh profit data"
+                                >
+                                  Retry
+                                </button>
+                              )}
+                            </div>
+                            {totalProfit !== null ? (
+                              <div className={`font-bold ${totalProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                ₹ {totalProfit.toLocaleString()}
+                              </div>
+                            ) : (
+                              <div className="text-gray-500 dark:text-gray-400 text-sm">
+                                Profit data unavailable
+                              </div>
+                            )}
+                          </div>
                         )}
 
                         {isLicenseBilling && isUpgradeOrDowngrade && (
@@ -2377,7 +2686,7 @@ const RequestSplitView: React.FC = () => {
 
       {/* PROPOSAL PREVIEW MODAL */}
       {previewProposal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100000] p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -2478,7 +2787,7 @@ const RequestSplitView: React.FC = () => {
 
       {/* UPLOAD QUOTE MODAL */}
       {isUploadQuoteModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-99999 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -2500,47 +2809,51 @@ const RequestSplitView: React.FC = () => {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setCurrentProposal("first")}
+                    onClick={() => !submittedProposals.first && setCurrentProposal("first")}
+                    disabled={submittedProposals.first || hasSubmittedFinalQuote}
                     className={`p-3 rounded border text-center ${
                       currentProposal === "first"
                         ? "bg-blue-600 text-white border-blue-600"
                         : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                    }`}
+                    } ${(submittedProposals.first || hasSubmittedFinalQuote) ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
-                    First Proposal
+                    First Proposal {submittedProposals.first && "✓"}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCurrentProposal("second")}
+                    onClick={() => submittedProposals.first && !submittedProposals.second && setCurrentProposal("second")}
+                    disabled={submittedProposals.second || !submittedProposals.first || hasSubmittedFinalQuote}
                     className={`p-3 rounded border text-center ${
                       currentProposal === "second"
                         ? "bg-blue-600 text-white border-blue-600"
                         : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                    }`}
+                    } ${(submittedProposals.second || !submittedProposals.first || hasSubmittedFinalQuote) ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
-                    Second Proposal
+                    Second Proposal {submittedProposals.second && "✓"}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCurrentProposal("third")}
+                    onClick={() => submittedProposals.second && !submittedProposals.third && setCurrentProposal("third")}
+                    disabled={submittedProposals.third || !submittedProposals.second || hasSubmittedFinalQuote}
                     className={`p-3 rounded border text-center ${
                       currentProposal === "third"
                         ? "bg-blue-600 text-white border-blue-600"
                         : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                    }`}
+                    } ${(submittedProposals.third || !submittedProposals.second || hasSubmittedFinalQuote) ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
-                    Third Proposal
+                    Third Proposal {submittedProposals.third && "✓"}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCurrentProposal("final")}
+                    onClick={() => !submittedProposals.final && setCurrentProposal("final")}
+                    disabled={submittedProposals.final}
                     className={`p-3 rounded border text-center ${
                       currentProposal === "final"
                         ? "bg-green-600 text-white border-green-600"
                         : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                    }`}
+                    } ${submittedProposals.final ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
-                    Final Proposal
+                    Final Proposal {submittedProposals.final && "✓"}
                   </button>
                 </div>
               </div>
@@ -2584,30 +2897,46 @@ const RequestSplitView: React.FC = () => {
                     Profit Calculation
                   </h4>
                   {(() => {
-                    const sortedProposals = [...proposals].sort(
-                      (a, b) => a.proposalNumber - b.proposalNumber
-                    );
-                    const lastProposal =
-                      sortedProposals[sortedProposals.length - 1];
+                    // Find the last submitted non-final proposal based on user's path
+                    // This represents the proposal the user was satisfied with before submitting final
+                    let lastNonFinalProposal = null;
+                    const sortedProposals = [...proposals]
+                      .filter(p => !p.final)
+                      .sort((a, b) => a.proposalNumber - b.proposalNumber);
+                    
+                    // Get the last non-final proposal (user's path)
+                    if (sortedProposals.length > 0) {
+                      lastNonFinalProposal = sortedProposals[sortedProposals.length - 1];
+                    }
 
-                    const lastTotalCost = Number(lastProposal.totalCost || 0);
+                    const lastTotalCost = lastNonFinalProposal 
+                      ? Number(lastNonFinalProposal.totalCost || 0)
+                      : 0;
                     const currentTotalCost = Number(totalCost || 0);
                     const profit = lastTotalCost - currentTotalCost;
 
                     return (
                       <div className="space-y-2">
-                        <p className="text-sm text-gray-700 dark:text-gray-200">
-                          Previous Proposal Total:{" "}
-                          <strong>
-                            ₹ {lastTotalCost.toLocaleString()}
-                          </strong>
-                        </p>
-                        <p className="text-sm text-gray-700 dark:text-gray-200">
-                          Final Proposal Total:{" "}
-                          <strong>
-                            ₹ {currentTotalCost.toLocaleString()}
-                          </strong>
-                        </p>
+                        {lastNonFinalProposal ? (
+                          <>
+                            <p className="text-sm text-gray-700 dark:text-gray-200">
+                              {lastNonFinalProposal.proposalType} Proposal Total:{" "}
+                              <strong>
+                                ₹ {lastTotalCost.toLocaleString()}
+                              </strong>
+                            </p>
+                            <p className="text-sm text-gray-700 dark:text-gray-200">
+                              Final Proposal Total:{" "}
+                              <strong>
+                                ₹ {currentTotalCost.toLocaleString()}
+                              </strong>
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-700 dark:text-gray-200">
+                            No previous proposal found for profit calculation
+                          </p>
+                        )}
                         <p className="text-lg mt-2 font-bold text-blue-700 dark:text-blue-300">
                           Profit: ₹ {profit.toLocaleString()}
                         </p>
@@ -2722,6 +3051,52 @@ const RequestSplitView: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* Display attachments for this proposal */}
+                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                            Attachments
+                          </h4>
+                          <div className="space-y-2">
+                            {attachments
+                              .filter(att => att.proposalId === p.id)
+                              .map(att => (
+                                <div 
+                                  key={att.id} 
+                                  className="flex items-center justify-between p-2 bg-white dark:bg-gray-600 rounded border border-gray-200 dark:border-gray-500"
+                                >
+                                  <div className="flex items-center">
+                                    <svg 
+                                      className="w-5 h-5 text-gray-400 mr-2" 
+                                      xmlns="http://www.w3.org/2000/svg" 
+                                      viewBox="0 0 20 20" 
+                                      fill="currentColor"
+                                    >
+                                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="text-sm text-gray-700 dark:text-gray-200">
+                                      {att.fileName || att.filename}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setPreviewAttachment(att);
+                                      setShowAttachmentPreview(true);
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+                                  >
+                                    View
+                                  </button>
+                                </div>
+                              ))
+                            }
+                            {attachments.filter(att => att.proposalId === p.id).length === 0 && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                                No attachments for this proposal
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
                         {p.final && proposals.length > 1 && (
                           <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-700 rounded border border-yellow-400">
                             <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
@@ -2729,19 +3104,31 @@ const RequestSplitView: React.FC = () => {
                             </h4>
 
                             {(() => {
+                              // Sort proposals by proposal number
                               const sorted = [...proposals].sort(
                                 (a, b) => a.proposalNumber - b.proposalNumber
                               );
 
                               const finalP = sorted[sorted.length - 1];
-                              const lastP = sorted[sorted.length - 2];
+                              
+                              // Find the last non-final proposal (could be first, second, or third)
+                              let lastNonFinalP = null;
+                              for (let i = sorted.length - 2; i >= 0; i--) {
+                                if (!sorted[i].final) {
+                                  lastNonFinalP = sorted[i];
+                                  break;
+                                }
+                              }
+                              
+                              if (!lastNonFinalP) return null;
+                              
                               const profit =
-                                Number(lastP.totalCost) -
+                                Number(lastNonFinalP.totalCost) -
                                 Number(finalP.totalCost);
 
                               return (
                                 <div className="mt-1 text-sm">
-                                  <p>Prev Total: ₹ {lastP.totalCost}</p>
+                                  <p>{lastNonFinalP.proposalType} Total: ₹ {lastNonFinalP.totalCost}</p>
                                   <p>Final Total: ₹ {finalP.totalCost}</p>
                                   <p className="font-bold text-blue-800 dark:text-blue-300 mt-1">
                                     Profit: ₹ {profit}
@@ -2766,13 +3153,24 @@ const RequestSplitView: React.FC = () => {
                 Cancel
               </button>
 
-              <button
-                onClick={handleSubmitQuote}
-                disabled={isSubmittingQuote}
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
-              >
-                {isSubmittingQuote ? "Saving..." : "Submit"}
-              </button>
+              {/* Show Final Submit button when final proposal is submitted */}
+              {hasSubmittedFinalQuote ? (
+                <button
+                  onClick={handleFinalSubmit}
+                  disabled={isSubmittingQuote}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isSubmittingQuote ? "Processing..." : "Final Submit"}
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmitQuote}
+                  disabled={isSubmittingQuote || (currentProposal !== "final" && hasSubmittedFinalQuote)}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                >
+                  {isSubmittingQuote ? "Saving..." : "Submit"}
+                </button>
+              )}
             </div>
           </div>
         </div>

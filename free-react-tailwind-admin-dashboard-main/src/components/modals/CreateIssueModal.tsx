@@ -679,145 +679,164 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   // };
 
   const validateForm = () => {
-  const newErrors: Record<string, string> = {};
-  if (!requesterName) newErrors.requesterName = 'Requester name required';
-  if (!requesterMail) newErrors.requesterMail = 'Requester email required';
-  if (!contractType) newErrors.contractType = 'Select contract type';
+    const newErrors: Record<string, string> = {};
+    
+    if (!requesterName) newErrors.requesterName = 'Requester name required';
+    if (!requesterMail) newErrors.requesterMail = 'Requester email required';
+    if (!contractType) newErrors.contractType = 'Select contract type';
 
-  if (contractType === 'new') {
-    if (!vendorName) newErrors.vendorName = 'Vendor is required';
-    if (!productName) newErrors.productName = 'Product is required';
-    if (!contractDuration) newErrors.contractDuration = 'Contract duration is required';
-    if (contractDuration && Number(contractDuration) < 0) {
-      newErrors.contractDuration = 'Contract duration cannot be negative';
-    }
-    if (!dueDate) newErrors.dueDate = 'Due date is required';
-    if (dueDate) {
+    if (contractType === 'new') {
+      if (!vendorName) newErrors.vendorName = 'Vendor is required';
+      if (!productName) newErrors.productName = 'Product is required';
+      if (contractDuration === '' || contractDuration === null || contractDuration === undefined) newErrors.contractDuration = 'Contract duration is required';
+      if (typeof contractDuration === 'number' && contractDuration < 0) {
+        newErrors.contractDuration = 'Contract duration cannot be negative';
+      }
+      if (!dueDate) newErrors.dueDate = 'Due date is required';
+      
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const selectedDate = new Date(dueDate);
       if (selectedDate < today) {
         newErrors.dueDate = 'Due date cannot be in the past for new contracts';
       }
+      
       if (renewalDate) {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        const selectedDate = new Date(renewalDate);
-        if (selectedDate < today) newErrors.renewalDate = 'Renewal date cannot be in the past';
+        const renewalSelectedDate = new Date(renewalDate);
+        if (renewalSelectedDate < today) {
+          newErrors.renewalDate = 'Renewal date cannot be in the past';
+        }
       }
+      
       if (!vendorContractType) newErrors.vendorContractType = 'Select usage or license';
+      
       if (vendorContractType === 'usage') {
         if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter usage amount';
         if (!newUnits) newErrors.newUnits = 'Select unit';
         if (newUnits === 'others' && !newUnitsOther) newErrors.newUnitsOther = 'Enter custom unit';
       }
-      if (!newUnits) newErrors.newUnits = 'Select unit';
-      if (newUnits === 'others' && !newUnitsOther) {
-        newErrors.newUnitsOther = 'Enter custom unit';
-      }
-    }
-
-    if (vendorContractType === 'license') {
-      if (newLicenseCount === '' || newLicenseCount === 0) {
-        newErrors.newLicenseCount = 'Enter license count';
-      }
-      if (!newLicenseUnit) {
-        newErrors.newLicenseUnit = 'Select license unit (agents / users)';
-      }
-    }
-  }
-
-  // 🔽🔽🔽 REPLACE THIS PART WITH BELOW 🔽🔽🔽
-  if (contractType === 'existing') {
-    if (!selectedExistingContractId) {
-      newErrors.selectedExistingContractId = 'Select an existing contract';
-    }
-    if (!vendorContractType) {
-      newErrors.vendorContractType = 'Existing contract has no billing type';
-    }
-    if (!renewalType) {
-      newErrors.renewalType = 'Select renewal type';
-    }
-    if (!dueDate) {
-      newErrors.dueDate = 'Due date is required';
-    }
-    if (contractDuration && Number(contractDuration) < 0) {
-      newErrors.contractDuration = 'Contract duration cannot be negative';
-    }
-
-    // ---- USAGE CONTRACT ----
-    if (vendorContractType === 'usage' && renewalType !== 'flat') {
-      if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0)) {
-        newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
-      }
-      if (renewalNewUnits === 'others' && !renewalNewUnitsOther) {
-        newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
-      }
-      if (newUsageCount === '' || newUsageCount === 0) {
-        newErrors.newUsageCount = 'Enter new renewal usage amount';
-      }
-
-      // ✅ Compare with current volumes based on renewalType
-      if (
-        typeof currentUsageCount === 'number' &&
-        typeof newUsageCount === 'number'
-      ) {
-        if (
-          renewalType === 'upgrade' &&
-          !newErrors.newUsageCount &&            // don't override existing message
-          newUsageCount <= currentUsageCount
-        ) {
-          newErrors.newUsageCount = `For upgrade, new usage must be greater than current usage (${currentUsageCount}).`;
+      
+      if (vendorContractType === 'license') {
+        if (newLicenseCount === '' || newLicenseCount === 0) {
+          newErrors.newLicenseCount = 'Enter license count';
         }
-
-        if (
-          renewalType === 'downgrade' &&
-          !newErrors.newUsageCount &&
-          newUsageCount >= currentUsageCount
-        ) {
-          newErrors.newUsageCount = `For downgrade, new usage must be less than current usage (${currentUsageCount}).`;
+        if (!newLicenseUnit) {
+          newErrors.newLicenseUnit = 'Select license unit (agents / users)';
         }
       }
     }
 
-    // ---- LICENSE CONTRACT ----
-    if (vendorContractType === 'license' && renewalType !== 'flat') {
-      if (renewalNewLicenseCount === '' || renewalNewLicenseCount === 0) {
-        newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
+    if (contractType === 'existing') {
+      if (!selectedExistingContractId) {
+        newErrors.selectedExistingContractId = 'Select an existing contract';
       }
-      if (!renewalLicenseUnit) {
-        newErrors.renewalLicenseUnit = 'Select license unit (agents / users) for renewal';
+      if (!vendorContractType) {
+        newErrors.vendorContractType = 'Existing contract has no billing type';
       }
-
-      // ✅ Compare with current license count based on renewalType
-      if (
-        typeof currentLicenseCount === 'number' &&
-        typeof renewalNewLicenseCount === 'number'
-      ) {
-        if (
-          renewalType === 'upgrade' &&
-          !newErrors.renewalNewLicenseCount &&
-          renewalNewLicenseCount <= currentLicenseCount
-        ) {
-          newErrors.renewalNewLicenseCount =
-            `For upgrade, renewal license count must be greater than current license count (${currentLicenseCount}).`;
+      if (!renewalType) {
+        newErrors.renewalType = 'Select renewal type';
+      }
+      if (!dueDate) {
+        newErrors.dueDate = 'Due date is required';
+      }
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selectedDate = new Date(dueDate);
+      if (selectedDate < today) {
+        newErrors.dueDate = 'Due date cannot be in the past for existing contracts';
+      }
+      
+      if (renewalDate) {
+        const renewalSelectedDate = new Date(renewalDate);
+        if (renewalSelectedDate < today) {
+          newErrors.renewalDate = 'Renewal date cannot be in the past';
         }
+      }
+      
+      if (typeof contractDuration === 'number' && contractDuration < 0) {
+        newErrors.contractDuration = 'Contract duration cannot be negative';
+      }
 
-        if (
-          renewalType === 'downgrade' &&
-          !newErrors.renewalNewLicenseCount &&
-          renewalNewLicenseCount >= currentLicenseCount
-        ) {
-          newErrors.renewalNewLicenseCount =
-            `For downgrade, renewal license count must be less than current license count (${currentLicenseCount}).`;
+      // ---- USAGE CONTRACT ----
+      if (vendorContractType === 'usage') {
+        // Only validate renewal fields if not flat renewal
+        if (renewalType !== 'flat') {
+          if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0)) {
+            newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
+          }
+          if (renewalNewUnits === 'others' && !renewalNewUnitsOther) {
+            newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
+          }
+          if (newUsageCount === '' || newUsageCount === 0) {
+            newErrors.newUsageCount = 'Enter new renewal usage amount';
+          }
+
+          // ✅ Compare with current volumes based on renewalType
+          if (
+            typeof currentUsageCount === 'number' &&
+            typeof newUsageCount === 'number'
+          ) {
+            if (
+              renewalType === 'upgrade' &&
+              !newErrors.newUsageCount &&            // don't override existing message
+              newUsageCount <= currentUsageCount
+            ) {
+              newErrors.newUsageCount = `For upgrade, new usage must be greater than current usage (${currentUsageCount}).`;
+            }
+
+            if (
+              renewalType === 'downgrade' &&
+              !newErrors.newUsageCount &&
+              newUsageCount >= currentUsageCount
+            ) {
+              newErrors.newUsageCount = `For downgrade, new usage must be less than current usage (${currentUsageCount}).`;
+            }
+          }
+        }
+      }
+
+      // ---- LICENSE CONTRACT ----
+      if (vendorContractType === 'license') {
+        // Only validate renewal fields if not flat renewal
+        if (renewalType !== 'flat') {
+          if (renewalNewLicenseCount === '' || renewalNewLicenseCount === 0) {
+            newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
+          }
+          if (!renewalLicenseUnit) {
+            newErrors.renewalLicenseUnit = 'Select license unit (agents / users) for renewal';
+          }
+
+          // ✅ Compare with current license count based on renewalType
+          if (
+            typeof currentLicenseCount === 'number' &&
+            typeof renewalNewLicenseCount === 'number'
+          ) {
+            if (
+              renewalType === 'upgrade' &&
+              !newErrors.renewalNewLicenseCount &&
+              renewalNewLicenseCount <= currentLicenseCount
+            ) {
+              newErrors.renewalNewLicenseCount =
+                `For upgrade, renewal license count must be greater than current license count (${currentLicenseCount}).`;
+            }
+
+            if (
+              renewalType === 'downgrade' &&
+              !newErrors.renewalNewLicenseCount &&
+              renewalNewLicenseCount >= currentLicenseCount
+            ) {
+              newErrors.renewalNewLicenseCount =
+                `For downgrade, renewal license count must be less than current license count (${currentLicenseCount}).`;
+            }
+          }
         }
       }
     }
-  }
-  // 🔼🔼🔼 END OF REPLACED PART 🔼🔼🔼
 
-  setErrors(newErrors);
-  return Object.keys(newErrors).length === 0;
-};
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
 
   // Handle file selection

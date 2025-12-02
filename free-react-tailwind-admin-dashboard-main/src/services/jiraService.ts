@@ -34,21 +34,47 @@ async function jiraApiCall(endpoint: string, options: RequestInit = {}) {
     headers["Content-Type"] = "application/json";
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: options.method || "GET",
-    body: options.body,
-    headers,
-    signal: AbortSignal.timeout(30000),
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: options.method || "GET",
+      body: options.body,
+      headers,
+      signal: AbortSignal.timeout(30000),
+    });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.message || response.statusText);
+    if (!response.ok) {
+      // Try to parse error response
+      let errorMessage = response.statusText;
+      try {
+        const err = await response.json();
+        errorMessage = err.message || err.errorMessages?.[0] || response.statusText;
+      } catch (parseError) {
+        // If we can't parse JSON, use the status text
+        errorMessage = response.statusText;
+      }
+      
+      // Provide more specific error messages based on status codes
+      if (response.status === 404) {
+        throw new Error(`Issue not found or you don't have permission to access it: ${errorMessage}`);
+      } else if (response.status === 401 || response.status === 403) {
+        throw new Error(`Access denied to Jira API: ${errorMessage}`);
+      } else {
+        throw new Error(`Failed to fetch issue: ${errorMessage}`);
+      }
+    }
+    
+    if (response.status === 204) return {};
+
+    return response.json().catch(() => response.text());
+  } catch (error: any) {
+    // Handle network errors specifically
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      throw new Error(`Failed to connect to Jira API: ${error.message}`);
+    } else if (error.name === 'AbortError') {
+      throw new Error('Request timeout: Jira API took too long to respond');
+    }
+    throw error;
   }
-
-  if (response.status === 204) return {};
-
-  return response.json().catch(() => response.text());
 }
 
 async function getProposalById(id: number) {
