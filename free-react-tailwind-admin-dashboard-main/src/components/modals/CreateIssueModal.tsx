@@ -1065,22 +1065,31 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                       <div className="mt-3">
                         <label htmlFor="newLicenseCount" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">How many licenses do you want? <span className="text-red-500">*</span></label>
                         <div className="flex items-end space-x-3">
-                          <input id="newLicenseCount" type="number" value={newLicenseCount} onChange={(e) => {
-  const value = e.target.value;
+                          <input
+  id="newLicenseCount"
+  type="number"
+  min={0}                               // ⬅️ UI will not allow negative values via arrows
+  value={newLicenseCount}
+  onChange={(e) => {
+    const value = e.target.value;
 
-  if (value === '') {
-    setNewLicenseCount('');
-    return;
-  }
+    if (value === '') {
+      setNewLicenseCount('');
+      return;
+    }
 
-  const num = Number(value);
-  if (Number.isNaN(num)) {
-    return;
-  }
+    const num = Number(value);
+    if (Number.isNaN(num)) {
+      return;
+    }
 
-  setNewLicenseCount(num);
-}}
- placeholder="License Count" className={inputClass} />
+    // ⬅️ Hard clamp: never store negative numbers
+    setNewLicenseCount(Math.max(0, num));
+  }}
+  placeholder="License Count"
+  className={inputClass}
+/>
+
                           <div style={{ minWidth: 140 }}>
                             <label htmlFor="newLicenseUnit" className="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Unit</label>
                             <select id="newLicenseUnit" value={newLicenseUnit} onChange={e => setNewLicenseUnit(e.target.value as any)} className={inputClass}>
@@ -1247,22 +1256,30 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                         <div className="mt-3">
                           <label htmlFor="renewalNewLicenseCount" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">How many licenses do you want to renew?</label>
                           <div className="flex items-end space-x-3">
-                            <input id="renewalNewLicenseCount" type="number" value={renewalNewLicenseCount} onChange={(e) => {
-  const value = e.target.value;
+                            <input
+  id="renewalNewLicenseCount"
+  type="number"
+  min={0}
+  value={renewalNewLicenseCount}
+  onChange={(e) => {
+    const value = e.target.value;
 
-  if (value === '') {
-    setRenewalNewLicenseCount('');
-    return;
-  }
+    if (value === '') {
+      setRenewalNewLicenseCount('');
+      return;
+    }
 
-  const num = Number(value);
-  if (Number.isNaN(num)) {
-    return;
-  }
+    const num = Number(value);
+    if (Number.isNaN(num)) {
+      return;
+    }
 
-  setRenewalNewLicenseCount(num);
-}}
-placeholder="Enter renewal license count" className={inputClass} />
+    setRenewalNewLicenseCount(Math.max(0, num));
+  }}
+  placeholder="Enter renewal license count"
+  className={inputClass}
+/>
+
                             <div style={{ minWidth: 140 }}>
                               <label htmlFor="renewalLicenseUnit" className="mb-1.5 block text-xs font-medium text-gray-700 dark:text-gray-400">Unit</label>
                               <select id="renewalLicenseUnit" value={renewalLicenseUnit} onChange={e => setRenewalLicenseUnit(e.target.value as any)} className={inputClass}>
