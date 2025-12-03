@@ -326,13 +326,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   const [currentDateField, setCurrentDateField] = useState<string>('');
 
   const dropdownRef = useRef<HTMLDivElement | null>(null);
-  // const dropdownRef = useRef<HTMLDivElement | null>(null);
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
 
   const vendorDropdownRef = useRef<HTMLDivElement | null>(null);
   const productDropdownRef = useRef<HTMLDivElement | null>(null);
-
 
   const dueDateRef = useRef<HTMLInputElement | null>(null);
   const renewalDateRef = useRef<HTMLInputElement | null>(null);
@@ -343,6 +341,16 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       setRequesterMail(currentUser.email || '');
     }
   }, [isOpen, userData, currentUser]);
+
+  // Clear status messages and loader each time modal opens so nothing persists
+  useEffect(() => {
+    if (isOpen) {
+      setSuccessMessage('');
+      setErrorMessage('');
+      setShowSuccess(false);
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -358,32 +366,21 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   }, [isOpen, contractType]);
 
   // Calculate renewal date based on due date and contract duration
-  // Only for new contracts or when user explicitly selects a new due date for existing contracts
   useEffect(() => {
-    // For new contracts, always calculate renewal date
     if (contractType === 'new' && dueDate && contractDuration && contractDuration > 0) {
-      // Parse the due date string properly to avoid timezone issues
       const [year, month, day] = dueDate.split('-').map(Number);
-      const dueDateObj = new Date(year, month - 1, day); // month is 0-indexed
-      // Add contract duration months to due date
+      const dueDateObj = new Date(year, month - 1, day);
       dueDateObj.setMonth(dueDateObj.getMonth() + contractDuration);
-      // Format the date properly without timezone conversion
       const renewalYear = dueDateObj.getFullYear();
       const renewalMonth = String(dueDateObj.getMonth() + 1).padStart(2, '0');
       const renewalDay = String(dueDateObj.getDate()).padStart(2, '0');
       const renewalDateString = `${renewalYear}-${renewalMonth}-${renewalDay}`;
       setRenewalDate(renewalDateString);
-    } 
-    // For existing contracts, only calculate if user has selected a new due date
-    // (Don't override the existing renewal date from DB)
-    else if (contractType === 'existing' && dueDate && contractDuration && contractDuration > 0) {
-      // Check if this is a user-selected due date (not from DB)
-      // We can detect this by checking if the dueDate differs from the original DB value
+    } else if (contractType === 'existing' && dueDate && contractDuration && contractDuration > 0) {
       const originalContract = existingContracts.find(c => c.id === selectedExistingContractId);
       if (originalContract && dueDate !== originalContract.vendorStartDate) {
-        // User has selected a new due date, calculate renewal date
         const [year, month, day] = dueDate.split('-').map(Number);
-        const dueDateObj = new Date(year, month - 1, day); // month is 0-indexed
+        const dueDateObj = new Date(year, month - 1, day);
         dueDateObj.setMonth(dueDateObj.getMonth() + contractDuration);
         const renewalYear = dueDateObj.getFullYear();
         const renewalMonth = String(dueDateObj.getMonth() + 1).padStart(2, '0');
@@ -391,15 +388,9 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
         const renewalDateString = `${renewalYear}-${renewalMonth}-${renewalDay}`;
         setRenewalDate(renewalDateString);
       }
-      // If dueDate matches DB value, keep the original renewal date
-    }
-    // Clear renewal date if required fields are missing (but not for existing contracts with DB values)
-    else if (contractType === 'new' && (!dueDate || !contractDuration || contractDuration <= 0)) {
+    } else if (contractType === 'new' && (!dueDate || !contractDuration || contractDuration <= 0)) {
       setRenewalDate('');
-    }
-    // For existing contracts, clear renewal date only if user has explicitly changed due date or contract duration
-    else if (contractType === 'existing' && (!dueDate || !contractDuration || contractDuration <= 0)) {
-      // Check if this is a user-selected due date (not from DB)
+    } else if (contractType === 'existing' && (!dueDate || !contractDuration || contractDuration <= 0)) {
       const originalContract = existingContracts.find(c => c.id === selectedExistingContractId);
       if (originalContract && dueDate !== originalContract.vendorStartDate) {
         setRenewalDate('');
@@ -471,7 +462,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     const loadProducts = async () => {
       if (!vendorName || contractType !== 'new') return;
 
-      // Only load when vendorName matches one from the list (avoid calls on "a", "ab", etc.)
       const exactMatch = vendors.includes(vendorName);
       if (!exactMatch) return;
 
@@ -498,11 +488,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       setProductName(found.productName);
       setVendorContractType(found.vendorContractType);
       setDueDate(found.vendorStartDate || '');
-      // For existing contracts, initially show the renewal date from DB
       setRenewalDate(found.vendorEndDate || '');
-      // Clear additional comments for renewal requests
       setAdditionalComment('');
-      // Set contract duration if available in the contract data
       if (typeof found.contractDuration !== 'undefined' && found.contractDuration !== null) {
         setContractDuration(found.contractDuration);
       }
@@ -601,8 +588,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     }
   }, [newLicenseCount, selectedExistingContractId, contractType]);
 
-
-
   const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedProductName = e.target.value;
     setProductName(selectedProductName);
@@ -623,60 +608,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
         });
     }
   };
-
-  // const validateForm = () => {
-  //   const newErrors: Record<string, string> = {};
-  //   if (!requesterName) newErrors.requesterName = 'Requester name required';
-  //   if (!requesterMail) newErrors.requesterMail = 'Requester email required';
-  //   if (!contractType) newErrors.contractType = 'Select contract type';
-
-  //   if (contractType === 'new') {
-  //     if (!vendorName) newErrors.vendorName = 'Vendor is required';
-  //     if (!productName) newErrors.productName = 'Product is required';
-  //     if (!contractDuration) newErrors.contractDuration = 'Contract duration is required';
-  //     // if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
-  //     if (!dueDate) newErrors.dueDate = 'Due date is required';
-  //     if (dueDate) {
-  //       const today = new Date(); today.setHours(0, 0, 0, 0);
-  //       const selectedDate = new Date(dueDate);
-  //       if (selectedDate < today) newErrors.dueDate = 'Due date cannot be in the past for new contracts';
-  //     }
-  //     if (!vendorContractType) newErrors.vendorContractType = 'Select usage or license';
-  //     if (vendorContractType === 'usage') {
-  //       if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter usage amount';
-  //       if (!newUnits) newErrors.newUnits = 'Select unit';
-  //       if (newUnits === 'others' && !newUnitsOther) newErrors.newUnitsOther = 'Enter custom unit';
-  //     }
-  //     if (vendorContractType === 'license') {
-  //       if (newLicenseCount === '' || newLicenseCount === 0) newErrors.newLicenseCount = 'Enter license count';
-  //       if (!newLicenseUnit) newErrors.newLicenseUnit = 'Select license unit (agents / users)';
-  //     }
-  //   }
-
-  //   if (contractType === 'existing') {
-  //     if (!selectedExistingContractId) newErrors.selectedExistingContractId = 'Select an existing contract';
-  //     if (!vendorContractType) newErrors.vendorContractType = 'Existing contract has no billing type';
-  //     if (!renewalType) newErrors.renewalType = 'Select renewal type';
-  //     if (!dueDate) newErrors.dueDate = 'Due date is required';
-  //     if (contractDuration && Number(contractDuration) < 0) newErrors.contractDuration = 'Contract duration cannot be negative';
-  //     if (vendorContractType === 'usage') {
-  //       if (renewalType !== 'flat') {
-  //         if (!renewalNewUnits && (newUsageCount === '' || newUsageCount === 0)) newErrors.renewalNewUnits = 'Select unit for renewal or enter new usage';
-  //         if (renewalNewUnits === 'others' && !renewalNewUnitsOther) newErrors.renewalNewUnitsOther = 'Enter custom unit for renewal';
-  //         if (newUsageCount === '' || newUsageCount === 0) newErrors.newUsageCount = 'Enter new renewal usage amount';
-  //       }
-  //     }
-  //     if (vendorContractType === 'license') {
-  //       if (renewalType !== 'flat') {
-  //         if (renewalNewLicenseCount === '' || renewalNewLicenseCount === 0) newErrors.renewalNewLicenseCount = 'Enter new renewal license count';
-  //         if (!renewalLicenseUnit) newErrors.renewalLicenseUnit = 'Select license unit (agents / users) for renewal';
-  //       }
-  //     }
-  //   }
-
-  //   setErrors(newErrors);
-  //   return Object.keys(newErrors).length === 0;
-  // };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -838,7 +769,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
-
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -886,6 +816,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     setRenewalNewLicenseCount('');
     setRenewalLicenseUnit('');
     setAttachments([]);
+    // Reset status messages & loader so when modal reopens it starts clean
+    setSuccessMessage('');
+    setErrorMessage('');
+    setShowSuccess(false);
+    setIsSubmitting(false);
   };
 
   const handleSubmit = async () => {
@@ -938,84 +873,39 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
             uploadedAttachments.push({ file, jiraResponse });
           }
           
-          // TODO: Temporarily disabled local attachment storage
-          // For now, we only send attachments to Jira
-          /*
-          for (const { file } of uploadedAttachments) {
-            try {
-              // Convert file to base64 for storage
-              const fileContentBase64 = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-              });
-              
-              // Extract base64 data part (remove data URL prefix)
-              const base64Data = fileContentBase64.split(',')[1] || fileContentBase64;
-              
-              // Validate base64 data
-              if (!base64Data || typeof base64Data !== 'string') {
-                console.error('Invalid base64 data for file:', file.name);
-                throw new Error(`Invalid file data for ${file.name}`);
-              }
-              
-              // Save to our database
-              await jiraService.saveAttachmentToContract({
-                issueKey: created.key,
-                fileName: file.name,
-                fileUrl: `/api/jira/contracts/attachments/content/${file.name}`, // This will be updated by the backend
-                fileSize: file.size,
-                mimeType: file.type || "application/octet-stream",
-                uploadedBy: userData?.user?.name || "Unknown",
-                stage: "CREATION",
-                fileContent: base64Data
-              });
-            } catch (dbErr) {
-              console.error('Error saving attachment metadata to database:', dbErr);
-              const errorMessage = dbErr instanceof Error ? dbErr.message : String(dbErr);
-              throw new Error(`Failed to save attachment ${file.name}: ${errorMessage}`);
-            }
-          }
-          */
+          // (local saving commented out intentionally)
         } catch (err) {
           console.error('Error uploading attachments:', err);
           throw err; // Re-throw to prevent success message
         }
       }
 
-      setSuccessMessage('Request successfully created');
+      // --- Success Sequence ---
+
+      // 1. Set success state to show the toast notification.
+      setSuccessMessage('Request Created Successfully');
       setErrorMessage('');
       setShowSuccess(true);
       window.dispatchEvent(new CustomEvent('requestCreated'));
 
-      setTimeout(() => setShowSuccess(false), 1800);
+      // 2. Notify parent component.
       onIssueCreated?.(created as CreatedIssue);
-      resetForm();
 
+      // 3. After a delay to show the success toast, navigate and close the modal.
       setTimeout(() => {
-        onClose();
         navigate('/request-management/all-open');
-      }, 1200);
+        resetForm(); // Clears form for next time
+        onClose();   // Closes the modal
+      }, 2000); // 2-second delay for the user to see the success message
+
     } catch (err) {
       console.error('Create failed', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to create request. Please try again.';
       setErrorMessage(errorMessage);
       setSuccessMessage('');
-    } finally {
       setIsSubmitting(false);
     }
   };
-
-  // useEffect(() => {
-  //   const handleClickOutside = (e: MouseEvent) => {
-  //     if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-  //       dropdownRef.current.classList.add('hidden');
-  //     }
-  //   };
-  //   document.addEventListener('mousedown', handleClickOutside);
-  //   return () => document.removeEventListener('mousedown', handleClickOutside);
-  // }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -1031,23 +921,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-
-
   const openDatePicker = (inputEl: HTMLInputElement | null | undefined) => {
     if (!inputEl) return;
-    try {
-      const anyEl = inputEl as any;
-      if (typeof anyEl.showPicker === 'function') {
-        anyEl.showPicker();
-        return;
-      }
-      inputEl.focus();
-      const evt = new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window });
-      inputEl.dispatchEvent(evt);
-      inputEl.click();
-    } catch {
-      try { inputEl?.focus(); } catch { }
-    }
+    
+    // This is a fallback for browsers that don't support showPicker()
+    inputEl.click();
   };
   const focusDueDate = () => openDatePicker(dueDateRef.current);
   const focusRenewalDate = () => openDatePicker(renewalDateRef.current);
@@ -1061,7 +939,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     <>
       {showSuccess && (
         <div className="fixed top-5 right-5 z-[100000] bg-green-600 text-white px-4 py-2 rounded shadow-lg animate-fade-in">
-          🎉 Issue Created Successfully!
+          🎉 {successMessage}
         </div>
       )}
 
@@ -1100,6 +978,19 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
             aria-labelledby="create-procurement-title"
             onClick={(e) => e.stopPropagation()} // prevent clicks inside modal from closing backdrop
           >
+            {/* Loader overlay while submitting */}
+            {isSubmitting && (
+              <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/60 dark:bg-black/40 rounded-2xl">
+                <div className="flex flex-col items-center space-y-2">
+                  <svg className="animate-spin -ml-1 mr-2 h-8 w-8 text-brand-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  <div className="text-sm text-gray-700 dark:text-gray-200">Submitting...</div>
+                </div>
+              </div>
+            )}
+
             {/* Close button (round) */}
             <button
               onClick={() => { resetForm(); onClose(); }}
@@ -1120,7 +1011,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
             </div>
 
             <div className="px-6 py-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
-              {successMessage && (
+              {successMessage && !isSubmitting && ( // Show inline message only if submission is complete but modal hasn't closed
                 <div className="mb-4 rounded-md border bg-green-50 border-green-200 px-4 py-2 text-sm text-green-800">{successMessage}</div>
               )}
               {errorMessage && (
@@ -1179,15 +1070,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
               {contractType === 'new' && (
                 <>
-                  {/* <div className="mt-6">
-                    <label htmlFor="vendorName" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Vendor Name <span className="text-red-500">*</span></label>
-                    <select id="vendorName" value={vendorName} onChange={(e) => setVendorName(e.target.value)} className={inputClass}>
-                      <option value="">{loadingVendors ? 'Loading vendors...' : 'Select Vendor'}</option>
-                      {vendors.map(v => <option key={v} value={v}>{v}</option>)}
-                    </select>
-                    {errors.vendorName && <p className="mt-1 text-sm text-red-600">{errors.vendorName}</p>}
-                  </div> */}
-
                   <div className="mt-6">
                     <label
                       htmlFor="vendorName"
@@ -1323,7 +1205,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                   </div>
 
                   <div className="mt-6">
-                    {/* <label className="block mb-4 text-sm font-medium text-gray-700 dark:text-gray-400">Contract Billing</label> */}
                     <label className="block mb-4 text-sm font-medium text-gray-700 dark:text-gray-400">
                       Contract Billing <span className="text-red-500">*</span>
                     </label>
@@ -1471,11 +1352,10 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
                   <div className="mt-6">
                     <label htmlFor="contractDuration" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Contract Duration (months) <span className="text-red-500">*</span></label>
-                    {/* <input id="contractDuration" type="number" value={contractDuration} onChange={e => setContractDuration(e.target.value === '' ? '' : Number(e.target.value))} placeholder="Enter duration in months" className={inputClass} /> */}
                     <input
                       id="contractDuration"
                       type="number"
-                      min={0}                                // ⬅️ Stops negative typing
+                      min={0}
                       value={contractDuration}
                       onChange={(e) => {
   const value = e.target.value;
@@ -1515,6 +1395,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                       />
                       <div className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer" onClick={() => toggleDatePicker('dueDate')}>
                         <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
                           <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                         </svg>
                       </div>
@@ -1523,7 +1404,6 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                     {errors.dueDate && <p className="mt-1 text-sm text-red-600">{errors.dueDate}</p>}
                   </div>
 
-                  {/* Hide renewal date field for new contracts as it's auto-calculated */}
                 </>
               )}
 
@@ -1715,6 +1595,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                       />
                       <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                         <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
                           <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                         </svg>
                       </div>
@@ -1734,6 +1615,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                       />
                       <div className="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer" onClick={() => toggleDatePicker('dueDateExisting')}>
                         <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
                           <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                         </svg>
                       </div>

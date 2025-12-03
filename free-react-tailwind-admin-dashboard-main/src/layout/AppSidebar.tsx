@@ -306,7 +306,7 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
     name: "Procurement Request",
     icon: <DocsIcon />,
     subItems: [
-      { name: "Renewal", path: "/procurement/renewal", pro: false, new: true },
+      { name: "Renewal", path: "/procurement/renewal", pro: false },
     ],
   },
   {

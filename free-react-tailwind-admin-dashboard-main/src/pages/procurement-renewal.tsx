@@ -401,7 +401,8 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm text-gray-500">Showing</div>
-                <div className="text-lg font-medium">{rows.length} vendors</div>
+                {/* <div className="text-lg font-medium">{rows.length} vendors</div> */}
+                <div className="text-lg font-medium">Contracts</div>
               </div>
               <div className="text-sm text-gray-500">Styled spreadsheet-like view — click a row to select.</div>
             </div>

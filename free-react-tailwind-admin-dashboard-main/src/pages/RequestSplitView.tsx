@@ -2989,20 +2989,25 @@ const RequestSplitView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
-                  Attach Quote Files
-                </label>
-                <input
-                  type="file"
-                  multiple
-                  onChange={(e) => {
-                    if (e.target.files) {
-                      setQuoteAttachments(Array.from(e.target.files));
-                    }
-                  }}
-                  className="w-full"
-                />
-              </div>
+  <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
+    Attach Quote Files
+  </label>
+
+  <label className="w-28 h-9 flex items-center justify-center border border-gray-300 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+    Choose File
+    <input
+      type="file"
+      multiple
+      className="hidden"
+      onChange={(e) => {
+        if (e.target.files) {
+          setQuoteAttachments(Array.from(e.target.files));
+        }
+      }}
+    />
+  </label>
+</div>
+
 
               <div className="mt-6">
                 <h2 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
