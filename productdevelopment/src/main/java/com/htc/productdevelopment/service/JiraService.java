@@ -1456,6 +1456,10 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
                         vendorDetails.put("licenseUpdateType", getTextValue(fields, jiraFieldConfig.getLicenseUpdateType()));
                         vendorDetails.put("existingContractId", getTextValue(fields, jiraFieldConfig.getExistingContractId()));
                         vendorDetails.put("contractDuration", getTextValue(fields, jiraFieldConfig.getContractDuration()));
+                        
+                        // Extract issue updated date for completion date calculation
+                        String updatedDate = issue.path("updated").asText();
+                        vendorDetails.put("completionDate", updatedDate);
 
                         logger.info("Saving contract details for completed issue: {}", issueKey);
                         saveContractDetailsForCompletedIssue(vendorDetails);
@@ -1766,12 +1770,58 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
                 }
             }
             
-            String renewalDateStr = clean(vendorDetails.get("renewalDate"));
-            if (renewalDateStr != null && !renewalDateStr.isEmpty()) {
+            // Calculate renewal date based on completion date + contract duration for completed requests
+            String contractDurationStr = clean(vendorDetails.get("contractDuration"));
+            if (contractDurationStr != null && !contractDurationStr.isEmpty()) {
                 try {
-                    contract.setRenewalDate(java.time.LocalDate.parse(renewalDateStr));
+                    // Parse contract duration
+                    int contractDuration = Integer.parseInt(contractDurationStr);
+                    
+                    // Get completion date from Jira issue updated date
+                    String completionDateStr = clean(vendorDetails.get("completionDate"));
+                    java.time.LocalDate completionDate = null;
+                    
+                    if (completionDateStr != null && !completionDateStr.isEmpty()) {
+                        // Parse the ISO date string (e.g., "2023-12-01T10:30:00.000+0530")
+                        // Take only the date part before 'T'
+                        int tIndex = completionDateStr.indexOf('T');
+                        if (tIndex > 0) {
+                            completionDateStr = completionDateStr.substring(0, tIndex);
+                        }
+                        completionDate = java.time.LocalDate.parse(completionDateStr);
+                    } else {
+                        // Fallback to current date if completion date is not available
+                        completionDate = java.time.LocalDate.now();
+                    }
+                    
+                    // Calculate renewal date = completion date + contract duration (in months)
+                    java.time.LocalDate calculatedRenewalDate = completionDate.plusMonths(contractDuration);
+                    contract.setRenewalDate(calculatedRenewalDate);
+                    
+                    logger.info("Calculated renewal date: {} based on completion date: {} and contract duration: {} months", 
+                        calculatedRenewalDate, completionDate, contractDuration);
                 } catch (Exception e) {
-                    logger.warn("Failed to parse renewal date: {}", renewalDateStr, e);
+                    logger.warn("Failed to calculate renewal date based on contract duration: {}", contractDurationStr, e);
+                    
+                    // Fall back to the renewal date from Jira fields if calculation fails
+                    String renewalDateStr = clean(vendorDetails.get("renewalDate"));
+                    if (renewalDateStr != null && !renewalDateStr.isEmpty()) {
+                        try {
+                            contract.setRenewalDate(java.time.LocalDate.parse(renewalDateStr));
+                        } catch (Exception parseException) {
+                            logger.warn("Failed to parse renewal date: {}", renewalDateStr, parseException);
+                        }
+                    }
+                }
+            } else {
+                // If no contract duration, fall back to the renewal date from Jira fields
+                String renewalDateStr = clean(vendorDetails.get("renewalDate"));
+                if (renewalDateStr != null && !renewalDateStr.isEmpty()) {
+                    try {
+                        contract.setRenewalDate(java.time.LocalDate.parse(renewalDateStr));
+                    } catch (Exception e) {
+                        logger.warn("Failed to parse renewal date: {}", renewalDateStr, e);
+                    }
                 }
             }
             
@@ -1916,12 +1966,58 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
                 }
             }
             
-            String renewalDateStr = clean(vendorDetails.get("renewalDate"));
-            if (renewalDateStr != null && !renewalDateStr.isEmpty()) {
+            // Calculate renewal date based on completion date + contract duration for completed requests
+            String contractDurationStr = clean(vendorDetails.get("contractDuration"));
+            if (contractDurationStr != null && !contractDurationStr.isEmpty()) {
                 try {
-                    contract.setRenewalDate(java.time.LocalDate.parse(renewalDateStr));
+                    // Parse contract duration
+                    int contractDuration = Integer.parseInt(contractDurationStr);
+                    
+                    // Get completion date from Jira issue updated date
+                    String completionDateStr = clean(vendorDetails.get("completionDate"));
+                    java.time.LocalDate completionDate = null;
+                    
+                    if (completionDateStr != null && !completionDateStr.isEmpty()) {
+                        // Parse the ISO date string (e.g., "2023-12-01T10:30:00.000+0530")
+                        // Take only the date part before 'T'
+                        int tIndex = completionDateStr.indexOf('T');
+                        if (tIndex > 0) {
+                            completionDateStr = completionDateStr.substring(0, tIndex);
+                        }
+                        completionDate = java.time.LocalDate.parse(completionDateStr);
+                    } else {
+                        // Fallback to current date if completion date is not available
+                        completionDate = java.time.LocalDate.now();
+                    }
+                    
+                    // Calculate renewal date = completion date + contract duration (in months)
+                    java.time.LocalDate calculatedRenewalDate = completionDate.plusMonths(contractDuration);
+                    contract.setRenewalDate(calculatedRenewalDate);
+                    
+                    logger.info("Calculated renewal date: {} based on completion date: {} and contract duration: {} months", 
+                        calculatedRenewalDate, completionDate, contractDuration);
                 } catch (Exception e) {
-                    logger.warn("Failed to parse renewal date: {}", renewalDateStr, e);
+                    logger.warn("Failed to calculate renewal date based on contract duration: {}", contractDurationStr, e);
+                    
+                    // Fall back to the renewal date from Jira fields if calculation fails
+                    String renewalDateStr = clean(vendorDetails.get("renewalDate"));
+                    if (renewalDateStr != null && !renewalDateStr.isEmpty()) {
+                        try {
+                            contract.setRenewalDate(java.time.LocalDate.parse(renewalDateStr));
+                        } catch (Exception parseException) {
+                            logger.warn("Failed to parse renewal date: {}", renewalDateStr, parseException);
+                        }
+                    }
+                }
+            } else {
+                // If no contract duration, fall back to the renewal date from Jira fields
+                String renewalDateStr = clean(vendorDetails.get("renewalDate"));
+                if (renewalDateStr != null && !renewalDateStr.isEmpty()) {
+                    try {
+                        contract.setRenewalDate(java.time.LocalDate.parse(renewalDateStr));
+                    } catch (Exception e) {
+                        logger.warn("Failed to parse renewal date: {}", renewalDateStr, e);
+                    }
                 }
             }
             
