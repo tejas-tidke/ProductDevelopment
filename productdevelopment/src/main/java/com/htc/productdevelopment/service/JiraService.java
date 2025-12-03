@@ -2203,6 +2203,46 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
         }
     }
     
+    /**
+     * Helper method to extract text value from a JSON field
+     * @param fields The fields JSON node
+     * @param fieldId The field ID to extract
+     * @return The field value as a string, or null if not found
+     */
+    private String getTextValue(JsonNode fields, String fieldId) {
+        if (fields == null || fieldId == null) {
+            return null;
+        }
+        
+        JsonNode field = fields.path(fieldId);
+        if (field.isNull() || field.isMissingNode()) {
+            return null;
+        }
+        
+        // If it's a text field, return as string
+        if (field.isTextual()) {
+            return field.asText();
+        }
+        
+        // If it's a number, convert to string
+        if (field.isNumber()) {
+            return field.asText();
+        }
+        
+        // If it's an object with a value property (select lists, etc.)
+        if (field.has("value")) {
+            return field.get("value").asText();
+        }
+        
+        // If it's an object with a displayName property (users, etc.)
+        if (field.has("displayName")) {
+            return field.get("displayName").asText();
+        }
+        
+        // For all other cases, convert to string
+        return field.toString();
+
+    
     public List<ContractDTO> getAllContractsDTO() {
         return contractDetailsRepository.findAll().stream().map(c -> {
             ContractDTO dto = new ContractDTO();
@@ -2233,5 +2273,5 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
     }
 
 
-
+}
 }
