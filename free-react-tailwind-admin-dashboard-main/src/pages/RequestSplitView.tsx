@@ -1798,6 +1798,7 @@ const RequestSplitView: React.FC = () => {
               licenseUpdateType: licenseUpdateTypeVal || null,
               existingContractId: existingContractIdVal || null,
               billingType: billingTypeVal || null,
+              contractDuration: contractDurationVal || null,
             }),
           }
         );

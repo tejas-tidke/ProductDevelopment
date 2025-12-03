@@ -143,9 +143,36 @@ public class ContractDetailsService {
         contract.setLicenseUpdateType(incoming.getLicenseUpdateType());
         contract.setExistingContractId(incoming.getExistingContractId());
         contract.setBillingType(incoming.getBillingType());
+        contract.setContractDuration(incoming.getContractDuration());
 
         contract.setDueDate(incoming.getDueDate());
-        contract.setRenewalDate(incoming.getRenewalDate());
+        
+        // Calculate renewal date based on completion date + contract duration for completed requests
+        String contractDurationStr = incoming.getContractDuration();
+        if (contractDurationStr != null && !contractDurationStr.isEmpty()) {
+            try {
+                // Parse contract duration
+                int contractDuration = Integer.parseInt(contractDurationStr);
+                
+                // Use current date as completion date for contracts marked as completed through UI
+                java.time.LocalDate completionDate = java.time.LocalDate.now();
+                
+                // Calculate renewal date = completion date + contract duration (in months)
+                java.time.LocalDate calculatedRenewalDate = completionDate.plusMonths(contractDuration);
+                contract.setRenewalDate(calculatedRenewalDate);
+                
+                logger.info("Calculated renewal date: {} based on completion date: {} and contract duration: {} months", 
+                    calculatedRenewalDate, completionDate, contractDuration);
+            } catch (Exception e) {
+                logger.warn("Failed to calculate renewal date based on contract duration: {}", contractDurationStr, e);
+                
+                // Fall back to the renewal date from incoming contract if calculation fails
+                contract.setRenewalDate(incoming.getRenewalDate());
+            }
+        } else {
+            // If no contract duration, fall back to the renewal date from incoming contract
+            contract.setRenewalDate(incoming.getRenewalDate());
+        }
 
         contract.setAdditionalComment(incoming.getAdditionalComment());
 
@@ -210,9 +237,36 @@ public class ContractDetailsService {
         contract.setLicenseUpdateType(incoming.getLicenseUpdateType());
         contract.setExistingContractId(incoming.getExistingContractId());
         contract.setBillingType(incoming.getBillingType());
+        contract.setContractDuration(incoming.getContractDuration());
 
         contract.setDueDate(incoming.getDueDate());
-        contract.setRenewalDate(incoming.getRenewalDate());
+        
+        // Calculate renewal date based on completion date + contract duration for completed requests
+        String contractDurationStr = incoming.getContractDuration();
+        if (contractDurationStr != null && !contractDurationStr.isEmpty()) {
+            try {
+                // Parse contract duration
+                int contractDuration = Integer.parseInt(contractDurationStr);
+                
+                // Use current date as completion date for contracts marked as completed through UI
+                java.time.LocalDate completionDate = java.time.LocalDate.now();
+                
+                // Calculate renewal date = completion date + contract duration (in months)
+                java.time.LocalDate calculatedRenewalDate = completionDate.plusMonths(contractDuration);
+                contract.setRenewalDate(calculatedRenewalDate);
+                
+                logger.info("Calculated renewal date: {} based on completion date: {} and contract duration: {} months", 
+                    calculatedRenewalDate, completionDate, contractDuration);
+            } catch (Exception e) {
+                logger.warn("Failed to calculate renewal date based on contract duration: {}", contractDurationStr, e);
+                
+                // Fall back to the renewal date from incoming contract if calculation fails
+                contract.setRenewalDate(incoming.getRenewalDate());
+            }
+        } else {
+            // If no contract duration, fall back to the renewal date from incoming contract
+            contract.setRenewalDate(incoming.getRenewalDate());
+        }
 
         contract.setAdditionalComment(incoming.getAdditionalComment());
 

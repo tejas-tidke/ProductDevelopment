@@ -25,6 +25,7 @@ import React, { useState, useEffect } from "react";
     licenseUpdateType: string | null;
     existingContractId: string | null;
     billingType: string | null;
+    contractDuration: string | null;
   };
 
   // Map contract details to row format for the table
@@ -61,6 +62,8 @@ import React, { useState, useEffect } from "react";
 
   licenseUpdateType: string | null;
   existingContractId: string | null;
+
+  contractDuration: string | null;
 
   usageLicense: number; // used for upgrade/downgrade logic
 };
@@ -109,6 +112,8 @@ import React, { useState, useEffect } from "react";
     licenseUpdateType: contract.licenseUpdateType,
     existingContractId: contract.existingContractId,
 
+    contractDuration: contract.contractDuration,
+
     usageLicense: usageLicense,
   };
 };
@@ -146,6 +151,25 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
 
   return "";
 }
+
+
+  // Function to calculate renewal date based on completion date + contract duration
+  const calculateRenewalDate = (row: Row): string => {
+    // If the row has a renewalDate already set, return it
+    if (row.renewalDate) {
+      return row.renewalDate;
+    }
+    
+    // If contract is completed and has contract duration, calculate renewal date
+    if (row.renewalStatus === "completed" && row.contractDuration) {
+      // For this table view, we don't have access to the exact completion date
+      // In a real implementation, we would need to get this from the backend
+      // For now, we'll just indicate that it should be calculated
+      return "Calculated on completion";
+    }
+    
+    return "N/A";
+  };
 
 
   export default function ProcurementRenewal() {
@@ -202,11 +226,33 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
           const contracts: ContractDetails[] = await response.json();
           console.log("Received contracts:", contracts);
           
+          // Check if any contracts have renewal dates
+          contracts.forEach((contract, index) => {
+            console.log(`Contract ${index}:`, {
+              id: contract.id,
+              vendor: contract.nameOfVendor,
+              product: contract.productName,
+              renewalDate: contract.renewalDate,
+              contractDuration: contract.contractDuration
+            });
+          });
+          
           // Map contracts to rows
           const mappedRows = contracts.map((contract) => 
             mapContractToRow(contract)
           );
           console.log("Mapped rows:", mappedRows);
+          
+          // Check if any rows have renewal dates
+          mappedRows.forEach((row, index) => {
+            console.log(`Row ${index}:`, {
+              id: row.id,
+              vendor: row.vendorName,
+              product: row.productName,
+              renewalDate: row.renewalDate,
+              contractDuration: row.contractDuration
+            });
+          });
           
           setRows(mappedRows);
           setError(null);
@@ -433,6 +479,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">New Units</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Due Date</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Renewal Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Contract Duration</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">License Update Type</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Existing Contract ID</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Additional Comment</th>
@@ -486,6 +533,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
 
   <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.dueDate ?? "N/A"}</td>
   <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.renewalDate ?? "N/A"}</td>
+  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.contractDuration ?? "N/A"}</td>
 
   <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.licenseUpdateType ?? "N/A"}</td>
   <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.existingContractId ?? "N/A"}</td>
