@@ -65,6 +65,10 @@ public class JiraFieldConfig {
     @Value("${jira.customfield.additionalComment}")
     private String additionalComment;
     
+    // 🔹 Contract Duration
+    @Value("${jira.customfield.contractDuration}")
+    private String contractDuration;
+    
     public String getOrganizationName() {
         return organizationName;
     }

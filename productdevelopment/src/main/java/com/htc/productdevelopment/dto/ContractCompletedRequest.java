@@ -30,5 +30,6 @@ public class ContractCompletedRequest {
 
     private String dueDate;
     private String renewalDate;
+    private String contractDuration;
 }
 

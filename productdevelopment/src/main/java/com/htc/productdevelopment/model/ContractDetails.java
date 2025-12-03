@@ -157,6 +157,9 @@ public class ContractDetails {
     @Column(name = "billing_type")
     private String billingType;
     
+    @Column(name = "contract_duration")
+    private String contractDuration;
+    
     public String getJiraIssueKey() {
         return jiraIssueKey;
     }
@@ -179,6 +182,14 @@ public class ContractDetails {
 
     public void setContractType(String contractType) {
         this.contractType = contractType;
+    }
+    
+    public void setContractDuration(String contractDuration) {
+        this.contractDuration = contractDuration;
+    }
+    
+    public String getContractDuration() {
+        return contractDuration;
     }
 
 }

@@ -74,6 +74,7 @@ public class ContractDetailsService {
             dto.setBillingType(c.getBillingType());
             dto.setLicenseUpdateType(c.getLicenseUpdateType());
             dto.setExistingContractId(c.getExistingContractId());
+            dto.setContractDuration(c.getContractDuration());
 
             dto.setCurrentLicenseCount(c.getCurrentLicenseCount());
             dto.setCurrentUsageCount(c.getCurrentUsageCount());

@@ -38,4 +38,5 @@ public class ContractDTO {
     private String licenseUpdateType;
     private String existingContractId;
     private String billingType;
+    private String contractDuration;
 }

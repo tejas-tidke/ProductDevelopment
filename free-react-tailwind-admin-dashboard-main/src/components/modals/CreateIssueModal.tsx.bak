@@ -413,12 +413,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   //   }
   // }, [contractType, contractDuration]);
   useEffect(() => {
-    // ✅ Do NOT calculate renewal date when creating a NEW contract
-    // Renewal date will be calculated after request completion
-    // Just store the contract duration
+    // ✅ Only calculate renewal date when creating a NEW contract
     if (contractType === 'new' && contractDuration) {
-      // Clear renewal date - it will be calculated after completion
-      setRenewalDate('');
+      const today = new Date().toISOString().split('T')[0];
+      const newRenewalDate = addMonths(today, contractDuration);
+      setRenewalDate(newRenewalDate);
     }
   }, [contractType, contractDuration]);
 
@@ -743,9 +742,7 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
       contractDuration: contractDuration || undefined,
       dueDate,
-      // renewalDate: renewalDate || undefined,
-      // Don't send renewalDate at creation time - it will be calculated after completion
-      renewalDate: '',
+      renewalDate: renewalDate || undefined,
       additionalComment,
       requesterName,
       requesterMail,
