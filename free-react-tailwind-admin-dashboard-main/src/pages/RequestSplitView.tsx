@@ -569,6 +569,14 @@ const RequestSplitView: React.FC = () => {
     if (selectedIssue) fetchIssueDetails(selectedIssue.key);
   }, [selectedIssue]);
 
+
+  useEffect(() => {
+  if (selectedIssue?.key) {
+    loadProposals(selectedIssue.key);
+  }
+}, [selectedIssue?.key]);
+
+
   useEffect(() => {
     if (selectedIssue?.key) {
       // placeholder for transitions if needed
@@ -2136,7 +2144,7 @@ const RequestSplitView: React.FC = () => {
                         Attachments
                       </h2>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    {/* <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                       {attachments && attachments.length > 0 ? (
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                           {attachments.map((attachment) => (
@@ -2221,6 +2229,149 @@ const RequestSplitView: React.FC = () => {
                           <p className="mt-2">No attachments yet</p>
                         </div>
                       )}
+                    </div> */}
+
+                                        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                      {attachments && attachments.length > 0 ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {attachments.map((attachment) => (
+                            {/* ...your existing attachment card JSX... */}
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center text-gray-500 dark:text-gray-400 py-4">
+                          {/* ...your existing empty attachments JSX... */}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Proposals */}
+                    <div className="mt-6">
+                      <div className="border-b border-gray-200 dark:border-gray-700 pb-2 mb-4">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                          <svg
+                            className="w-5 h-5 mr-2 text-gray-500"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            ></path>
+                          </svg>
+                          Proposals
+                        </h2>
+                      </div>
+
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                        {isLoadingProposals ? (
+                          <p className="text-gray-500 dark:text-gray-400">
+                            Loading proposals...
+                          </p>
+                        ) : proposals.length === 0 ? (
+                          <p className="text-gray-500 dark:text-gray-400 italic">
+                            No proposals yet.
+                          </p>
+                        ) : (
+                          <div className="space-y-4 max-h-80 overflow-y-auto pr-2">
+                            {proposals.map((p) => (
+                              <div
+                                key={p.id}
+                                className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-semibold text-gray-900 dark:text-white">
+                                      {p.proposalType} Proposal #{p.proposalNumber}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                      {new Date(p.createdAt).toLocaleString()}
+                                    </p>
+                                  </div>
+
+                                  <button
+                                    onClick={() => handlePreviewProposal(p.id)}
+                                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                                  >
+                                    Preview
+                                  </button>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+                                  <div>
+                                    <p className="text-gray-500 dark:text-gray-400">
+                                      License Count
+                                    </p>
+                                    <p className="font-medium text-gray-900 dark:text-white">
+                                      {p.licenseCount}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-gray-500 dark:text-gray-400">
+                                      Unit Cost
+                                    </p>
+                                    <p className="font-medium text-gray-900 dark:text-white">
+                                      ₹ {p.unitCost}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-gray-500 dark:text-gray-400">
+                                      Total Cost
+                                    </p>
+                                    <p className="font-bold text-green-600 dark:text-green-400">
+                                      ₹ {p.totalCost}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <p className="text-gray-500 dark:text-gray-400">
+                                      Comment
+                                    </p>
+                                    <p className="text-gray-900 dark:text-white">
+                                      {p.comment || "-"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {p.final && proposals.length > 1 && (
+                                  <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-700 rounded border border-yellow-400">
+                                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                                      Profit Calculation
+                                    </h4>
+
+                                    {(() => {
+                                      const sorted = [...proposals].sort(
+                                        (a, b) => a.proposalNumber - b.proposalNumber
+                                      );
+
+                                      const finalP = sorted[sorted.length - 1];
+                                      const lastP = sorted[sorted.length - 2];
+                                      const profit =
+                                        Number(lastP.totalCost) -
+                                        Number(finalP.totalCost);
+
+                                      return (
+                                        <div className="mt-1 text-sm">
+                                          <p>Prev Total: ₹ {lastP.totalCost}</p>
+                                          <p>Final Total: ₹ {finalP.totalCost}</p>
+                                          <p className="font-bold text-blue-800 dark:text-blue-300 mt-1">
+                                            Profit: ₹ {profit}
+                                          </p>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Activity / Comments */}
@@ -2647,120 +2798,12 @@ const RequestSplitView: React.FC = () => {
                     }
                   }}
                   className="w-full"
+                  aria-label="Attach Quote Files"
                 />
               </div>
 
-              <div className="mt-6">
-                <h2 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-                  Previous Proposals
-                </h2>
 
-                {isLoadingProposals ? (
-                  <p className="text-gray-500 dark:text-gray-400">
-                    Loading proposals...
-                  </p>
-                ) : proposals.length === 0 ? (
-                  <p className="text-gray-500 dark:text-gray-400 italic">
-                    No proposals yet.
-                  </p>
-                ) : (
-                  <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
-                    {proposals.map((p) => (
-                      <div
-                        key={p.id}
-                        className="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {p.proposalType} Proposal #{p.proposalNumber}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {new Date(p.createdAt).toLocaleString()}
-                            </p>
-                          </div>
-
-                          <button
-                            onClick={() => handlePreviewProposal(p.id)}
-                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            Preview
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
-                          <div>
-                            <p className="text-gray-500 dark:text-gray-400">
-                              License Count
-                            </p>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {p.licenseCount}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="text-gray-500 dark:text-gray-400">
-                              Unit Cost
-                            </p>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              ₹ {p.unitCost}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="text-gray-500 dark:text-gray-400">
-                              Total Cost
-                            </p>
-                            <p className="font-bold text-green-600 dark:text-green-400">
-                              ₹ {p.totalCost}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="text-gray-500 dark:text-gray-400">
-                              Comment
-                            </p>
-                            <p className="text-gray-900 dark:text-white">
-                              {p.comment || "-"}
-                            </p>
-                          </div>
-                        </div>
-
-                        {p.final && proposals.length > 1 && (
-                          <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-700 rounded border border-yellow-400">
-                            <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                              Profit Calculation
-                            </h4>
-
-                            {(() => {
-                              const sorted = [...proposals].sort(
-                                (a, b) => a.proposalNumber - b.proposalNumber
-                              );
-
-                              const finalP = sorted[sorted.length - 1];
-                              const lastP = sorted[sorted.length - 2];
-                              const profit =
-                                Number(lastP.totalCost) -
-                                Number(finalP.totalCost);
-
-                              return (
-                                <div className="mt-1 text-sm">
-                                  <p>Prev Total: ₹ {lastP.totalCost}</p>
-                                  <p>Final Total: ₹ {finalP.totalCost}</p>
-                                  <p className="font-bold text-blue-800 dark:text-blue-300 mt-1">
-                                    Profit: ₹ {profit}
-                                  </p>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            // </div>
 
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
               <button
