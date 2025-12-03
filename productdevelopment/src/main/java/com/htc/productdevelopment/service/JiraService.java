@@ -1509,6 +1509,7 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
                         // Additional fields for RequestSplitView
                         vendorDetails.put("licenseUpdateType", getTextValue(fields, jiraFieldConfig.getLicenseUpdateType()));
                         vendorDetails.put("existingContractId", getTextValue(fields, jiraFieldConfig.getExistingContractId()));
+                        vendorDetails.put("contractDuration", getTextValue(fields, jiraFieldConfig.getContractDuration()));
 
                         logger.info("Saving contract details for completed issue: {}", issueKey);
                         saveContractDetailsForCompletedIssue(vendorDetails);
@@ -1683,6 +1684,7 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
 
         put(fields, jiraFieldConfig.getLicenseUpdateType(), vendorDetails.get("licenseUpdateType"));
         put(fields, jiraFieldConfig.getExistingContractId(), vendorDetails.get("selectedExistingContractId"));
+        put(fields, jiraFieldConfig.getContractDuration(), vendorDetails.get("contractDuration"));
 
         Map<String, Object> payload = Map.of("fields", fields);
 

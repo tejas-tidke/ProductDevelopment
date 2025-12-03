@@ -939,6 +939,7 @@ public ResponseEntity<?> getCompletedContracts() {
             dto.setBillingType(c.getBillingType());
             dto.setLicenseUpdateType(c.getLicenseUpdateType());
             dto.setExistingContractId(c.getExistingContractId());
+            dto.setContractDuration(c.getContractDuration());
 
             dto.setCurrentLicenseCount(c.getCurrentLicenseCount());
             dto.setCurrentUsageCount(c.getCurrentUsageCount());
@@ -1089,6 +1090,7 @@ public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedReq
         contract.setLicenseUpdateType(request.getLicenseUpdateType());
         contract.setExistingContractId(request.getExistingContractId());
         contract.setBillingType(request.getBillingType());
+        contract.setContractDuration(request.getContractDuration());
 
         if (request.getDueDate() != null && !request.getDueDate().trim().isEmpty()) {
             contract.setDueDate(LocalDate.parse(request.getDueDate()));

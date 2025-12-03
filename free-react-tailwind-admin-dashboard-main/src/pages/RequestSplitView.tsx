@@ -1382,8 +1382,62 @@ const RequestSplitView: React.FC = () => {
 
   const dueDateVal = formatAsYMD(getFieldValue(["customfield_10302"]));
   const renewalDateVal = formatAsYMD(getFieldValue(["customfield_10303"]));
+  const contractDurationVal = getFieldValue(["customfield_10438"]);
+  console.log('Contract duration value:', contractDurationVal);
+  console.log('Selected issue:', selectedIssue);
 
   const additionalCommentsVal = getFieldValue(["customfield_10304"]);
+
+  // Calculate renewal date based on completion date + contract duration
+  const calculateRenewalDate = (): string => {
+    console.log('Calculating renewal date...');
+    console.log('Selected issue for renewal calculation:', selectedIssue);
+    
+    // If request is completed, calculate renewal date as completion date + contract duration
+    const isCompleted = selectedIssue?.fields?.status?.name === "Completed";
+    console.log('Is issue completed:', isCompleted);
+    
+    if (isCompleted && contractDurationVal) {
+      console.log('Issue is completed and has contract duration');
+      // For completed requests, renewal date = completion date + contract duration
+      // As a simplification, we'll use the issue's updated date as the completion date
+      // In a more complete implementation, we would get the exact date when status changed to "Completed"
+      const completionDateStr = selectedIssue?.fields?.updated;
+      console.log('Completion date string:', completionDateStr);
+      console.log('Contract duration:', contractDurationVal);
+      console.log('Is completed:', isCompleted);
+      
+      if (completionDateStr) {
+        const completionDate = new Date(completionDateStr);
+        // Check if the date is valid
+        if (isNaN(completionDate.getTime())) {
+          console.log('Invalid completion date');
+          return renewalDateVal || "-";
+        }
+        
+        const duration = parseInt(contractDurationVal, 10);
+        console.log('Parsed duration:', duration);
+        
+        if (!isNaN(duration) && duration > 0) {
+          const renewalDate = new Date(completionDate);
+          renewalDate.setMonth(renewalDate.getMonth() + duration);
+          const result = renewalDate.toISOString().split('T')[0];
+          console.log('Calculated renewal date:', result);
+          return result;
+        } else {
+          console.log('Invalid duration or duration not positive');
+        }
+      } else {
+        console.log('No completion date found');
+      }
+    } else {
+      console.log('Not completed or no contract duration:', isCompleted, contractDurationVal);
+    }
+    
+    // For non-completed requests, show the stored renewal date
+    console.log('Returning stored renewal date:', renewalDateVal || "-");
+    return renewalDateVal || "-";
+  };
 
   const billingTypeNorm = (billingTypeVal || "").toLowerCase();
   const isUsageBilling = /usage|meter|consum/.test(billingTypeNorm);
@@ -2740,7 +2794,7 @@ const RequestSplitView: React.FC = () => {
                             Renewal Date
                           </h4>
                           <div className="text-sm text-gray-900 dark:text-white">
-                            {renewalDateVal || "-"}
+                            {calculateRenewalDate()}
                           </div>
                         </div>
                       </div>
