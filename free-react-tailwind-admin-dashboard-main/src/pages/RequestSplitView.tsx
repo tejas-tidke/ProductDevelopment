@@ -275,6 +275,8 @@ const RequestSplitView: React.FC = () => {
     if (!selectedIssue) return "";
     for (const k of keys) {
       const val = selectedIssue.fields?.[k];
+      // Debug log for field value retrieval
+      console.log(`Getting field value for key: ${k}`, val);
       if (val !== undefined && val !== null && val !== "") {
         if (typeof val === "object") {
           if ("value" in val && (val as any).value) return String((val as any).value);
@@ -1227,6 +1229,14 @@ const RequestSplitView: React.FC = () => {
 
     const role = userRole;
     const currentStatus = selectedIssue.fields?.status?.name || "";
+    
+    // Get issue organization and department
+    const issueOrganization = getFieldValue(["customfield_10337"]); // Organization field
+    const issueDepartment = getFieldValue(["customfield_10244"]); // Department field
+    
+    // Get user organization and department
+    const userOrganization = userData?.organization?.name || null;
+    const userDepartment = userData?.department?.name || null;
 
     const transitions: IssueTransition[] = [];
 
@@ -1243,6 +1253,61 @@ const RequestSplitView: React.FC = () => {
       },
     ];
 
+    // Define role-based transition permissions according to requirements
+    const canTransition = (): boolean => {
+      // Super Admin can transition regardless of organization/department
+      if (role === "SUPER_ADMIN") {
+        switch (currentStatus) {
+          case "Request Created":
+          case "Pre-Approval":
+          case "Pre-approval":
+          case "Request Review Stage":
+          case "Negotiation Stage":
+          case "Post Approval":
+            return true;
+          default:
+            return false;
+        }
+      }
+      
+      // For other roles, check organization and department matching
+      const orgMatch = !issueOrganization || !userOrganization || issueOrganization === userOrganization;
+      const deptMatch = !issueDepartment || !userDepartment || issueDepartment === userDepartment;
+      
+      // If either organization or department doesn't match, no transitions allowed
+      if (!orgMatch || !deptMatch) {
+        return false;
+      }
+      
+      switch (currentStatus) {
+        case "Request Created":
+          // Only APPROVER and ADMIN can transition (SUPER_ADMIN handled above)
+          return role === "APPROVER" || role === "ADMIN";
+          
+        case "Pre-Approval":
+        case "Pre-approval":
+          // Only ADMIN can transition
+          return role === "ADMIN";
+          
+        case "Request Review Stage":
+          // Only ADMIN can transition
+          return role === "ADMIN";
+          
+        case "Negotiation Stage":
+          // Only SUPER_ADMIN can transition (handled above)
+          return false;
+          
+        case "Post Approval":
+          // APPROVER and ADMIN can transition (SUPER_ADMIN handled above)
+          return role === "APPROVER" || role === "ADMIN";
+          
+        default:
+          // REQUESTER can only view, no transitions
+          return false;
+      }
+    };
+
+    // Define available transitions based on current status
     switch (currentStatus) {
       case "Request Created":
         transitions.push(...APPROVE_DECLINE("3", "Pre-Approval"));
@@ -1265,18 +1330,11 @@ const RequestSplitView: React.FC = () => {
         return [];
     }
 
-    switch (role) {
-      case "SUPER_ADMIN":
-      case "ADMIN":
-        return transitions;
-      case "DEPARTMENT_APPROVER":
-        return transitions.filter((t) => t.id !== "4");
-      case "EMPLOYEE":
-        if (currentStatus === "Request Created") return transitions;
-        return [];
-      case "REQUESTER":
-      default:
-        return [];
+    // Return transitions only if user has permission
+    if (canTransition()) {
+      return transitions;
+    } else {
+      return [];
     }
   };
 
@@ -1300,6 +1358,14 @@ const RequestSplitView: React.FC = () => {
   const currentLicenseCountVal = getFieldValue(["customfield_10293"]);
   const currentUsageCountVal = getFieldValue(["customfield_10294"]);
   const currentUnitsVal = getFieldValue(["customfield_10295"]);
+  
+  // Debug: Log the field values for troubleshooting
+  useEffect(() => {
+    if (selectedIssue) {
+      console.log('Issue fields for debugging:', selectedIssue.fields);
+      console.log('Current Units field value:', selectedIssue.fields?.["customfield_10295"]);
+    }
+  }, [selectedIssue]);
 
   const newLicenseCountVal = getFieldValue(["customfield_10296"]);
   const newUsageCountVal = getFieldValue(["customfield_10297"]);
@@ -1605,6 +1671,18 @@ const RequestSplitView: React.FC = () => {
     if (!selectedIssue?.key) return;
     
     try {
+      // First, try to get the profit value directly from the custom field
+      const profitFieldValue = getFieldValue(["customfield_10405"]);
+      if (profitFieldValue) {
+        // Parse the profit value from the custom field
+        const profitValue = parseFloat(profitFieldValue);
+        if (!isNaN(profitValue)) {
+          setTotalProfit(profitValue);
+          return;
+        }
+      }
+      
+      // If we can't get it from the custom field, try fetching from backend
       const profitResponse = await fetch(
         `http://localhost:8080/api/jira/contracts/profit/${selectedIssue.key}`
       );
@@ -1616,11 +1694,11 @@ const RequestSplitView: React.FC = () => {
         }
       } else {
         console.warn('Failed to fetch profit data: Server returned', profitResponse.status, profitResponse.statusText);
-        alert('Failed to refresh profit data. Please try again later.');
+        // Remove the alert message as requested
       }
     } catch (error) {
       console.warn('Failed to fetch profit data:', error);
-      alert('Failed to refresh profit data. Please try again later.');
+      // Remove the alert message as requested
     }
   };
 
@@ -2292,8 +2370,8 @@ const RequestSplitView: React.FC = () => {
                           </>
                         )}
 
-                        {/* Display total profit if final proposal has been submitted */}
-                        {hasSubmittedFinalQuote && (
+                        {/* Display total profit if final proposal has been submitted and user is SUPER_ADMIN */}
+                        {hasSubmittedFinalQuote && userRole === "SUPER_ADMIN" && (
                           <div>
                             <div className="flex justify-between items-center">
                               <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
