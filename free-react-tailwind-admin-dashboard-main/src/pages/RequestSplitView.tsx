@@ -404,7 +404,23 @@ const RequestSplitView: React.FC = () => {
   useEffect(() => {
     setTotalProfit(null);
     setHasSubmittedFinalQuote(false);
+    
+    // Fetch profit data for the selected issue
+    if (selectedIssue?.key) {
+      refreshProfitData();
+    }
   }, [selectedIssue?.key]);
+
+  // Reset form fields when switching between proposals
+  useEffect(() => {
+    // Reset form fields when proposal changes
+    setUnitCost("");
+    setProposalComment("");
+    setQuoteAttachments([]);
+    
+    // Reset license count to default value when switching proposals
+    setEditableLicenseCount("0");
+  }, [currentProposal]);
 
   const isTransitionDisabled =
     userRole !== "SUPER_ADMIN" &&
@@ -460,6 +476,8 @@ const RequestSplitView: React.FC = () => {
     }
     
     try {
+      // Load existing proposals for this issue
+      await loadProposals(issueKey);
       // Fetch comments using our custom comment service
       const commentsResponse = await commentService.getCommentsByIssueKey(
         issueKey
@@ -523,31 +541,11 @@ const RequestSplitView: React.FC = () => {
         attachmentsData = [];
       }
       
-      // Also fetch attachments from our database to get proposal IDs
-      let localAttachmentsData: any[] = [];
-      try {
-        const localResponse = await fetch(
-          `http://localhost:8080/api/jira/contracts/attachments/issue/${issueKey}`
-        );
-        if (localResponse.ok) {
-          localAttachmentsData = await localResponse.json();
-        }
-      } catch (localError) {
-        console.warn('Failed to fetch attachments from local database:', localError);
-        localAttachmentsData = [];
-      }
-
-      // Create a map of local attachments by file name for quick lookup
-      const localAttachmentsMap = (localAttachmentsData || []).reduce((acc: any, localAttachment: any) => {
-        acc[localAttachment.fileName] = localAttachment;
-        return acc;
-      }, {});
-
+      // Removed local database fetch since we're now using Jira exclusively for attachments
+      // All attachment data will come directly from Jira
+      
       const transformedAttachments: Attachment[] = (attachmentsData || []).map(
         (attachment: any) => {
-          // Check if we have local metadata for this attachment
-          const localAttachment = localAttachmentsMap[attachment.fileName || attachment.filename];
-          
           return {
             id: attachment.id?.toString() || "",
             filename: attachment.fileName || attachment.filename || "Unknown file",
@@ -563,12 +561,12 @@ const RequestSplitView: React.FC = () => {
             fileUrl: attachment.content || attachment.fileUrl || 
                      (attachment.id ? `http://localhost:8080/api/jira/attachment/content/${attachment.id}` : ""),
             fileSize: attachment.fileSize || attachment.size,
-            uploadedBy: attachment.uploadedBy || localAttachment?.uploadedBy || "Unknown",
-            stage: attachment.stage || localAttachment?.stage || "Unknown",
-            uploadedAt: attachment.uploadedAt || localAttachment?.uploadedAt || attachment.created || new Date().toISOString(),
-            jiraIssueKey: attachment.jiraIssueKey || localAttachment?.jiraIssueKey || issueKey,
-            proposalId: attachment.proposalId || localAttachment?.proposalId || null,
-            localAttachmentId: localAttachment?.id || null,
+            uploadedBy: attachment.uploadedBy || "Unknown",
+            stage: attachment.stage || "Unknown",
+            uploadedAt: attachment.uploadedAt || attachment.created || new Date().toISOString(),
+            jiraIssueKey: attachment.jiraIssueKey || issueKey,
+            proposalId: attachment.proposalId || null,
+            localAttachmentId: null,
             // Since we're not saving local copies anymore, always allow preview
             hasLocalCopy: true
           };
@@ -1349,6 +1347,18 @@ const RequestSplitView: React.FC = () => {
       return;
     }
 
+    // Check if final proposal is already submitted
+    if (hasSubmittedFinalQuote) {
+      alert("The final proposal has already been submitted. Please use the final submit button.");
+      return;
+    }
+
+    // Check if trying to submit a proposal when final is already submitted
+    if (currentProposal !== "final" && submittedProposals.final) {
+      alert("The final proposal has already been submitted. No further proposals can be submitted.");
+      return;
+    }
+
     setIsSubmittingQuote(true);
 
     try {
@@ -1477,7 +1487,7 @@ const RequestSplitView: React.FC = () => {
           console.log('Sending update-license-count request with payload:', payload);
           
           const response = await fetch(
-            "http://localhost:8080/api/jira/contracts/update-license-count",
+            `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/update-license-count`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -2773,7 +2783,27 @@ const RequestSplitView: React.FC = () => {
               )}
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
+              {/* Show Submit button for final proposal */}
+              {previewProposal?.final && !hasSubmittedFinalQuote && (
+                <button
+                  onClick={async () => {
+                    // Call the final submit handler
+                    await handleFinalSubmit();
+                  }}
+                  className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700"
+                >
+                  Submit Quote
+                </button>
+              )}
+              
+              {/* Show "Quote Submitted" status for final proposal */}
+              {previewProposal?.final && hasSubmittedFinalQuote && (
+                <span className="px-4 py-2 rounded-md bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                  Quote Submitted
+                </span>
+              )}
+              
               <button
                 onClick={() => setPreviewProposal(null)}
                 className="px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 dark:text-white"
@@ -2784,7 +2814,6 @@ const RequestSplitView: React.FC = () => {
           </div>
         </div>
       )}
-
       {/* UPLOAD QUOTE MODAL */}
       {isUploadQuoteModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[99999] p-4">

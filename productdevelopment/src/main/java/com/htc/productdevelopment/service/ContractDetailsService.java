@@ -1,15 +1,19 @@
 package com.htc.productdevelopment.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.htc.productdevelopment.config.JiraFieldConfig;
 import com.htc.productdevelopment.dto.ContractDTO;
 import com.htc.productdevelopment.model.ContractDetails;
 import com.htc.productdevelopment.repository.ContractDetailsRepository;
+import com.htc.productdevelopment.service.JiraService;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 @Service
 public class ContractDetailsService {
@@ -17,9 +21,14 @@ public class ContractDetailsService {
     private static final Logger logger = LoggerFactory.getLogger(ContractDetailsService.class);
 
     private final ContractDetailsRepository contractDetailsRepository;
+    @Lazy
+    private final JiraService jiraService;
+    private final JiraFieldConfig jiraFieldConfig;
 
-    public ContractDetailsService(ContractDetailsRepository contractDetailsRepository) {
+    public ContractDetailsService(ContractDetailsRepository contractDetailsRepository, JiraService jiraService, JiraFieldConfig jiraFieldConfig) {
         this.contractDetailsRepository = contractDetailsRepository;
+        this.jiraService = jiraService;
+        this.jiraFieldConfig = jiraFieldConfig;
     }
 
     public List<ContractDetails> getAllContracts() {
@@ -221,9 +230,155 @@ public class ContractDetailsService {
         return contract != null ? contract.getCurrentLicenseCount() : 0;
     }
     
+    /**
+     * Update the license count and total profit for a contract by issue key
+     * @param issueKey The Jira issue key
+     * @param newLicenseCount The new license count
+     * @param totalProfit The calculated total profit
+     * @return The updated contract details
+     */
+    public ContractDetails updateLicenseCountAndProfit(String issueKey, Integer newLicenseCount, Double totalProfit) {
+        logger.info("Updating license count and profit for issueKey={}, newLicenseCount={}, totalProfit={}", 
+                   issueKey, newLicenseCount, totalProfit);
+        
+        try {
+            // Find the contract by issue key
+            ContractDetails contract = contractDetailsRepository.findByJiraIssueKey(issueKey);
+            
+            // Check the Jira issue status
+            String issueStatus = jiraService.getIssueStatus(issueKey);
+            logger.info("Jira issue {} is in status: {}", issueKey, issueStatus);
+            
+            boolean isNewlyCreatedContract = false;
+            // If contract doesn't exist but Jira issue is in completed status, we should create the contract
+            if (contract == null) {
+                if ("Completed".equalsIgnoreCase(issueStatus) || "completed".equalsIgnoreCase(issueStatus)) {
+                    logger.info("Contract not found for issueKey: {} but Jira issue is completed. Creating contract.", issueKey);
+                    contract = new ContractDetails();
+                    contract.setJiraIssueKey(issueKey);
+                    contract.setRenewalStatus("completed");
+                    isNewlyCreatedContract = true;
+                } else {
+                    logger.warn("Contract not found for issueKey: {} and Jira issue is not completed (status: {}). Only updating Jira custom fields.", issueKey, issueStatus);
+                    // Still update Jira custom fields even if contract doesn't exist in DB
+                    if (newLicenseCount != null || totalProfit != null) {
+                        Map<String, Object> updateFields = new HashMap<>();
+                        if (newLicenseCount != null) {
+                            updateFields.put(jiraFieldConfig.getNewLicenseCount(), String.valueOf(newLicenseCount));
+                        }
+                        if (totalProfit != null) {
+                            updateFields.put(jiraFieldConfig.getTotalprofit(), String.valueOf(totalProfit));
+                        }
+                        
+                        if (!updateFields.isEmpty()) {
+                            try {
+                                jiraService.updateIssue(issueKey, updateFields);
+                                logger.info("Updated Jira custom fields for issueKey: {}", issueKey);
+                            } catch (Exception e) {
+                                logger.warn("Failed to update Jira custom fields for issueKey: {}", issueKey, e);
+                            }
+                        }
+                    }
+                    // Return a temporary contract object for the response
+                    ContractDetails tempContract = new ContractDetails();
+                    tempContract.setJiraIssueKey(issueKey);
+                    return tempContract;
+                }
+            }
+            
+            // Update the license count
+            // Skip Jira update if we already did it for a newly created contract in non-completed status
+            if (newLicenseCount != null) {
+                contract.setNewLicenseCount(newLicenseCount);
+                logger.info("Updated newLicenseCount to {} for issueKey: {}", newLicenseCount, issueKey);
+                
+                // Update Jira custom field for license count (skip if already done)
+                if (!isNewlyCreatedContract || "Completed".equalsIgnoreCase(issueStatus) || "completed".equalsIgnoreCase(issueStatus)) {
+                    try {
+                        Map<String, Object> updateFields = new HashMap<>();
+                        updateFields.put(jiraFieldConfig.getNewLicenseCount(), String.valueOf(newLicenseCount));
+                        
+                        jiraService.updateIssue(issueKey, updateFields);
+                        logger.info("Updated newLicenseCount in Jira custom field to {} for issueKey: {}", newLicenseCount, issueKey);
+                    } catch (Exception e) {
+                        logger.warn("Failed to update newLicenseCount in Jira custom field for issueKey: {}", issueKey, e);
+                    }
+                }
+            }
+            
+            // Update the total profit if provided
+            // Skip Jira update if we already did it for a newly created contract in non-completed status
+            if (totalProfit != null) {
+                // Store the profit in a custom field (skip if already done)
+                if (!isNewlyCreatedContract || "Completed".equalsIgnoreCase(issueStatus) || "completed".equalsIgnoreCase(issueStatus)) {
+                    try {
+                        Map<String, Object> updateFields = new HashMap<>();
+                        updateFields.put(jiraFieldConfig.getTotalprofit(), String.valueOf(totalProfit));
+                        
+                        jiraService.updateIssue(issueKey, updateFields);
+                        logger.info("Updated total profit in Jira custom field to {} for issueKey: {}", totalProfit, issueKey);
+                    } catch (Exception e) {
+                        logger.warn("Failed to update total profit in Jira custom field for issueKey: {}", issueKey, e);
+                    }
+                }
+                
+                // Also store the profit in the comment field as a backup
+                String additionalComment = contract.getAdditionalComment();
+                if (additionalComment == null) {
+                    additionalComment = "";
+                }
+                additionalComment += "\nTotal Profit: " + totalProfit;
+                contract.setAdditionalComment(additionalComment);
+                logger.info("Updated total profit in comment field to {} for issueKey: {}", totalProfit, issueKey);
+            }
+            
+            // Save the updated contract
+            ContractDetails saved = contractDetailsRepository.save(contract);
+            logger.info("Successfully updated contract with ID: {} for issueKey: {}", saved.getId(), issueKey);
+            
+            return saved;
+        } catch (Exception e) {
+            logger.error("Error updating license count and profit for issueKey: {}", issueKey, e);
+            throw new RuntimeException("Failed to update license count and profit: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Mark a contract as having a submitted final quote
+     * @param issueKey The Jira issue key
+     * @return The updated contract details
+     */
+    public ContractDetails markFinalQuoteSubmitted(String issueKey) {
+        logger.info("Marking final quote as submitted for issueKey={}", issueKey);
+        
+        try {
+            // Find the contract by issue key
+            ContractDetails contract = contractDetailsRepository.findByJiraIssueKey(issueKey);
+            
+            // If contract doesn't exist, create it
+            if (contract == null) {
+                logger.info("Contract not found for issueKey: {}, creating new contract", issueKey);
+                contract = new ContractDetails();
+                contract.setJiraIssueKey(issueKey);
+            }
+            
+            // Mark as final quote submitted
+            contract.setRenewalStatus("final_quote_submitted");
+            logger.info("Marked contract as final_quote_submitted for issueKey: {}", issueKey);
+            
+            // Save the updated contract
+            ContractDetails saved = contractDetailsRepository.save(contract);
+            logger.info("Successfully updated contract with ID: {} for issueKey: {}", saved.getId(), issueKey);
+            
+            return saved;
+        } catch (Exception e) {
+            logger.error("Error marking final quote as submitted for issueKey: {}", issueKey, e);
+            throw new RuntimeException("Failed to mark final quote as submitted: " + e.getMessage(), e);
+        }
+    }
+    
  // ⭐ NEW — Save attachment metadata in DB
     public void saveAttachmentMetadata(String issueKey, Map<String, Object> metadata) {
-
         logger.info("📦 Saving attachment metadata for issueKey={}", issueKey);
 
         ContractDetails contract = contractDetailsRepository.findByJiraIssueKey(issueKey);

@@ -209,4 +209,10 @@ export const invitationApi = {
   }),
 };
 
+// Auth API functions
+export const authApi = {
+  // Check if user exists in Firebase or database by email
+  checkUserExists: (email: string) => apiCall(`/api/auth/check-user-exists?email=${encodeURIComponent(email)}`),
+};
+
 export default { userApi, departmentApi, organizationApi, invitationApi };

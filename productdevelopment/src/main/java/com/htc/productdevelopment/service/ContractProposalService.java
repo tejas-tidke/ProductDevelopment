@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Collections;
 
 @Service
 public class ContractProposalService {
@@ -75,5 +76,57 @@ public class ContractProposalService {
 
     public ContractProposal getLatestProposal(String issueKey) {
         return proposalRepo.findTopByJiraIssueKeyIgnoreCaseOrderByProposalNumberDesc(issueKey);
+    }
+    
+    /**
+     * Calculate total profit based on the last non-final proposal and the final proposal
+     * @param issueKey The Jira issue key
+     * @return The calculated profit
+     */
+    public Double calculateTotalProfit(String issueKey) {
+        // Get all proposals for this issue
+        List<ContractProposal> proposals = getProposalsForIssue(issueKey);
+        
+        if (proposals.size() < 2) {
+            return 0.0; // Not enough proposals to calculate profit
+        }
+        
+        // Sort proposals by proposal number
+        proposals.sort((a, b) -> a.getProposalNumber().compareTo(b.getProposalNumber()));
+        
+        // Find the final proposal (should be the last one)
+        ContractProposal finalProposal = null;
+        ContractProposal lastNonFinalProposal = null;
+        
+        // Iterate backwards to find the final proposal
+        for (int i = proposals.size() - 1; i >= 0; i--) {
+            ContractProposal proposal = proposals.get(i);
+            if (proposal.isFinal()) {
+                finalProposal = proposal;
+                // Find the last non-final proposal
+                for (int j = i - 1; j >= 0; j--) {
+                    if (!proposals.get(j).isFinal()) {
+                        lastNonFinalProposal = proposals.get(j);
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        
+        // If we don't have both proposals, we can't calculate profit
+        if (finalProposal == null || lastNonFinalProposal == null) {
+            return 0.0;
+        }
+        
+        // Calculate profit (previous total - final total)
+        Double lastTotal = lastNonFinalProposal.getTotalCost();
+        Double finalTotal = finalProposal.getTotalCost();
+        
+        if (lastTotal == null || finalTotal == null) {
+            return 0.0;
+        }
+        
+        return lastTotal - finalTotal;
     }
 }

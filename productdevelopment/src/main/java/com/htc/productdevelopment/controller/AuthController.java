@@ -537,4 +537,58 @@ public class AuthController {
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
+    
+    /**
+     * Check if user exists in Firebase or database by email
+     * @param email User email
+     * @return Existence status
+     */
+    @GetMapping("/check-user-exists")
+    public ResponseEntity<?> checkUserExists(@RequestParam String email) {
+        logger.info("Received request to check if user exists with email: {}", email);
+        
+        try {
+            // Validate email parameter
+            if (email == null || email.isEmpty()) {
+                logger.warn("Check user exists failed: Email is required");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Email is required");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+            
+            // Basic email format validation
+            if (!email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
+                logger.warn("Check user exists failed: Invalid email format for email: {}", email);
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Invalid email format");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+            
+            // Check if user exists in Firebase
+            boolean existsInFirebase = firebaseSyncService.doesUserExistInFirebase(email);
+            
+            // Check if user exists in database
+            boolean existsInDatabase = firebaseSyncService.doesUserExistInDatabase(email);
+            
+            // Check if email domain is likely valid
+            boolean isDomainLikelyValid = firebaseSyncService.isEmailDomainLikelyValid(email);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("existsInFirebase", existsInFirebase);
+            response.put("existsInDatabase", existsInDatabase);
+            response.put("isDomainLikelyValid", isDomainLikelyValid);
+            response.put("email", email);
+            
+            logger.info("User existence check completed for email: {}. Exists in Firebase: {}, Exists in Database: {}, Domain Likely Valid: {}", 
+                       email, existsInFirebase, existsInDatabase, isDomainLikelyValid);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Error checking if user exists with email: {}", email, e);
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Runtime Exception: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
+
 }

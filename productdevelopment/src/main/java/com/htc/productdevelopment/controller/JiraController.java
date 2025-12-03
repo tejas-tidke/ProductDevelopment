@@ -2,10 +2,16 @@ package com.htc.productdevelopment.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.htc.productdevelopment.model.ContractAttachment;
 import com.htc.productdevelopment.model.ContractDetails;
 import com.htc.productdevelopment.model.ContractProposal;
 import com.htc.productdevelopment.model.JiraProject;
+import com.htc.productdevelopment.config.JiraFieldConfig;
 import com.htc.productdevelopment.model.Proposal;
 import com.htc.productdevelopment.repository.ContractAttachmentRepository;
 import com.htc.productdevelopment.repository.ContractDetailsRepository;
@@ -18,6 +24,7 @@ import com.htc.productdevelopment.service.ContractDetailsService;
 import com.htc.productdevelopment.service.VendorDetailsService;
 import com.htc.productdevelopment.service.ProposalService;
 import com.htc.productdevelopment.service.ContractAttachmentService;
+import com.htc.productdevelopment.service.ContractProposalService;
 
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
@@ -40,8 +47,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
 
 import org.springframework.http.HttpEntity;  // ✔ CORRECT
 
@@ -64,6 +69,8 @@ public class JiraController {
     private final JiraService jiraService;
     private final ContractDetailsService contractDetailsService;
     private final VendorDetailsService vendorDetailsService;
+    private final ContractProposalService contractProposalService;
+    private final JiraFieldConfig jiraFieldConfig;
 
     @Autowired
     private ContractDetailsRepository contractDetailsRepository;
@@ -82,10 +89,14 @@ public class JiraController {
 
     public JiraController(JiraService jiraService,
                           ContractDetailsService contractDetailsService,
-                          VendorDetailsService vendorDetailsService) {
+                          VendorDetailsService vendorDetailsService,
+                          ContractProposalService contractProposalService,
+                          JiraFieldConfig jiraFieldConfig) {
         this.jiraService = jiraService;
         this.contractDetailsService = contractDetailsService;
         this.vendorDetailsService = vendorDetailsService;
+        this.contractProposalService = contractProposalService;
+        this.jiraFieldConfig = jiraFieldConfig;
     }
 
 
@@ -495,7 +506,8 @@ public class JiraController {
                 String fileUrl = "/api/jira/contracts/attachments/" + attachmentInfo.get("id").asText() + "/content";
                 long fileSize = attachmentInfo.has("size") ? attachmentInfo.get("size").asLong() : file.getSize();
                 String mimeType = attachmentInfo.has("mimeType") ? attachmentInfo.get("mimeType").asText() : file.getContentType();
-                byte[] fileContent = file.getBytes();
+                // Removed fileContent since we're no longer storing attachment content in DB
+                // Jira handles attachment storage
                 
                 logger.info("📎 Saving attachment metadata - fileName: {}, fileSize: {}, mimeType: {}", fileName, fileSize, mimeType);
                 
@@ -508,7 +520,7 @@ public class JiraController {
                 attachment.setMimeType(mimeType);
                 attachment.setUploadedBy("system");
                 attachment.setStage("CREATION");
-                attachment.setFileContent(fileContent);
+                // Removed setting fileContent since we're not storing it anymore
                 
                 contractAttachmentRepository.save(attachment);
                 
@@ -757,31 +769,38 @@ public class JiraController {
 
             String cleanedKey = issueKey.trim();
 
-            List<ContractProposal> proposals =
-                    contractProposalRepository.findByJiraIssueKeyIgnoreCaseOrderByProposalNumberAsc(cleanedKey);
+            List<ContractProposal> proposals = new ArrayList<>();
+            try {
+                proposals = contractProposalRepository.findByJiraIssueKeyIgnoreCaseOrderByProposalNumberAsc(cleanedKey);
+            } catch (Exception e) {
+                logger.warn("Failed to fetch proposals from database for issueKey: {}", cleanedKey, e);
+                // Return empty list instead of error
+                proposals = new ArrayList<>();
+            }
 
             logger.info("Found {} proposals for issue: {}", proposals.size(), cleanedKey);
 
             return ResponseEntity.ok(
-            	    proposals.stream().map(p -> Map.of(
-            	        "id", p.getId(),
-            	        "jiraIssueKey", p.getJiraIssueKey(),
-            	        "proposalNumber", p.getProposalNumber(),
-            	        "licenseCount", p.getLicenseCount(),
-            	        "unitCost", p.getUnitCost(),
-            	        "totalCost", p.getTotalCost(),
-            	        "comment", p.getComment(),
-            	        "isFinal", p.isFinal(),
-            	        "proposalType", p.getProposalType(),
-            	        "createdAt", p.getCreatedAt() != null ? p.getCreatedAt().toString() : null
-            	    )).toList()
+            	    proposals.stream().map(p -> {
+            	        Map<String, Object> proposalMap = new HashMap<>();
+            	        proposalMap.put("id", p.getId());
+            	        proposalMap.put("jiraIssueKey", p.getJiraIssueKey());
+            	        proposalMap.put("proposalNumber", p.getProposalNumber());
+            	        proposalMap.put("licenseCount", p.getLicenseCount());
+            	        proposalMap.put("unitCost", p.getUnitCost());
+            	        proposalMap.put("totalCost", p.getTotalCost());
+            	        proposalMap.put("comment", p.getComment());
+            	        proposalMap.put("isFinal", p.isFinal());
+            	        proposalMap.put("isFinalSubmitted", p.isFinalSubmitted());
+            	        proposalMap.put("proposalType", p.getProposalType());
+            	        proposalMap.put("createdAt", p.getCreatedAt() != null ? p.getCreatedAt().toString() : null);
+            	        return proposalMap;
+            	    }).toList()
             	);
-
-
         } catch (Exception e) {
             logger.error("Error fetching proposals for issue: {}", issueKey, e);
-            return ResponseEntity.badRequest()
-                    .body(Map.of("message", "Failed to fetch proposals: " + e.getMessage()));
+            // Return empty list instead of error to avoid breaking the UI
+            return ResponseEntity.ok(new ArrayList<>());
         }
     }
 
@@ -1090,9 +1109,80 @@ public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedReq
                 .body(Map.of("message", e.getMessage()));
     }
 }
-
-
-
+    /**
+     * Get profit data for a contract
+     * @param issueKey The Jira issue key
+     * @return Profit data and submission status
+     */
+    @GetMapping("/contracts/profit/{issueKey}")
+    public ResponseEntity<?> getContractProfit(@PathVariable String issueKey) {
+        try {
+            logger.info("Received request for profit data for issueKey: {}", issueKey);
+            
+            // Validate required fields
+            if (issueKey == null || issueKey.isEmpty()) {
+                logger.warn("Missing issueKey in profit request");
+                return ResponseEntity.badRequest().body(Map.of("error", "Missing issueKey"));
+            }
+            
+            logger.info("Processing profit request for issueKey: {}", issueKey);
+            
+            // Initialize default values
+            boolean hasSubmittedFinalQuote = false;
+            Double totalProfit = null;
+            
+            try {
+                // Check if final quote has been submitted by looking at proposals
+                logger.info("Fetching proposals for issueKey: {}", issueKey);
+                List<ContractProposal> proposals = contractProposalService.getProposalsForIssue(issueKey);
+                logger.info("Found {} proposals for issueKey: {}", proposals.size(), issueKey);
+                hasSubmittedFinalQuote = proposals.stream().anyMatch(p -> p.isFinal());
+                logger.info("hasSubmittedFinalQuote: {} for issueKey: {}", hasSubmittedFinalQuote, issueKey);
+                
+                // Get the total profit field value directly from Jira
+                logger.info("Calling JiraService to get field value for issueKey: {} and fieldId: {}", issueKey, jiraFieldConfig.getTotalprofit());
+                String totalProfitStr = jiraService.getIssueFieldValue(issueKey, jiraFieldConfig.getTotalprofit());
+                logger.info("Received totalProfitStr: '{}' for issueKey: {}", totalProfitStr, issueKey);
+                if (totalProfitStr != null && !totalProfitStr.isEmpty()) {
+                    try {
+                        totalProfit = Double.parseDouble(totalProfitStr);
+                        logger.info("Parsed totalProfit: {} for issueKey: {}", totalProfit, issueKey);
+                    } catch (NumberFormatException e) {
+                        logger.warn("Failed to parse total profit value '{}' for issueKey: {}", totalProfitStr, issueKey, e);
+                    }
+                } else {
+                    logger.info("totalProfitStr is null or empty for issueKey: {}", issueKey);
+                }
+                
+                logger.info("Successfully retrieved profit data for issueKey: {} - profit: {}, finalSubmitted: {}", 
+                           issueKey, totalProfit, hasSubmittedFinalQuote);
+            } catch (Exception e) {
+                logger.warn("Failed to fetch profit data from Jira for issueKey: {}", issueKey, e);
+                // Return default values instead of error to avoid breaking the UI
+            }
+            
+            logger.info("Returning profit data for issueKey: {} - profit: {}, finalSubmitted: {}", 
+                       issueKey, totalProfit, hasSubmittedFinalQuote);
+            
+            return ResponseEntity.ok(Map.of(
+                "totalProfit", totalProfit,
+                "hasSubmittedFinalQuote", hasSubmittedFinalQuote,
+                "issueKey", issueKey
+            ));
+            
+        } catch (Exception e) {
+            logger.error("Error retrieving profit data for issueKey: {}", issueKey, e);
+            // Return default values instead of error to avoid breaking the UI
+            logger.info("Returning default values for issueKey: {} due to error", issueKey);
+            return ResponseEntity.ok(Map.of(
+                "totalProfit", null,
+                "hasSubmittedFinalQuote", false,
+                "issueKey", issueKey
+            ));
+        }
+    }
+    
+   
 @PostMapping("/contracts/save-attachment")
 public ResponseEntity<?> saveAttachmentToContract(@RequestBody Map<String, Object> payload) {
 
@@ -1108,16 +1198,10 @@ public ResponseEntity<?> saveAttachmentToContract(@RequestBody Map<String, Objec
         String stage = payload.get("stage") != null ? payload.get("stage").toString() : "CREATION";
         Long proposalId = payload.get("proposalId") != null ? Long.valueOf(payload.get("proposalId").toString()) : null;
         
-        // Check if we have file content (for initial request attachments)
-        byte[] fileContent = null;
-        if (payload.containsKey("fileContent")) {
-            String fileContentBase64 = (String) payload.get("fileContent");
-            if (fileContentBase64 != null && !fileContentBase64.isEmpty()) {
-                fileContent = java.util.Base64.getDecoder().decode(fileContentBase64);
-            }
-        }
+        // Removed fileContent processing since we're no longer storing attachment content in DB
+        // Jira handles attachment storage
 
-        logger.info("Saving attachment in DB for issueKey={} file={}", issueKey, fileName);
+        logger.info("Saving attachment metadata in DB for issueKey={} file={}", issueKey, fileName);
 
         // Get proposal if proposalId is provided
         ContractProposal proposal = null;
@@ -1135,11 +1219,11 @@ public ResponseEntity<?> saveAttachmentToContract(@RequestBody Map<String, Objec
         attachment.setMimeType(mimeType);
         attachment.setUploadedBy(uploadedBy);
         attachment.setStage(stage);
-        attachment.setFileContent(fileContent);
+        // Removed setting fileContent since we're not storing it anymore
 
         contractAttachmentRepository.save(attachment);
 
-        return ResponseEntity.ok(Map.of("message", "Attachment saved successfully"));
+        return ResponseEntity.ok(Map.of("message", "Attachment metadata saved successfully"));
 
     } catch (Exception e) {
         logger.error("Failed saving attachment: ", e);
@@ -1215,19 +1299,18 @@ public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
         }
 
         // Return the proposal data in the format expected by the frontend
-        Map<String, Object> responseData = Map.of(
-            "id", proposal.getId(),
-            "jiraIssueKey", proposal.getJiraIssueKey(),
-            "proposalNumber", proposal.getProposalNumber(),
-            "proposalType", proposal.getProposalType(),
-            "licenseCount", proposal.getLicenseCount(),
-            "unitCost", proposal.getUnitCost(),
-            "totalCost", proposal.getTotalCost(),
-            "comment", proposal.getComment(),
-            "final", proposal.isFinal(),
-            "createdAt", proposal.getCreatedAt() != null ? proposal.getCreatedAt().toString() : null
-        );
-
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("id", proposal.getId());
+        responseData.put("jiraIssueKey", proposal.getJiraIssueKey());
+        responseData.put("proposalNumber", proposal.getProposalNumber());
+        responseData.put("proposalType", proposal.getProposalType());
+        responseData.put("licenseCount", proposal.getLicenseCount());
+        responseData.put("unitCost", proposal.getUnitCost());
+        responseData.put("totalCost", proposal.getTotalCost());
+        responseData.put("comment", proposal.getComment());
+        responseData.put("final", proposal.isFinal());
+        responseData.put("isFinalSubmitted", proposal.isFinalSubmitted());
+        responseData.put("createdAt", proposal.getCreatedAt() != null ? proposal.getCreatedAt().toString() : null);
         return ResponseEntity.ok(responseData);
 
     } catch (Exception e) {
@@ -1274,35 +1357,17 @@ public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
                 return ResponseEntity.notFound().build();
             }
             
-            // Check if we have file content stored locally
-            byte[] fileContent = attachment.getFileContent();
-            if (fileContent != null && fileContent.length > 0) {
-                // Serve the file content directly from our database
-                String mimeType = attachment.getMimeType();
-                if (mimeType == null || mimeType.isEmpty()) {
-                    mimeType = "application/octet-stream";
-                }
-                
-                return ResponseEntity.ok()
-                        .header(HttpHeaders.CONTENT_TYPE, mimeType)
-                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + attachment.getFileName() + "\"")
-                        .body(fileContent);
+            // Since we no longer store file content locally, redirect to Jira for the attachment
+            // Extract Jira attachment URL from our fileUrl
+            String fileUrl = attachment.getFileUrl();
+            if (fileUrl != null && !fileUrl.isEmpty()) {
+                // Redirect to the Jira attachment URL
+                return ResponseEntity.status(HttpStatus.FOUND)
+                        .header(HttpHeaders.LOCATION, fileUrl)
+                        .build();
             } else {
-                // Proxy to Jira if we don't have the file content locally
-                // Extract Jira attachment ID from our fileUrl
-                String fileUrl = attachment.getFileUrl();
-                if (fileUrl != null && fileUrl.contains("/rest/api/2/attachment/content/")) {
-                    // Already a Jira URL, redirect to it
-                    return ResponseEntity.status(HttpStatus.FOUND)
-                            .header(HttpHeaders.LOCATION, fileUrl)
-                            .build();
-                } else {
-                    // Construct Jira URL from our attachment ID
-                    String jiraFileUrl = "https://your-jira-instance.atlassian.net/rest/api/2/attachment/content/" + attachmentId;
-                    return ResponseEntity.status(HttpStatus.FOUND)
-                            .header(HttpHeaders.LOCATION, jiraFileUrl)
-                            .build();
-                }
+                // If we don't have a file URL, return not found
+                return ResponseEntity.notFound().build();
             }
         } catch (Exception e) {
             logger.error("Error serving attachment content for ID: {}", attachmentId, e);
@@ -1326,5 +1391,126 @@ public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
 		return ResponseEntity.noContent().build(); // 204 on success
 	}
 
+	/**
+     * Update license count and total profit for a contract
+     * @param payload Request payload containing issueKey, newLicenseCount, and totalProfit
+     * @return Response indicating success or failure
+     */
+    @PostMapping("/contracts/update-license-count")
+    public ResponseEntity<?> updateLicenseCount(@RequestBody Map<String, Object> payload) {
+        try {
+            logger.info("Received request to update license count with payload: {}", payload);
+            
+            // Extract required fields from payload
+            String issueKey = (String) payload.get("issueKey");
+            Object licenseCountObj = payload.get("newLicenseCount");
+            Object totalProfitObj = payload.get("totalProfit");
+            
+            // Validate required fields
+            if (issueKey == null || issueKey.isEmpty()) {
+                logger.warn("Missing issueKey in update license count request");
+                return ResponseEntity.badRequest().body(Map.of("error", "Missing issueKey"));
+            }
+            
+            // Convert license count to Integer
+            Integer newLicenseCount = null;
+            if (licenseCountObj != null) {
+                if (licenseCountObj instanceof Number) {
+                    newLicenseCount = ((Number) licenseCountObj).intValue();
+                } else if (licenseCountObj instanceof String) {
+                    try {
+                        newLicenseCount = Integer.parseInt((String) licenseCountObj);
+                    } catch (NumberFormatException e) {
+                        logger.warn("Invalid license count format: {}", licenseCountObj);
+                        return ResponseEntity.badRequest().body(Map.of("error", "Invalid license count format"));
+                    }
+                }
+            }
+            
+            // Convert total profit to Double (optional)
+            Double totalProfit = null;
+            if (totalProfitObj != null) {
+                if (totalProfitObj instanceof Number) {
+                    totalProfit = ((Number) totalProfitObj).doubleValue();
+                } else if (totalProfitObj instanceof String) {
+                    try {
+                        totalProfit = Double.parseDouble((String) totalProfitObj);
+                    } catch (NumberFormatException e) {
+                        logger.warn("Invalid total profit format: {}", totalProfitObj);
+                        // Don't fail the request for invalid profit, just ignore it
+                    }
+                }
+            }
+            
+            // Update the license count and profit
+            ContractDetails updatedContract = contractDetailsService.updateLicenseCountAndProfit(
+                issueKey, newLicenseCount, totalProfit);
+            
+            logger.info("Successfully updated license count for issueKey: {}", issueKey);
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "License count updated successfully");
+            if (updatedContract.getId() != null) {
+                response.put("contractId", updatedContract.getId());
+            } else {
+                response.put("issueKey", updatedContract.getJiraIssueKey());
+            }
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Error updating license count", e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to update license count");
+            errorResponse.put("message", e.getMessage() != null ? e.getMessage() : "Unknown error occurred");
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+    
+    /**
+     * Finalize contract submission for an issue
+     * @param issueKey The Jira issue key
+     * @return Success or error response
+     */
+    @PostMapping("/contracts/final-submit/{issueKey}")
+    public ResponseEntity<?> finalSubmitContract(@PathVariable String issueKey) {
+        try {
+            logger.info("Received request to finalize contract submission for issueKey: {}", issueKey);
+            
+            // Validate required fields
+            if (issueKey == null || issueKey.isEmpty()) {
+                logger.warn("Missing issueKey in final submit request");
+                return ResponseEntity.badRequest().body(Map.of("error", "Missing issueKey"));
+            }
+            
+            // Calculate total profit before marking as submitted
+            Double totalProfit = contractProposalService.calculateTotalProfit(issueKey);
+            
+            // Update the total profit in Jira
+            if (totalProfit != null) {
+                try {
+                    // Update the contract with the calculated profit
+                    contractDetailsService.updateLicenseCountAndProfit(issueKey, null, totalProfit);
+                } catch (Exception e) {
+                    logger.warn("Failed to update total profit for issueKey: {}", issueKey, e);
+                }
+            }
+            
+            // Mark the contract as having a submitted final quote
+            ContractDetails updatedContract = contractDetailsService.markFinalQuoteSubmitted(issueKey);
+            
+            logger.info("Successfully finalized contract submission for issueKey: {}", issueKey);
+            return ResponseEntity.ok(Map.of(
+                "message", "Contract finalized successfully",
+                "issueKey", issueKey,
+                "contractId", updatedContract.getId(),
+                "totalProfit", totalProfit
+            ));
+            
+        } catch (Exception e) {
+            logger.error("Error finalizing contract submission for issueKey: {}", issueKey, e);
+            return ResponseEntity.status(500).body(Map.of(
+                "error", "Failed to finalize contract submission",
+                "message", e.getMessage()
+            ));
+        }
+    }
 }
-

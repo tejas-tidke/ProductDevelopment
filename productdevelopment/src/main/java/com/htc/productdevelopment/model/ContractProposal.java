@@ -6,7 +6,8 @@ import java.time.LocalDateTime;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
@@ -51,5 +52,26 @@ public class ContractProposal {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Column(name = "is_final")
-    private boolean isFinal;
+    private Boolean isFinal;
+    
+    @Column(name = "is_final_submitted")
+    private Boolean isFinalSubmitted = false;
+    
+    // Explicit getters to maintain expected method names
+    public boolean isFinal() {
+        return isFinal != null ? isFinal : false;
+    }
+    
+    public boolean isFinalSubmitted() {
+        return isFinalSubmitted != null ? isFinalSubmitted : false;
+    }
+    
+    // Explicit setters to maintain expected method names
+    public void setFinal(Boolean isFinal) {
+        this.isFinal = isFinal;
+    }
+    
+    public void setFinalSubmitted(Boolean isFinalSubmitted) {
+        this.isFinalSubmitted = isFinalSubmitted;
+    }
 }

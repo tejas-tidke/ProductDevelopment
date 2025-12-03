@@ -204,7 +204,17 @@ export default function CompleteInvitation() {
       }
     } catch (error) {
       console.error("Error completing invitation:", error);
-      setMessage({type: "error", text: "Failed to complete invitation: " + (error as Error).message});
+      const errorMessage = (error as Error).message;
+      
+      // Handle specific backend errors
+      if (errorMessage.includes("User already exists in Firebase")) {
+        setMessage({
+          type: "error", 
+          text: "An account with this email already exists. Please sign in instead of creating a new account."
+        });
+      } else {
+        setMessage({type: "error", text: "Failed to complete invitation: " + errorMessage});
+      }
     } finally {
       setLoading(false);
     }

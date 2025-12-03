@@ -148,18 +148,74 @@ public class InvitationService {
             inv = verifyInvitationByEmail(email);
         }
 
-        // 1. Create Firebase user (or get existing)
+        // 1. Check if user already exists in database by email
+        Optional<User> existingUserInDb = userService.getUserByEmail(email);
+        if (existingUserInDb.isPresent()) {
+            throw new Exception("User already exists in database with this email. Please sign in instead of creating a new account.");
+        }
+        
+        // 2. Check if user already exists in Firebase
         User firebaseUser;
+        boolean userAlreadyExists = false;
         try {
             firebaseUser = userService.createUserInFirebase(email, password, fullName);
         } catch (Exception e) {
             // If user already exists in Firebase, we'll use the existing one
-            // Get the existing user from Firebase
-            com.google.firebase.auth.UserRecord existingUser = com.google.firebase.auth.FirebaseAuth.getInstance().getUserByEmail(email);
-            firebaseUser = new User();
-            firebaseUser.setUid(existingUser.getUid());
-            firebaseUser.setEmail(email);
-            firebaseUser.setName(fullName);
+            if (e.getMessage().contains("email-already-exists") || e.getMessage().contains("email already exists")) {
+                userAlreadyExists = true;
+                // Get the existing user from Firebase
+                com.google.firebase.auth.UserRecord existingUser = com.google.firebase.auth.FirebaseAuth.getInstance().getUserByEmail(email);
+                firebaseUser = new User();
+                firebaseUser.setUid(existingUser.getUid());
+                firebaseUser.setEmail(email);
+                firebaseUser.setName(fullName);
+            } else {
+                // Re-throw other exceptions
+                throw e;
+            }
+        }
+
+     // 🔥 FIX: If user already exists, update instead of inserting new row
+        Optional<User> existingUser = userService.getUserByEmail(email);
+
+        if (existingUser.isPresent()) {
+            User u = existingUser.get();
+
+            // Update required fields
+            u.setName(fullName);
+            u.setActive(true);
+
+            // Set UID from Firebase if missing
+            if (firebaseUser.getUid() != null) {
+                u.setUid(firebaseUser.getUid());
+            }
+
+            // Update role
+            u.setRole(parseRole(inv.getRole()));
+
+            // Update department
+            if (inv.getDepartmentId() != null) {
+                u.setDepartment(userService.getDepartmentFromId(inv.getDepartmentId()));
+            }
+
+            // Update organization
+            if (inv.getOrganizationId() != null) {
+                u.setOrganization(userService.getOrganizationFromId(inv.getOrganizationId()));
+            }
+
+            // Save updated user
+            u = userService.updateUserById(u.getId(), u);
+
+            // Mark invitation used
+            inv.setUsed(true);
+            invitationRepository.save(inv);
+
+            return u;
+        }
+        
+        // If user already exists in Firebase, don't create a new database entry
+        if (userAlreadyExists) {
+            throw new Exception("User already exists in Firebase. Please sign in instead of creating a new account.");
         }
 
         // 2. Save in DB

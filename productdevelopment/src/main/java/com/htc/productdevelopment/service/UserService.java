@@ -290,11 +290,20 @@ public class UserService {
     public User createUser(String uid, String email, String name) {
         logger.info("Creating user with UID: {}, email: {}, name: {}", uid, email, name);
         
-        // Check if user already exists
+        // Check if user already exists by UID
         Optional<User> existingUser = userRepository.findByUid(uid);
         if (existingUser.isPresent()) {
-            logger.debug("User already exists: {}", uid);
+            logger.debug("User already exists by UID: {}", uid);
             return existingUser.get();
+        }
+        
+        // Check if user already exists by email
+        if (email != null && !email.isEmpty()) {
+            Optional<User> existingUserByEmail = userRepository.findByEmail(email);
+            if (existingUserByEmail.isPresent()) {
+                logger.debug("User already exists by email: {}", email);
+                return existingUserByEmail.get();
+            }
         }
         
         User user = new User();

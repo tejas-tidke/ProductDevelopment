@@ -54,6 +54,15 @@ public class FirebaseSyncService {
                 throw new Exception("Firebase not properly configured. Please check firebase-service-account.json file.");
             }
             
+            // Check if user already exists in database by email before creating in Firebase
+            if (email != null && !email.isEmpty()) {
+                Optional<User> existingUserByEmail = userRepository.findByEmail(email);
+                if (existingUserByEmail.isPresent()) {
+                    logger.warn("User already exists in database by email: {}", email);
+                    throw new Exception("User already exists with this email. Please sign in instead of creating a new account.");
+                }
+            }
+            
             // Create user in Firebase
             CreateRequest request = new CreateRequest()
                 .setEmail(email)
@@ -116,53 +125,90 @@ public class FirebaseSyncService {
     public User syncUser(String uid, String email, String name) throws Exception {
         logger.info("Syncing user with UID: {}", uid);
         
+        // Check if user already exists in database by UID
+        Optional<User> existingUser = userRepository.findByUid(uid);
+        if (existingUser.isPresent()) {
+            // Update existing user data
+            logger.info("User already exists in database by UID, updating information");
+            User user = existingUser.get();
+            if (email != null && !email.isEmpty()) {
+                user.setEmail(email);
+            }
+            if (name != null && !name.isEmpty()) {
+                user.setName(name);
+            }
+            // Note: We don't update the role here as it might have been set separately
+            User savedUser = userRepository.save(user);
+            logger.info("User updated successfully: {}", savedUser.getUid());
+            return savedUser;
+        }
+        
+        // Check if user already exists in database by email
+        if (email != null && !email.isEmpty()) {
+            Optional<User> existingUserByEmail = userRepository.findByEmail(email);
+            if (existingUserByEmail.isPresent()) {
+                // Update existing user with UID
+                logger.info("User already exists in database by email, updating UID");
+                User user = existingUserByEmail.get();
+                user.setUid(uid);
+                if (name != null && !name.isEmpty()) {
+                    user.setName(name);
+                }
+                User savedUser = userRepository.save(user);
+                logger.info("User updated successfully: {}", savedUser.getUid());
+                return savedUser;
+            }
+        }
+        
         try {
             // Fetch user from Firebase
             UserRecord firebaseUser = FirebaseAuth.getInstance().getUserAsync(uid).get();
             logger.debug("Fetched Firebase user: {} - {}", firebaseUser.getUid(), firebaseUser.getEmail());
             
-            // Check if user already exists in database
-            Optional<User> existingUser = userRepository.findByUid(uid);
+            // Create new user with data from Firebase
+            logger.info("Creating new user in database from Firebase data");
+            User newUser = userService.createUser(
+                firebaseUser.getUid(),
+                firebaseUser.getEmail(),
+                firebaseUser.getDisplayName() != null ? firebaseUser.getDisplayName() : ""
+            );
+            logger.info("New user created successfully: {}", newUser.getUid());
+            return newUser;
+        } catch (InterruptedException | ExecutionException e) {
+            logger.error("Error fetching user from Firebase: {}", e.getMessage(), e);
+            throw new Exception("Error fetching user from Firebase", e);
+        } catch (RuntimeException e) {
+            // If user already exists, update instead
+            logger.warn("User creation failed, checking for existing user: {}", e.getMessage());
+            existingUser = userRepository.findByUid(uid);
             if (existingUser.isPresent()) {
-                // Update existing user data
-                logger.info("User already exists in database, updating information");
                 User user = existingUser.get();
-                user.setEmail(firebaseUser.getEmail() != null ? firebaseUser.getEmail() : "");
-                user.setName(firebaseUser.getDisplayName() != null ? firebaseUser.getDisplayName() : "");
-                // Note: We don't update the role here as it might have been set separately
+                if (email != null && !email.isEmpty()) {
+                    user.setEmail(email);
+                }
+                if (name != null && !name.isEmpty()) {
+                    user.setName(name);
+                }
                 User savedUser = userRepository.save(user);
                 logger.info("User updated successfully: {}", savedUser.getUid());
                 return savedUser;
             } else {
-                // Create new user with data from Firebase
-                logger.info("Creating new user in database from Firebase data");
-                try {
-                    User newUser = userService.createUser(
-                        firebaseUser.getUid(),
-                        firebaseUser.getEmail(),
-                        firebaseUser.getDisplayName() != null ? firebaseUser.getDisplayName() : ""
-                    );
-                    logger.info("New user created successfully: {}", newUser.getUid());
-                    return newUser;
-                } catch (RuntimeException e) {
-                    // If user already exists, update instead
-                    logger.warn("User creation failed, checking for existing user: {}", e.getMessage());
-                    existingUser = userRepository.findByUid(uid);
-                    if (existingUser.isPresent()) {
-                        User user = existingUser.get();
-                        user.setEmail(firebaseUser.getEmail() != null ? firebaseUser.getEmail() : "");
-                        user.setName(firebaseUser.getDisplayName() != null ? firebaseUser.getDisplayName() : "");
+                // Also check by email
+                if (email != null && !email.isEmpty()) {
+                    Optional<User> existingUserByEmail = userRepository.findByEmail(email);
+                    if (existingUserByEmail.isPresent()) {
+                        User user = existingUserByEmail.get();
+                        user.setUid(uid);
+                        if (name != null && !name.isEmpty()) {
+                            user.setName(name);
+                        }
                         User savedUser = userRepository.save(user);
                         logger.info("User updated successfully: {}", savedUser.getUid());
                         return savedUser;
-                    } else {
-                        throw e;
                     }
                 }
+                throw e;
             }
-        } catch (InterruptedException | ExecutionException e) {
-            logger.error("Error fetching user from Firebase: {}", e.getMessage(), e);
-            throw new Exception("Error fetching user from Firebase", e);
         }
     }
 
@@ -174,18 +220,34 @@ public class FirebaseSyncService {
     public User autoSyncUser(String uid) {
         logger.info("Auto-syncing user with UID: {}", uid);
         
-        // Check if user already exists in database
+        // Check if user already exists in database by UID
         Optional<User> existingUser = userRepository.findByUid(uid);
         if (existingUser.isPresent()) {
-            logger.debug("User already exists in database: {}", uid);
+            logger.debug("User already exists in database by UID: {}", uid);
             return existingUser.get();
         }
         
         try {
-            // If not exists, fetch from Firebase and create
+            // If not exists, fetch from Firebase
             logger.debug("User not found in database, fetching from Firebase: {}", uid);
             UserRecord firebaseUser = FirebaseAuth.getInstance().getUserAsync(uid).get();
             logger.debug("Successfully fetched Firebase user: {} ({})", firebaseUser.getEmail(), firebaseUser.getDisplayName());
+            
+            // Check if user already exists by email before creating
+            if (firebaseUser.getEmail() != null && !firebaseUser.getEmail().isEmpty()) {
+                Optional<User> existingUserByEmail = userRepository.findByEmail(firebaseUser.getEmail());
+                if (existingUserByEmail.isPresent()) {
+                    logger.debug("User already exists in database by email: {}", firebaseUser.getEmail());
+                    User user = existingUserByEmail.get();
+                    // Update UID if it's missing
+                    if (user.getUid() == null || user.getUid().isEmpty()) {
+                        user.setUid(firebaseUser.getUid());
+                        user = userRepository.save(user);
+                        logger.info("Updated user UID: {}", user.getUid());
+                    }
+                    return user;
+                }
+            }
             
             User newUser = userService.createUser(
                 firebaseUser.getUid(),
@@ -204,6 +266,18 @@ public class FirebaseSyncService {
             if (existingUser.isPresent()) {
                 return existingUser.get();
             } else {
+                // Also check by email
+                try {
+                    UserRecord firebaseUser = FirebaseAuth.getInstance().getUserAsync(uid).get();
+                    if (firebaseUser.getEmail() != null && !firebaseUser.getEmail().isEmpty()) {
+                        Optional<User> existingUserByEmail = userRepository.findByEmail(firebaseUser.getEmail());
+                        if (existingUserByEmail.isPresent()) {
+                            return existingUserByEmail.get();
+                        }
+                    }
+                } catch (Exception ex) {
+                    logger.warn("Error checking for existing user by email: {}", ex.getMessage());
+                }
                 throw e;
             }
         }
@@ -238,6 +312,91 @@ public class FirebaseSyncService {
         } catch (InterruptedException | ExecutionException e) {
             logger.error("Error fetching users from Firebase: {}", e.getMessage(), e);
             throw new Exception("Error fetching users from Firebase", e);
+        }
+    }
+
+    /**
+     * Check if a user exists in Firebase by email
+     * @param email User email
+     * @return true if user exists, false otherwise
+     */
+    public boolean doesUserExistInFirebase(String email) {
+        logger.info("Checking if user exists in Firebase with email: {}", email);
+        
+        try {
+            // Check if Firebase is properly initialized
+            if (FirebaseApp.getApps().isEmpty()) {
+                logger.error("Firebase not initialized. Check firebase-service-account.json file.");
+                return false;
+            }
+            
+            // Try to get user by email
+            UserRecord userRecord = FirebaseAuth.getInstance().getUserByEmail(email);
+            logger.info("User found in Firebase with email: {}", email);
+            return true;
+        } catch (Exception e) {
+            logger.debug("User not found in Firebase with email: {}. Error: {}", email, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if a user exists in the local database by email
+     * @param email User email
+     * @return true if user exists, false otherwise
+     */
+    public boolean doesUserExistInDatabase(String email) {
+        logger.info("Checking if user exists in database with email: {}", email);
+        
+        try {
+            Optional<User> existingUser = userRepository.findByEmail(email);
+            boolean exists = existingUser.isPresent();
+            if (exists) {
+                logger.info("User found in database with email: {}", email);
+            } else {
+                logger.info("User not found in database with email: {}", email);
+            }
+            return exists;
+        } catch (Exception e) {
+            logger.error("Error checking if user exists in database with email: {}. Error: {}", email, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if an email domain is likely to be valid by checking against common providers
+     * @param email User email
+     * @return true if domain is likely valid, false otherwise
+     */
+    public boolean isEmailDomainLikelyValid(String email) {
+        logger.info("Checking if email domain is likely valid for email: {}", email);
+        
+        // Common valid email domains
+        String[] validDomains = {
+            "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", 
+            "aol.com", "icloud.com", "mail.com", "protonmail.com",
+            "yandex.com", "qq.com", "163.com", "126.com"
+        };
+        
+        try {
+            // Extract domain from email
+            String domain = email.substring(email.lastIndexOf("@") + 1).toLowerCase();
+            
+            // Check if domain matches any of our known valid domains
+            for (String validDomain : validDomains) {
+                if (domain.equals(validDomain)) {
+                    logger.info("Domain {} is in our list of known valid domains", domain);
+                    return true;
+                }
+            }
+            
+            // For unknown domains, we'll assume they're valid but log a warning
+            logger.warn("Domain {} is not in our list of known valid domains. Assuming it's valid.", domain);
+            return true;
+        } catch (Exception e) {
+            logger.error("Error validating email domain for email: {}. Error: {}", email, e.getMessage());
+            // If we can't validate, we'll assume it's valid to avoid blocking legitimate emails
+            return true;
         }
     }
 }	

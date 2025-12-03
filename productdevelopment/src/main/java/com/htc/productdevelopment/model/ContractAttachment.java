@@ -61,9 +61,8 @@ public class ContractAttachment {
     @Column(name = "mime_type")
     private String mimeType;
     
-    @Lob
-    @Column(name = "file_content", columnDefinition = "BYTEA")
-    private byte[] fileContent;
+    // Removed fileContent field to prevent database storage of attachment content
+    // Jira will handle attachment storage
 
     public String getMimeType() {
         return mimeType;
@@ -72,14 +71,4 @@ public class ContractAttachment {
     public void setMimeType(String mimeType) {
         this.mimeType = mimeType;
     }
-    
-    public byte[] getFileContent() {
-        return fileContent;
-    }
-    
-    public void setFileContent(byte[] fileContent) {
-        this.fileContent = fileContent;
-    }
-
-
 }

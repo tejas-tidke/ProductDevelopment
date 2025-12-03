@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
 import PageMeta from "../components/common/PageMeta";
 import { invitationApi, departmentApi, organizationApi } from "../services/api";
+import { authApi } from "../services/api"; // Add authApi import
 import { useNavigate } from "react-router";
 import { usePermissions } from "../hooks/usePermissions";
 import { useAuth } from "../context/AuthContext";
@@ -34,12 +35,16 @@ export default function SendInvitation() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: string, text: string} | null>(null);
-
+  const [emailValidation, setEmailValidation] = useState<{isValid: boolean, message: string, checking: boolean} | null>(null); // Add email validation state
+  
   // Create stable versions of the permission checks
   const stableCanSendInvitations = useCallback(canSendInvitations, []);
   const stableHasRole = useCallback(hasRole, []);
   const canSendInvite = useCallback(() => stableCanSendInvitations(), [stableCanSendInvitations]);
   const isSuperAdminMemo = useCallback(() => stableHasRole('SUPER_ADMIN'), [stableHasRole]);
+  
+  // Ref for debouncing email validation
+  const emailDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check if user has permission to access this page
   useEffect(() => {
@@ -86,18 +91,102 @@ export default function SendInvitation() {
     }
   }, [canSendInvite, hasRole, userDepartmentId, userOrganizationId]);
 
+  // Function to validate email
+  const validateEmail = async (email: string) => {
+    // Clear any existing timeout
+    if (emailDebounceRef.current) {
+      clearTimeout(emailDebounceRef.current);
+    }
+    
+    // If email is empty, clear validation
+    if (!email) {
+      setEmailValidation(null);
+      return;
+    }
+    
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEmailValidation({
+        isValid: false,
+        message: "Please enter a valid email address format",
+        checking: false
+      });
+      return;
+    }
+    
+    // Set checking state
+    setEmailValidation({
+      isValid: false,
+      message: "Checking email...",
+      checking: true
+    });
+    
+    // Debounce the API call
+    emailDebounceRef.current = setTimeout(async () => {
+      try {
+        const result = await authApi.checkUserExists(email);
+        
+        if (result.existsInFirebase) {
+          setEmailValidation({
+            isValid: false,
+            message: "This email address is already registered in our system. Please use a different email or sign in.",
+            checking: false
+          });
+        } else if (result.existsInDatabase) {
+          setEmailValidation({
+            isValid: false,
+            message: "This email address is already registered in our system. Please use a different email or sign in.",
+            checking: false
+          });
+        } else if (!result.isDomainLikelyValid) {
+          setEmailValidation({
+            isValid: false,
+            message: "This email domain appears to be invalid or uncommon. Please check the email address or use a common email provider like Gmail, Yahoo, etc.",
+            checking: false
+          });
+        } else {
+          setEmailValidation({
+            isValid: true,
+            message: "This email address format is valid. A confirmation email will be sent to verify the address.",
+            checking: false
+          });
+        }
+      } catch (error) {
+        console.error("Error checking email:", error);
+        setEmailValidation({
+          isValid: false,
+          message: "Error checking email validity. Please try again.",
+          checking: false
+        });
+      }
+    }, 500); // 500ms debounce
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+    
+    // Validate email when email field changes
+    if (name === "email") {
+      validateEmail(value);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
+    
+    // Check if email is valid before submitting
+    if (emailValidation && !emailValidation.isValid) {
+      setMessage({type: "error", text: "Please fix the email validation errors before submitting."});
+      setLoading(false);
+      return;
+    }
     
     try {
       // Prepare invitation data for pending user creation
@@ -137,6 +226,9 @@ export default function SendInvitation() {
         departmentId: hasRole('SUPER_ADMIN') ? "" : (userDepartmentId ? userDepartmentId.toString() : ""),
         organizationId: hasRole('SUPER_ADMIN') ? (userOrganizationId ? userOrganizationId.toString() : "") : ""
       }));
+      
+      // Clear email validation
+      setEmailValidation(null);
     } catch (error) {
       console.error("Error sending invitation:", error);
       setMessage({type: "error", text: "Failed to send invitation: " + (error as Error).message});
@@ -167,6 +259,14 @@ export default function SendInvitation() {
               SUPER ADMIN: You can assign users.
               </div>
           )}
+          
+          <div className="mb-6 rounded-lg bg-blue-100 p-4 dark:bg-blue-900">
+            <h4 className="mb-2 font-medium text-blue-800 dark:text-blue-100">Important Notice</h4>
+            <p className="text-sm text-blue-700 dark:text-blue-200">
+              Please ensure the email address is correct. A confirmation email will be sent to verify the address.
+              Common email providers (Gmail, Yahoo, Outlook, etc.) are recommended.
+            </p>
+          </div>
           
           {message && (
             <div className={`mb-6 rounded-lg px-4 py-3 text-center ${
@@ -203,14 +303,32 @@ export default function SendInvitation() {
                 value={formData.email}
                 onChange={handleInputChange}
                 required
-                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900"
+                className={`w-full rounded-lg border bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900 ${
+                  emailValidation 
+                    ? emailValidation.isValid 
+                      ? "border-green-500" 
+                      : "border-red-500"
+                    : "border-gray-300 dark:border-gray-600"
+                }`}
                 placeholder="Enter email address"
               />
+              {emailValidation && (
+                <div className={`mt-1 text-sm ${
+                  emailValidation.isValid 
+                    ? "text-green-600 dark:text-green-400" 
+                    : "text-red-600 dark:text-red-400"
+                }`}>
+                  {emailValidation.checking ? (
+                    <span>Checking email...</span>
+                  ) : (
+                    <span>{emailValidation.message}</span>
+                  )}
+                </div>
+              )}
             </div>
             
             <div>
               <label htmlFor="role" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-
                 Role <span className="text-red-600">*</span>
                  {/* {userRole === "SUPER_ADMIN" && <span className="text-xs text-yellow-600 dark:text-yellow-400">(SUPER_ADMIN)</span>} */}
               </label>
@@ -243,7 +361,6 @@ export default function SendInvitation() {
             <div>
               <label htmlFor="departmentId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Department <span className="text-red-600">*</span>{hasRole('SUPER_ADMIN') ? "" : "(Auto-selected based on your department)"}
-
               </label>
               <select
                 id="departmentId"
@@ -252,7 +369,7 @@ export default function SendInvitation() {
                 onChange={handleInputChange}
                 required
                 disabled={!hasRole('SUPER_ADMIN')} // Disable for non-SUPER_ADMIN users
-                className={`w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900 ${!hasRole('SUPER_ADMIN') ? 'opacity-75 cursor-not-allowed' : ''}`}
+                className={`w-full rounded-lg border bg-white px-4 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:bg-gray-800 dark:text-white dark:focus:border-blue-500 dark:focus:ring-blue-900 ${!hasRole('SUPER_ADMIN') ? 'opacity-75 cursor-not-allowed' : ''}`}
               >
                 <option value="">Select Department</option>
                 {departments.map((dept) => (
@@ -263,9 +380,7 @@ export default function SendInvitation() {
               </select>
               {!hasRole('SUPER_ADMIN') ? (
                 <p className="mt-1 text-xs text-gray-500">Department is auto-selected based on your login credentials.</p>
-
               ) : (
-
                 <p className="mt-1 text-xs text-gray-500"></p>
               )}
             </div>
@@ -274,7 +389,6 @@ export default function SendInvitation() {
             {isSuperAdminMemo() && (
               <div>
                 <label htmlFor="organizationId" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-
                   Organization <span className="text-red-600">*</span> 
                 </label>
                 <select
@@ -291,16 +405,13 @@ export default function SendInvitation() {
                     </option>
                   ))}
                 </select>
-
-             
-
               </div>
             )}
             
             <div>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (emailValidation ? emailValidation.checking : false)}
                 className="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
               >
                 {loading ? "Sending Invitation..." : "Send Invitation"}

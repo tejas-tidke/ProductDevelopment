@@ -3,6 +3,7 @@ package com.htc.productdevelopment.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.htc.productdevelopment.config.JiraConfig;
+import org.springframework.context.annotation.Lazy;
 import com.htc.productdevelopment.model.ContractDetails;
 import com.htc.productdevelopment.model.JiraProject;
 import com.htc.productdevelopment.model.Organization;
@@ -79,6 +80,7 @@ public class JiraService {
     private ContractDetailsRepository contractDetailsRepository;
     
     @Autowired
+    @Lazy
     private ContractDetailsService contractDetailsService;
     
     @Autowired
@@ -873,6 +875,20 @@ public class JiraService {
                 jiraFields.put("customfield_10201", fields.get("reporterCustom"));
             }
             
+            // Handle any other custom fields that are passed in
+            for (Map.Entry<String, Object> entry : fields.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+                
+                // Check if the key starts with "customfield_"
+                if (key.startsWith("customfield_") && value != null && !value.toString().isEmpty()) {
+                    // Don't override the hardcoded custom fields we already handled
+                    if (!key.equals("customfield_10200") && !key.equals("customfield_10201")) {
+                        jiraFields.put(key, value);
+                    }
+                }
+            }
+            
             Map<String, Object> requestBody = Map.of("fields", jiraFields);
             
             // Make the API call
@@ -1122,6 +1138,44 @@ public class JiraService {
         } catch (Exception e) {
             logger.error("Error fetching Jira issue with ID/Key: {}", issueIdOrKey, e);
             throw e;
+        }
+    }
+    
+    /**
+     * Get a specific field value from a Jira issue
+     * @param issueIdOrKey The issue ID or key
+     * @param fieldId The field ID (e.g., customfield_10405)
+     * @return The field value as a string, or null if not found
+     * @throws Exception if the API call fails
+     */
+    public String getIssueFieldValue(String issueIdOrKey, String fieldId) throws Exception {
+        try {
+            logger.info("Fetching field value {} for issue: {}", fieldId, issueIdOrKey);
+            
+            // Get the full issue details
+            JsonNode issue = getIssueByIdOrKey(issueIdOrKey);
+            
+            logger.info("Successfully fetched issue details for: {}", issueIdOrKey);
+            
+            // Extract the field value from the fields
+            JsonNode fields = issue.path("fields");
+            JsonNode fieldValue = fields.path(fieldId);
+            
+            logger.info("Checking field value for fieldId: {} in issue: {}", fieldId, issueIdOrKey);
+            
+            if (fieldValue.isMissingNode() || fieldValue.isNull()) {
+                logger.info("Field {} not found or is null for issue: {}", fieldId, issueIdOrKey);
+                return null;
+            }
+            
+            String value = fieldValue.asText();
+            logger.info("Found field value for {} in issue {}: {}", fieldId, issueIdOrKey, value);
+            
+            return value;
+        } catch (Exception e) {
+            logger.error("Error fetching field value {} for issue: {}", fieldId, issueIdOrKey, e);
+            logger.error("Exception details: {}", e.getMessage(), e);
+            throw new Exception("Failed to fetch field value " + fieldId + " for issue " + issueIdOrKey + ": " + e.getMessage(), e);
         }
     }
     
