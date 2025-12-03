@@ -143,7 +143,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   const [showSuccess, setShowSuccess] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  // Add a new state for showing full modal loader
+  const [showModalLoader, setShowModalLoader] = useState(false);
   // const dropdownRef = useRef<HTMLDivElement | null>(null);
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -159,10 +160,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     if (isOpen && userData && currentUser) {
       setRequesterName(userData.user.name || '');
       setRequesterMail(currentUser.email || '');
+      // Clear any previous success messages when opening the modal
+      setSuccessMessage('');
+      setShowSuccess(false);
     }
-  }, [isOpen, userData, currentUser]);
-
-  useEffect(() => {
+  }, [isOpen, userData, currentUser]);  useEffect(() => {
     if (!isOpen) return;
     if (initialContractType) setContractType(initialContractType);
     else setContractType('');
@@ -694,10 +696,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
+    // Set both states to true when submitting
     setIsSubmitting(true);
+    setShowModalLoader(true);
     setSuccessMessage('');
     setErrorMessage('');
-
     // 👇 Compute what to send as CURRENT values
     let currentUnitsToSend =
       currentUnits === 'others'
@@ -787,8 +790,10 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       setShowSuccess(true);
       window.dispatchEvent(new CustomEvent('requestCreated'));
 
-      setTimeout(() => setShowSuccess(false), 1800);
-      onIssueCreated?.(created as CreatedIssue);
+      setTimeout(() => {
+        setShowSuccess(false);
+        setSuccessMessage('');
+      }, 1800);      onIssueCreated?.(created as CreatedIssue);
       resetForm();
 
       setTimeout(() => {
@@ -800,9 +805,10 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       setErrorMessage('Failed to create request. Please try again.');
       setSuccessMessage('');
     } finally {
+      // Set both states to false when done
       setIsSubmitting(false);
-    }
-  };
+      setShowModalLoader(false);
+    }  };
 
 
   // useEffect(() => {
@@ -874,11 +880,15 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
   return (
     <>
       {showSuccess && (
-        <div className="fixed top-5 right-5 z-[100000] bg-green-600 text-white px-4 py-2 rounded shadow-lg animate-fade-in">
-          🎉 Issue Created Successfully!
+        <div className="fixed top-5 right-5 z-[100000] bg-green-600 text-white px-6 py-4 rounded-lg shadow-xl animate-fade-in">
+          <div className="flex items-center">
+            <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span className="font-bold text-lg">Request Created Successfully!</span>
+          </div>
         </div>
       )}
-
       {/* Full-screen container */}
       <div className="fixed inset-0 z-[9999] overflow-y-auto">
         {/* Frosted / blurred backdrop similar to provided image */}
@@ -899,14 +909,25 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
             {'\u200B'}
           </span>
 
+          {/* Add the full modal loader overlay */}
+          {showModalLoader && (
+            <div className="absolute inset-0 z-[10001] flex items-center justify-center bg-black bg-opacity-30 rounded-2xl">
+              <div className="flex flex-col items-center">
+                <svg className="animate-spin h-10 w-10 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p className="mt-2 text-white font-medium">Creating Request...</p>
+              </div>
+            </div>
+          )}
           <div
             className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full dark:bg-gray-800 z-[10000] relative"
             role="dialog"
             aria-modal="true"
             aria-labelledby="create-procurement-title"
             onClick={(e) => e.stopPropagation()} // prevent clicks inside modal from closing backdrop
-          >
-            {/* Close button (round) */}
+          >            {/* Close button (round) */}
             <button
               onClick={() => { resetForm(); onClose(); }}
               aria-label="Close modal"
