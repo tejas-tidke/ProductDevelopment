@@ -319,9 +319,9 @@ export default function App() {
             <Route 
               path="/procurement/renewal" 
               element={
-                <ProtectedRoute>
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_PROCUREMENT_RENEWAL]}>
                   <ProcurementRenewal />
-                </ProtectedRoute>
+                </ProtectedPermissionRoute>
               } 
             />
             

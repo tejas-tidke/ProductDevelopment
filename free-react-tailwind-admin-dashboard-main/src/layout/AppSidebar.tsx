@@ -340,7 +340,7 @@ const isPrivileged = isAdmin || isSuperAdmin;
 
 const filteredNavItems = navItems.filter(item => {
   if (item.name === "Dashboard" && !isPrivileged) return false;
-  if (item.name === "Procurement Request" && !isSuperAdmin) return false;
+  if (item.name === "Procurement Request" && !(isSuperAdmin || isAdmin)) return false;
   return true;
 });
 

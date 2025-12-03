@@ -31,6 +31,9 @@ export enum Permission {
   EDIT_VENDOR = 'EDIT_VENDOR',
   DELETE_VENDOR = 'DELETE_VENDOR',
   
+  // Procurement Management
+  VIEW_PROCUREMENT_RENEWAL = 'VIEW_PROCUREMENT_RENEWAL',
+  
   // Contracts Management
   VIEW_CONTRACTS = 'VIEW_CONTRACTS',
   CREATE_CONTRACT = 'CREATE_CONTRACT',
@@ -77,6 +80,8 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     Permission.EDIT_CONTRACT,
     Permission.DELETE_CONTRACT,
     
+    Permission.VIEW_PROCUREMENT_RENEWAL,
+    
     Permission.SEND_INVITATIONS,
     Permission.VIEW_INVITATIONS,
     Permission.DELETE_INVITATIONS,
@@ -112,6 +117,8 @@ export const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     Permission.CREATE_CONTRACT,
     Permission.EDIT_CONTRACT,
     Permission.DELETE_CONTRACT,
+    
+    Permission.VIEW_PROCUREMENT_RENEWAL,
     
     Permission.SEND_INVITATIONS,
     Permission.VIEW_INVITATIONS,
