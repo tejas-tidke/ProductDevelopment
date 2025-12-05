@@ -262,6 +262,7 @@ const IssueTypeIcon: React.FC<{ type: string; size?: "sm" | "md" | "lg" }> = ({
 
 const RequestSplitView: React.FC = () => {
   const { issueKey } = useParams<{ issueKey: string }>();
+  console.log('🧭 issueKey from useParams:', issueKey);
   const { userRole, canAccessDepartmentIssues } = usePermissions();
 
   // Get current user information from AuthContext
@@ -270,13 +271,50 @@ const RequestSplitView: React.FC = () => {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
 
+  // Debug selectedIssue changes
+  useEffect(() => {
+    console.log('🔄 selectedIssue changed:', selectedIssue?.key || 'null');
+  }, [selectedIssue]);
+
   // helper to read fields
   const getFieldValue = (keys: string[]) => {
     if (!selectedIssue) return "";
+    
+    // Debug: Log all available fields when trying to access customfield_10471
+    if (keys.includes('customfield_10471')) {
+      console.log('🔍 Checking for customfield_10471 in issue', selectedIssue.key);
+      
+      // Log all field keys to see what's available
+      if (selectedIssue.fields) {
+        const allFieldKeys = Object.keys(selectedIssue.fields);
+        console.log('📊 Total fields available:', allFieldKeys.length);
+        console.log('📋 Custom field sample:', allFieldKeys.filter(k => k.startsWith('customfield_')).slice(0, 20));
+        
+        // Check specifically for customfield_10471
+        const hasOptimizedCostField = 'customfield_10471' in selectedIssue.fields;
+        console.log('🎯 customfield_10471 exists:', hasOptimizedCostField);
+        
+        if (hasOptimizedCostField) {
+          const value = selectedIssue.fields['customfield_10471'];
+          console.log('💰 customfield_10471 value:', value);
+          console.log('typeof value:', typeof value);
+        } else {
+          // Let's see if it's just missing or if there's a pattern
+          const similarFields = allFieldKeys.filter(k => k.includes('104'));
+          console.log('🔎 Similar field IDs:', similarFields);
+        }
+      } else {
+        console.log('❌ No fields object available');
+      }
+    }
+    
     for (const k of keys) {
       const val = selectedIssue.fields?.[k];
       // Debug log for field value retrieval
       console.log(`Getting field value for key: ${k}`, val);
+      console.log(`Value type for ${k}:`, typeof val);
+      console.log(`Value null/undefined check for ${k}:`, val == null);
+      
       if (val !== undefined && val !== null && val !== "") {
         if (typeof val === "object") {
           if ("value" in val && (val as any).value) return String((val as any).value);
@@ -286,8 +324,11 @@ const RequestSplitView: React.FC = () => {
           return JSON.stringify(val);
         }
         return String(val);
+      } else {
+        console.log(`Field ${k} is empty/null/undefined`);
       }
     }
+    console.log('No valid field values found, returning empty string');
     return "";
   };
 
@@ -366,10 +407,10 @@ const RequestSplitView: React.FC = () => {
     final: false
   });
 
-  // Track if total profit has been submitted
-  const [hasSubmittedTotalProfit, setHasSubmittedTotalProfit] = useState(false);
+  // Track if total optimized cost has been submitted
+  const [hasSubmittedTotalOptimizedCost, setHasSubmittedTotalOptimizedCost] = useState(false);
   
-  // Store the total profit fetched from backend
+  // Store the total optimized cost fetched from backend
   const [totalProfit, setTotalProfit] = useState<number | null>(null);
   const [unitCost, setUnitCost] = useState("");
   const [editableLicenseCount, setEditableLicenseCount] = useState(
@@ -382,6 +423,7 @@ const RequestSplitView: React.FC = () => {
   const [quoteAttachments, setQuoteAttachments] = useState<File[]>([]);
 
   const [hasSubmittedFinalQuote, setHasSubmittedFinalQuote] = useState(false);
+  const previousIssueKeyRef = useRef<string | null>(null);
 
   const [isSubmittingQuote, setIsSubmittingQuote] = useState(false);
 
@@ -402,16 +444,68 @@ const RequestSplitView: React.FC = () => {
     }
   }, [isUploadQuoteModalOpen, issueKeyFromParams]);
 
-  // Reset profit state when selected issue changes
+  // Reset optimized cost state when selected issue changes
   useEffect(() => {
-    setTotalProfit(null);
-    setHasSubmittedFinalQuote(false);
+    console.log('🔄 useEffect triggered, selectedIssue:', selectedIssue?.key);
+    console.log('👤 User role:', userRole);
+    console.log('✅ Has submitted final quote:', hasSubmittedFinalQuote);
     
-    // Fetch profit data for the selected issue
+    // Only reset hasSubmittedFinalQuote if we're loading a new issue (not when refreshing same issue)
+    const currentIssueKey = selectedIssue?.key || null;
+    
+    // Only reset if we had a previous issue and it's different from current issue
+    // But don't reset if currentIssueKey is null (issue not loaded yet)
+    if (currentIssueKey !== null && previousIssueKeyRef.current !== null && currentIssueKey !== previousIssueKeyRef.current) {
+      console.log('🔄 New issue selected, resetting hasSubmittedFinalQuote');
+      console.log('🔧 Setting hasSubmittedFinalQuote to false (new issue)');
+      setHasSubmittedFinalQuote(false);
+    } else {
+      console.log('🔄 Same issue, initial load, or issue not loaded yet, keeping hasSubmittedFinalQuote state');
+    }
+    
+    // Only update the ref if we have a valid issue key
+    if (currentIssueKey !== null) {
+      previousIssueKeyRef.current = currentIssueKey;
+    }
+    
+    setTotalProfit(null);
+    
+    // Fetch optimized cost data for the selected issue
     if (selectedIssue?.key) {
-      refreshProfitData();
+      console.log('🚀 Calling refreshOptimizedCostData from useEffect for issue:', selectedIssue.key);
+      refreshOptimizedCostData();
+    } else {
+      console.log('⚠️ No selectedIssue.key, skipping refreshOptimizedCostData');
     }
   }, [selectedIssue?.key]);
+  
+  // Initialize ref with issue key from URL params
+  useEffect(() => {
+    if (issueKeyFromParams) {
+      previousIssueKeyRef.current = issueKeyFromParams;
+      console.log('🔧 Initialized previousIssueKeyRef with:', issueKeyFromParams);
+    }
+  }, []);
+  
+  // Debug effect to monitor when Total Optimized Cost section conditions change
+  useEffect(() => {
+    console.log('🔍 Total Optimized Cost conditions changed:', { 
+      hasSubmittedFinalQuote, 
+      userRole, 
+      shouldShow: hasSubmittedFinalQuote && userRole === "SUPER_ADMIN",
+      totalProfit
+    });
+  }, [hasSubmittedFinalQuote, userRole, totalProfit]);
+  
+  // Debug the hasSubmittedFinalQuote state
+  useEffect(() => {
+    console.log('📊 hasSubmittedFinalQuote state changed:', hasSubmittedFinalQuote);
+  }, [hasSubmittedFinalQuote]);
+  
+  // Debug effect to monitor hasSubmittedFinalQuote changes
+  useEffect(() => {
+    console.log('🔄 hasSubmittedFinalQuote changed:', hasSubmittedFinalQuote);
+  }, [hasSubmittedFinalQuote]);
 
   // Reset form fields when switching between proposals
   useEffect(() => {
@@ -424,10 +518,10 @@ const RequestSplitView: React.FC = () => {
     setEditableLicenseCount("0");
   }, [currentProposal]);
 
+  // Disable status transitions while in Negotiation Stage until a final proposal is submitted,
+  // regardless of user role
   const isTransitionDisabled =
-    userRole !== "SUPER_ADMIN" &&
-    isInNegotiationStage &&
-    !hasSubmittedFinalQuote;
+    isInNegotiationStage && !hasSubmittedFinalQuote;
 
   const formatAsYMD = (val: string) => {
     if (!val) return "";
@@ -471,6 +565,7 @@ const RequestSplitView: React.FC = () => {
 
   // fetch issue details (comments/attachments)
   const fetchIssueDetails = async (issueKey: string) => {
+    console.log('📥 fetchIssueDetails called for issue:', issueKey);
     // Ensure we have a valid issue key before proceeding
     if (!issueKey || issueKey === 'undefined') {
       console.warn('Attempted to fetch issue details with invalid issue key:', issueKey);
@@ -577,7 +672,7 @@ const RequestSplitView: React.FC = () => {
 
       setAttachments(transformedAttachments);
 
-      // Skip automatic profit data fetching to prevent repeated server errors
+      // Skip automatic optimized cost data fetching to prevent repeated server errors
       // Users can manually refresh if needed using the retry button
 
       const allActivities: Activity[] = [
@@ -620,6 +715,7 @@ const RequestSplitView: React.FC = () => {
   };
 
   const loadProposals = async (issueKey: string) => {
+    console.log('📥 loadProposals called for issue:', issueKey);
     try {
       setIsLoadingProposals(true);
       const res = await fetch(
@@ -630,6 +726,7 @@ const RequestSplitView: React.FC = () => {
         throw new Error("Failed to load proposals");
       }
       const data: ContractProposalDto[] = await res.json();
+      console.log('📥 Loaded proposals for issue:', issueKey, data);
       setProposals(data || []);
 
       // Update submitted proposals state based on loaded data
@@ -665,14 +762,24 @@ const RequestSplitView: React.FC = () => {
       setSubmittedProposals(submitted);
 
       // If any proposal is final → allow transition from negotiation
-      const hasFinal = (data || []).some((p) => p.final);
-      setHasSubmittedFinalQuote(hasFinal);
+      const hasBackendFinal = (data || []).some((p) => p.final);
+      const hasTypeFinal = submitted.final;
+      const hasFinal = hasBackendFinal || hasTypeFinal;
+      console.log('🔍 Checking for final proposals in loaded data:', { hasBackendFinal, hasTypeFinal, hasFinal, dataLength: data?.length || 0 });
+      // Only set hasSubmittedFinalQuote to false if it's currently false or if there are no final proposals
+      // This prevents resetting the state when a final proposal has been submitted but not yet reflected in backend
+      setHasSubmittedFinalQuote(prev => {
+        const newValue = prev || hasFinal;
+        console.log('🔄 Updating hasSubmittedFinalQuote:', { prev, hasFinal, newValue });
+        return newValue;
+      });
 
-      // Skip automatic profit data fetching to prevent repeated server errors
+      // Skip automatic optimized cost data fetching to prevent repeated server errors
       // Users can manually refresh if needed using the retry button
     } catch (err) {
       console.error("Error loading proposals:", err);
       setProposals([]);
+      console.log('🔧 Setting hasSubmittedFinalQuote to false (error loading proposals)');
       setHasSubmittedFinalQuote(false);
       // Reset submitted proposals on error
       setSubmittedProposals({
@@ -701,9 +808,15 @@ const RequestSplitView: React.FC = () => {
       document.removeEventListener("mousedown", handleClickOutside);
   }, [isMoreDropdownOpen]);
 
+  const selectedIssueKey = selectedIssue?.key;
+
   useEffect(() => {
-    if (selectedIssue?.key) fetchIssueDetails(selectedIssue.key);
-  }, [selectedIssue]);
+    console.log('📥 useEffect triggered to fetch issue details, selectedIssue:', selectedIssueKey);
+    if (selectedIssueKey) {
+      console.log('📥 Calling fetchIssueDetails for issue:', selectedIssueKey);
+      fetchIssueDetails(selectedIssueKey);
+    }
+  }, [selectedIssueKey]);
 
   useEffect(() => {
     if (selectedIssue?.key) {
@@ -713,6 +826,7 @@ const RequestSplitView: React.FC = () => {
 
   // initial fetch for projects/issues/etc.
   useEffect(() => {
+    console.log('📥 Initial fetch useEffect triggered, issueKey:', issueKey);
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -797,6 +911,7 @@ const RequestSplitView: React.FC = () => {
             allIssues = (issuesResponse as any).issues;
         }
 
+        console.log('📥 Fetched all issues count:', allIssues.length);
         setIssues(allIssues);
 
         const uniqueStatuses = Array.from(
@@ -833,12 +948,18 @@ const RequestSplitView: React.FC = () => {
         setAssignees(uniqueAssignees);
 
         if (issueKey) {
+          console.log('🔍 Looking for issue in allIssues, issueKey:', issueKey);
+          console.log('📋 allIssues length:', allIssues.length);
           const foundIssue =
             allIssues.find((issue) => issue.key === issueKey) || null;
+          console.log('🔍 Found issue:', foundIssue);
           setSelectedIssue(foundIssue);
           if (foundIssue)
             setSelectedStatus(foundIssue.fields.status?.name || "");
-        } else setSelectedIssue(null);
+        } else {
+          console.log('⚠️ No issueKey, setting selectedIssue to null');
+          setSelectedIssue(null);
+        }
       } catch (err) {
         console.error("Error fetching data:", err);
         setError("Failed to fetch issues. Please try again later.");
@@ -851,12 +972,20 @@ const RequestSplitView: React.FC = () => {
 
   // Fetch full issue details when page is opened
   useEffect(() => {
+    console.log('📥 Fetch full issue useEffect triggered, issueKey:', issueKey);
     // Ensure we have a valid issue key before proceeding
-    if (!issueKey || issueKey === 'undefined') return;
+    if (!issueKey || issueKey === 'undefined') {
+      console.log('⚠️ Invalid issueKey, returning early');
+      return;
+    }
+    
+    console.log('📥 About to call loadFullIssue, issueKey:', issueKey);
 
     const loadFullIssue = async () => {
+      console.log('📥 loadFullIssue called, issueKey:', issueKey);
       try {
         const fullIssue = await jiraService.getIssueByIdOrKey(issueKey);
+        console.log('📥 Received fullIssue:', fullIssue?.key);
         setSelectedIssue(fullIssue);
       } catch (err: any) {
         console.error("Error loading full issue:", err);
@@ -964,7 +1093,9 @@ const RequestSplitView: React.FC = () => {
   const handleIssueClick = (issue: Issue) => {
     setSelectedIssue(issue);
     setSelectedStatus(issue.fields.status?.name || "");
+    console.log('🔧 Setting hasSubmittedFinalQuote to false (handleIssueClick)');
     setHasSubmittedFinalQuote(false);
+    previousIssueKeyRef.current = issue.key;
     navigate(`/request-management/${issue.key}`, { replace: true });
   };
 
@@ -979,33 +1110,56 @@ const RequestSplitView: React.FC = () => {
     });
   };
 
-  const getStatusColorClass = (statusCategoryColor?: string) => {
-    if (!statusCategoryColor)
-      return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200";
-    const colorMap: Record<string, string> = {
-      "blue-gray":
+  // Map Jira-like status names to attractive, distinct color chips (similar to Jira)
+  const getStatusColorClass = (statusName?: string) => {
+    const map: Record<string, string> = {
+      // Draft / early
+      "Request Created":
+        "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+      "Pre-Approval":
+        "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200",
+      "Request Review":
         "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-      "medium-gray":
-        "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
-      yellow:
-        "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-      green:
-        "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-      blue: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-      brown:
-        "bg-amber-200 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-      "warm-red":
-        "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-      purple:
+      // Negotiation / in progress
+      "Negotiation Stage":
         "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+      "In Progress":
+        "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200",
+      // Approved / done
+      "Post Approval":
+        "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
+      Completed:
+        "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+      Done: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+      // Negative / declined
+      Declined:
+        "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+      "On Hold":
+        "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
     };
+
     return (
-      colorMap[statusCategoryColor] ||
+      map[statusName || ""] ||
       "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
     );
   };
-  const getStatusColor = (colorName?: string) => {
-    const colorMap: Record<string, string> = {
+
+  // Solid color for status badges & transition dots
+  const getStatusColor = (statusNameOrCategory?: string) => {
+    const byStatusName: Record<string, string> = {
+      "Request Created": "#6B778C", // neutral gray
+      "Pre-Approval": "#0C66E4", // sky/blue
+      "Request Review": "#0052CC", // Jira blue
+      "Negotiation Stage": "#6554C0", // purple
+      "In Progress": "#4C6FFF", // indigo
+      "Post Approval": "#1F845A", // teal/green
+      Completed: "#22A06B", // green
+      Done: "#22A06B",
+      Declined: "#E34935", // red
+      "On Hold": "#B06500", // amber
+    };
+
+    const byCategory: Record<string, string> = {
       "blue-gray": "#42526E",
       "medium-gray": "#97A0AF",
       yellow: "#FFC400",
@@ -1015,7 +1169,9 @@ const RequestSplitView: React.FC = () => {
       "warm-red": "#DE350B",
       purple: "#6554C0",
     };
-    return colorMap[colorName || ""] || "#A5ADBA";
+
+    const key = statusNameOrCategory || "";
+    return byStatusName[key] || byCategory[key] || "#A5ADBA";
   };
 
   // Insert a reply into the nested comments tree
@@ -1554,10 +1710,11 @@ const RequestSplitView: React.FC = () => {
       await fetchIssueDetails(issueKey);
 
       if (isFinal) {
+        console.log('🔧 Setting hasSubmittedFinalQuote to true in handleSubmitQuote (isFinal)');
         setHasSubmittedFinalQuote(true);
 
-        // Calculate total profit before saving
-        let calculatedTotalProfit = 0;
+        // Calculate total optimized cost before saving
+        let calculatedTotalOptimizedCost = 0;
         if (proposals.length > 0) {
           // Find the last submitted non-final proposal based on user's path
           let lastNonFinalProposal = null;
@@ -1574,13 +1731,13 @@ const RequestSplitView: React.FC = () => {
             ? Number(lastNonFinalProposal.totalCost || 0)
             : 0;
           const currentTotalCost = Number(totalCost || 0);
-          calculatedTotalProfit = lastTotalCost - currentTotalCost;
+          calculatedTotalOptimizedCost = lastTotalCost - currentTotalCost;
         }
 
-        // Set the total profit state
-        setTotalProfit(calculatedTotalProfit);
+        // Set the total optimized cost state
+        setTotalProfit(calculatedTotalOptimizedCost);
 
-        // Save total profit along with license count
+        // Save total optimized cost along with license count
         try {
           // Log the payload for debugging
           // Ensure editableLicenseCount is a number
@@ -1602,7 +1759,7 @@ const RequestSplitView: React.FC = () => {
             issueKey,
             newLicenseCount: licenseCountValue,
             licenseCount: licenseCountValue,  // Alternative field name
-            totalProfit: calculatedTotalProfit
+            totalProfit: calculatedTotalOptimizedCost
           };
           console.log('Sending update-license-count request with payload:', payload);
           
@@ -1663,6 +1820,9 @@ const RequestSplitView: React.FC = () => {
   };
 
   const handleFinalSubmit = async () => {
+    console.log('🚀 handleFinalSubmit called');
+    console.log('📄 Selected issue:', selectedIssue);
+    console.log('📊 Current hasSubmittedFinalQuote before submission:', hasSubmittedFinalQuote);
     if (!selectedIssue) {
       alert("No issue selected");
       return;
@@ -1674,6 +1834,7 @@ const RequestSplitView: React.FC = () => {
       const issueKey = selectedIssue.key;
       
       // Trigger final submission process
+      console.log('📡 Sending final-submit request for issue:', issueKey);
       const response = await fetch(
         `http://localhost:8080/api/jira/contracts/final-submit/${issueKey}`,
         {
@@ -1681,25 +1842,33 @@ const RequestSplitView: React.FC = () => {
           headers: { "Content-Type": "application/json" },
         }
       );
+      console.log('📡 Final-submit response status:', response.status);
 
       if (!response.ok) {
         throw new Error("Failed to finalize submission");
       }
 
+      // Set hasSubmittedFinalQuote to true immediately after successful submission
+      console.log('🔧 Setting hasSubmittedFinalQuote to true in handleFinalSubmit');
+      console.log('📊 hasSubmittedFinalQuote before setting:', hasSubmittedFinalQuote);
+      setHasSubmittedFinalQuote(true);
+      console.log('🔧 hasSubmittedFinalQuote set to true');
+      console.log('📊 hasSubmittedFinalQuote after setting:', hasSubmittedFinalQuote);
+      
       // Refresh issue details to get updated status
       await fetchIssueDetails(issueKey);
       
       // Try to fetch profit data after successful final submission
       try {
+        console.log('📡 Fetching profit data for issue:', issueKey);
         const profitResponse = await fetch(
           `http://localhost:8080/api/jira/contracts/profit/${issueKey}`
         );
+        console.log('📡 Profit data response status:', profitResponse.status);
         if (profitResponse.ok) {
           const profitData = await profitResponse.json();
           setTotalProfit(profitData.totalProfit);
-          if (profitData.hasSubmittedFinalQuote) {
-            setHasSubmittedFinalQuote(true);
-          }
+          // Backend confirmation is not needed since we already set it to true above
         }
       } catch (profitError) {
         console.warn('Failed to fetch profit data after final submission:', profitError);
@@ -1715,43 +1884,99 @@ const RequestSplitView: React.FC = () => {
       });
     } catch (error) {
       console.error("Error in final submission:", error);
+      console.log('🔧 Error in final submission, not setting hasSubmittedFinalQuote to true');
+      console.log('📊 hasSubmittedFinalQuote during error:', hasSubmittedFinalQuote);
       alert("Failed to complete final submission. Please try again.");
     } finally {
+      console.log('🏁 handleFinalSubmit completed');
+      console.log('📊 hasSubmittedFinalQuote at end of function:', hasSubmittedFinalQuote);
       setIsSubmittingQuote(false);
     }
   };
 
-  const refreshProfitData = async () => {
-    if (!selectedIssue?.key) return;
+  const refreshOptimizedCostData = async () => {
+    console.log('🔄🔄🔄 REFRESH OPTIMIZED COST DATA FUNCTION CALLED 🔄🔄🔄');
+    console.log('🔄 refreshOptimizedCostData called for issue:', selectedIssue?.key);
+    console.log('📊 Current state values:', { hasSubmittedFinalQuote, userRole, totalProfit });
+    console.log('📍 Call stack trace:');
+    console.trace('Function call trace');
+    
+    if (!selectedIssue?.key) {
+      console.log('❌ No selected issue key, returning early');
+      return;
+    }
+    
+    // Log all available fields for debugging
+    if (selectedIssue.fields) {
+      const fieldKeys = Object.keys(selectedIssue.fields);
+      console.log('📊 Available fields in selectedIssue:', selectedIssue.key, '-', fieldKeys.length, 'fields');
+      console.log('🔍 Does customfield_10471 exist?', fieldKeys.includes('customfield_10471'));
+      console.log('📋 Sample field keys:', fieldKeys.filter(key => key.startsWith('customfield_')).slice(0, 20));
+      
+      // Check for similar fields
+      const similarFields = fieldKeys.filter(k => k.includes('104'));
+      console.log('🔎 Fields with 104 in ID:', similarFields);
+      
+      if (fieldKeys.includes('customfield_10471')) {
+        const fieldValue = selectedIssue.fields['customfield_10471'];
+        console.log('💰 customfield_10471 value:', fieldValue);
+        console.log('💰 customfield_10471 type:', typeof fieldValue);
+        console.log('💰 customfield_10471 is null/undefined?:', fieldValue == null);
+      } else {
+        console.log('❓ Looking for customfield_10471 but not found');
+      }
+    } else {
+      console.log('❌ No fields object in selectedIssue');
+    }
     
     try {
-      // First, try to get the profit value directly from the custom field
-      const profitFieldValue = getFieldValue(["customfield_10405"]);
+      console.log('🚀 Attempting to fetch customfield_10471 for issue:', selectedIssue.key);
+      // First, try to get the total optimized cost value directly from the custom field
+      console.log('🔍 Trying to get customfield_10471 value via getFieldValue');
+      const profitFieldValue = getFieldValue(["customfield_10471"]);
+      console.log('📊 getFieldValue returned:', profitFieldValue);
+      console.log('📊 getFieldValue truthy check:', !!profitFieldValue);
+      
       if (profitFieldValue) {
-        // Parse the profit value from the custom field
+        // Parse the total optimized cost value from the custom field
         const profitValue = parseFloat(profitFieldValue);
+        console.log('📈 Parsed profit value:', profitValue);
+        console.log('📈 isNaN check:', isNaN(profitValue));
+        
         if (!isNaN(profitValue)) {
           setTotalProfit(profitValue);
           return;
         }
       }
       
+      console.log('⚠️ Field value is empty or invalid, setting totalProfit to null');
+      setTotalProfit(null);
+      
       // If we can't get it from the custom field, try fetching from backend
+      console.log('📡 Making backend call to fetch profit data for:', selectedIssue.key);
       const profitResponse = await fetch(
         `http://localhost:8080/api/jira/contracts/profit/${selectedIssue.key}`
       );
+      console.log('📡 Backend response status:', profitResponse.status);
+      
       if (profitResponse.ok) {
         const profitData = await profitResponse.json();
+        console.log('📡 Backend profit data:', profitData);
         setTotalProfit(profitData.totalProfit);
         if (profitData.hasSubmittedFinalQuote) {
+          console.log('🔧 Setting hasSubmittedFinalQuote to true from backend profitData');
           setHasSubmittedFinalQuote(true);
         }
       } else {
         console.warn('Failed to fetch profit data: Server returned', profitResponse.status, profitResponse.statusText);
+        console.log('📡 Backend call failed, setting totalProfit to null');
+        setTotalProfit(null);
         // Remove the alert message as requested
       }
     } catch (error) {
       console.warn('Failed to fetch profit data:', error);
+      console.log('📡 Error occurred, setting totalProfit to null');
+      setTotalProfit(null);
       // Remove the alert message as requested
     }
   };
@@ -2253,9 +2478,11 @@ const RequestSplitView: React.FC = () => {
                               : ""
                           }`}
                           style={{
+                            // Use status name so each status gets its own Jira-like color
                             backgroundColor: getStatusColor(
-                              selectedIssue?.fields?.status?.statusCategory
-                                ?.colorName
+                              selectedIssue?.fields?.status?.name ||
+                                selectedIssue?.fields?.status?.statusCategory
+                                  ?.colorName
                             ),
                             color: "white",
                           }}
@@ -2306,9 +2533,12 @@ const RequestSplitView: React.FC = () => {
                                       <span
                                         className="w-2.5 h-2.5 rounded-full mr-2"
                                         style={{
+                                          // Prefer target status name for richer palette,
+                                          // fall back to category color if needed
                                           backgroundColor: getStatusColor(
-                                            transition.to?.statusCategory
-                                              ?.colorName
+                                            transition.to?.name ||
+                                              transition.to?.statusCategory
+                                                ?.colorName
                                           ),
                                         }}
                                       ></span>
@@ -2331,11 +2561,17 @@ const RequestSplitView: React.FC = () => {
                       selectedIssue?.fields?.status?.name ===
                         "Negotiation Stage" && (
                         <button
-                          onClick={() => setIsUploadQuoteModalOpen(true)}
+                          onClick={() => {
+                            console.log('📤 Upload Quote button clicked, hasSubmittedFinalQuote:', hasSubmittedFinalQuote);
+                            setIsUploadQuoteModalOpen(true);
+                          }}
                           disabled={hasSubmittedFinalQuote}
                           className={`inline-flex items-center px-3 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${hasSubmittedFinalQuote ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
                         >
-                          {hasSubmittedFinalQuote ? "Quote Submitted" : "Upload Quote"}
+                          {(() => {
+                            console.log('📤 Upload Quote button render check, hasSubmittedFinalQuote:', hasSubmittedFinalQuote);
+                            return hasSubmittedFinalQuote ? "Quote Submitted" : "Upload Quote";
+                          })()}
                         </button>
                       )}
                   </div>
@@ -2425,18 +2661,21 @@ const RequestSplitView: React.FC = () => {
                           </>
                         )}
 
-                        {/* Display total profit if final proposal has been submitted and user is SUPER_ADMIN */}
-                        {hasSubmittedFinalQuote && userRole === "SUPER_ADMIN" && (
+                        {/* Show optimized cost only after final quote submission */}
+                        {userRole === "SUPER_ADMIN" && hasSubmittedFinalQuote && (
                           <div>
                             <div className="flex justify-between items-center">
                               <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                                Total Profit
+                                Total Optimized Cost
                               </h4>
                               {totalProfit === null && (
                                 <button 
-                                  onClick={refreshProfitData}
+                                  onClick={() => {
+                                    console.log('🔁 Retry button clicked for Total Optimized Cost');
+                                    refreshOptimizedCostData();
+                                  }}
                                   className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                                  title="Refresh profit data"
+                                  title="Refresh optimized cost data"
                                 >
                                   Retry
                                 </button>
@@ -2448,7 +2687,7 @@ const RequestSplitView: React.FC = () => {
                               </div>
                             ) : (
                               <div className="text-gray-500 dark:text-gray-400 text-sm">
-                                Profit data unavailable
+                                Optimized cost data unavailable
                               </div>
                             )}
                           </div>
@@ -2670,6 +2909,98 @@ const RequestSplitView: React.FC = () => {
                         </div>
                       )}
                     </div>
+
+                  {/* Proposals Section */}
+                  <div className="border-b border-gray-200 dark:border-gray-700 pb-2 mb-4 mt-8">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Proposals
+                    </h2>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    {isLoadingProposals ? (
+                      <div className="text-center py-4">
+                        <div className="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+                        <p className="mt-2 text-gray-600 dark:text-gray-400">Loading proposals...</p>
+                      </div>
+                    ) : proposals.length === 0 ? (
+                      <div className="text-center py-6">
+                        <svg
+                          className="w-12 h-12 mx-auto text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          ></path>
+                        </svg>
+                        <p className="mt-2 text-gray-500 dark:text-gray-400">No proposals yet</p>
+                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                          Upload your first proposal using the button above
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                        {proposals.map((p) => (
+                          <div
+                            key={p.id}
+                            className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-semibold text-gray-900 dark:text-white">
+                                  {p.proposalType} Proposal #{p.proposalNumber}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(p.createdAt).toLocaleString()}
+                                </p>
+                              </div>
+
+                              <button
+                                onClick={() => handlePreviewProposal(p.id)}
+                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                              >
+                                Preview
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+                              <div>
+                                <p className="text-gray-500 dark:text-gray-400">License Count</p>
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {p.licenseCount}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-gray-500 dark:text-gray-400">Unit Cost</p>
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  ₹ {p.unitCost}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-gray-500 dark:text-gray-400">Total Cost</p>
+                                <p className="font-bold text-green-600 dark:text-green-400">
+                                  ₹ {p.totalCost}
+                                </p>
+                              </div>
+
+                              <div>
+                                <p className="text-gray-500 dark:text-gray-400">Comment</p>
+                                <p className="text-gray-900 dark:text-white">
+                                  {p.comment || "-"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                     {/* Activity / Comments */}
                     <div id="activity-section">
@@ -3121,194 +3452,115 @@ const RequestSplitView: React.FC = () => {
                 />
               </div>
 
-               <div>
-  <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
-    Attach Quote Files
-  </label>
- 
-  <label className="w-28 h-9 flex items-center justify-center border border-gray-300 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
-    Choose File
-    <input
-      type="file"
-      multiple
-      className="hidden"
-      onChange={(e) => {
-        if (e.target.files) {
-          setQuoteAttachments(Array.from(e.target.files));
-        }
-      }}
-    />
-  </label>
-</div>
+              <div>
+                <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
+                  Attach Quote Files
+                </label>
 
-              <div className="mt-6">
-                <h2 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-                  Previous Proposals
-                </h2>
+                <label className="w-28 h-9 flex items-center justify-center border border-gray-300 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                  Choose File
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        setQuoteAttachments(Array.from(e.target.files));
+                      }
+                    }}
+                  />
+                </label>
 
-                {isLoadingProposals ? (
-                  <p className="text-gray-500 dark:text-gray-400">
-                    Loading proposals...
-                  </p>
-                ) : proposals.length === 0 ? (
-                  <p className="text-gray-500 dark:text-gray-400 italic">
-                    No proposals yet.
-                  </p>
-                ) : (
-                  <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
-                    {proposals.map((p) => (
-                      <div
-                        key={p.id}
-                        className="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
+                {/* Selected quote attachments preview list */}
+                {quoteAttachments.length > 0 && (
+                  <ul className="mt-3 space-y-2">
+                    {quoteAttachments.map((file, index) => (
+                      <li
+                        key={`${file.name}-${index}`}
+                        className="flex items-center justify-between rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm"
                       >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {p.proposalType} Proposal #{p.proposalNumber}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-200 text-xs font-semibold">
+                            {file.name.charAt(0).toUpperCase()}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-gray-900 dark:text-gray-100">
+                              {file.name}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {new Date(p.createdAt).toLocaleString()}
+                              {Math.round(file.size / 1024)} KB
                             </p>
                           </div>
-
+                        </div>
+                        <div className="flex items-center gap-2 ml-3 shrink-0">
+                          {/* Eye icon to preview the file in a new tab */}
                           <button
-                            onClick={() => handlePreviewProposal(p.id)}
-                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                            type="button"
+                            onClick={() => {
+                              const url = URL.createObjectURL(file);
+                              window.open(url, "_blank");
+                              // Revoke after some time to avoid memory leaks
+                              setTimeout(() => URL.revokeObjectURL(url), 30000);
+                            }}
+                            className="inline-flex items-center justify-center rounded-full p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-300 dark:hover:text-blue-300 dark:hover:bg-blue-900 transition-colors"
+                            title="Preview file"
                           >
-                            Preview
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                              />
+                            </svg>
+                          </button>
+
+                          {/* X button to remove file before submit */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuoteAttachments((prev) =>
+                                prev.filter((_, i) => i !== index)
+                              );
+                            }}
+                            className="inline-flex items-center justify-center rounded-full p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-gray-300 dark:hover:text-red-300 dark:hover:bg-red-900 transition-colors"
+                            title="Remove file"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
                           </button>
                         </div>
-
-                        <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
-                          <div>
-                            <p className="text-gray-500 dark:text-gray-400">
-                              License Count
-                            </p>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {p.licenseCount}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="text-gray-500 dark:text-gray-400">
-                              Unit Cost
-                            </p>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              ₹ {p.unitCost}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="text-gray-500 dark:text-gray-400">
-                              Total Cost
-                            </p>
-                            <p className="font-bold text-green-600 dark:text-green-400">
-                              ₹ {p.totalCost}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="text-gray-500 dark:text-gray-400">
-                              Comment
-                            </p>
-                            <p className="text-gray-900 dark:text-white">
-                              {p.comment || "-"}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Display attachments for this proposal */}
-                        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-                            Attachments
-                          </h4>
-                          <div className="space-y-2">
-                            {attachments
-                              .filter(att => att.proposalId === p.id)
-                              .map(att => (
-                                <div 
-                                  key={att.id} 
-                                  className="flex items-center justify-between p-2 bg-white dark:bg-gray-600 rounded border border-gray-200 dark:border-gray-500"
-                                >
-                                  <div className="flex items-center">
-                                    <svg 
-                                      className="w-5 h-5 text-gray-400 mr-2" 
-                                      xmlns="http://www.w3.org/2000/svg" 
-                                      viewBox="0 0 20 20" 
-                                      fill="currentColor"
-                                    >
-                                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                                    </svg>
-                                    <span className="text-sm text-gray-700 dark:text-gray-200">
-                                      {att.fileName || att.filename}
-                                    </span>
-                                  </div>
-                                  <button
-                                    onClick={() => {
-                                      setPreviewAttachment(att);
-                                      setShowAttachmentPreview(true);
-                                    }}
-                                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
-                                  >
-                                    View
-                                  </button>
-                                </div>
-                              ))
-                            }
-                            {attachments.filter(att => att.proposalId === p.id).length === 0 && (
-                              <p className="text-sm text-gray-500 dark:text-gray-400 italic">
-                                No attachments for this proposal
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        {p.final && proposals.length > 1 && (
-                          <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-700 rounded border border-yellow-400">
-                            <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                              Profit Calculation
-                            </h4>
-
-                            {(() => {
-                              // Sort proposals by proposal number
-                              const sorted = [...proposals].sort(
-                                (a, b) => a.proposalNumber - b.proposalNumber
-                              );
-
-                              const finalP = sorted[sorted.length - 1];
-                              
-                              // Find the last non-final proposal (could be first, second, or third)
-                              let lastNonFinalP = null;
-                              for (let i = sorted.length - 2; i >= 0; i--) {
-                                if (!sorted[i].final) {
-                                  lastNonFinalP = sorted[i];
-                                  break;
-                                }
-                              }
-                              
-                              if (!lastNonFinalP) return null;
-                              
-                              const profit =
-                                Number(lastNonFinalP.totalCost) -
-                                Number(finalP.totalCost);
-
-                              return (
-                                <div className="mt-1 text-sm">
-                                  <p>{lastNonFinalP.proposalType} Total: ₹ {lastNonFinalP.totalCost}</p>
-                                  <p>Final Total: ₹ {finalP.totalCost}</p>
-                                  <p className="font-bold text-blue-800 dark:text-blue-300 mt-1">
-                                    Profit: ₹ {profit}
-                                  </p>
-                                </div>
-                              );
-                            })()}
-                          </div>
-                        )}
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
               </div>
+
+
             </div>
 
             <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">

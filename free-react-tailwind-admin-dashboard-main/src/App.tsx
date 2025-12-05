@@ -47,7 +47,8 @@ import CompleteInvitation from "./pages/CompleteInvitation";
 import ProtectedPermissionRoute from "./components/auth/ProtectedPermissionRoute";
 import { Permission } from "./config/permissions";
 import Organizations from "./pages/Organizations";
-
+// import AttachmentTestPage from "./pages/AttachmentTestPage";
+// import SimpleAttachmentTest from "./pages/SimpleAttachmentTest";
 export default function App() {
   return (
     <>
@@ -362,6 +363,23 @@ export default function App() {
               } 
             />
 
+            {/* Attachment Testing Page - For development/testing purposes
+            <Route 
+              path="/attachment-test" 
+              element={
+                <ProtectedRoute>
+                  <AttachmentTestPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/simple-attachment-test" 
+              element={
+                <ProtectedRoute>
+                  <SimpleAttachmentTest />
+                </ProtectedRoute>
+              } 
+            /> */}
             <Route
               path="/request-management/resolved"
               element={

@@ -322,7 +322,7 @@ public class ContractDetailsService {
                             updateFields.put(jiraFieldConfig.getNewLicenseCount(), String.valueOf(newLicenseCount));
                         }
                         if (totalProfit != null) {
-                            updateFields.put(jiraFieldConfig.getTotalprofit(), String.valueOf(totalProfit));
+                            updateFields.put(jiraFieldConfig.getTotaloptimizedcost(), String.valueOf(totalProfit));
                         }
                         
                         if (!updateFields.isEmpty()) {
@@ -368,23 +368,23 @@ public class ContractDetailsService {
                 if (!isNewlyCreatedContract || "Completed".equalsIgnoreCase(issueStatus) || "completed".equalsIgnoreCase(issueStatus)) {
                     try {
                         Map<String, Object> updateFields = new HashMap<>();
-                        updateFields.put(jiraFieldConfig.getTotalprofit(), String.valueOf(totalProfit));
+                        updateFields.put(jiraFieldConfig.getTotaloptimizedcost(), String.valueOf(totalProfit));
                         
                         jiraService.updateIssue(issueKey, updateFields);
-                        logger.info("Updated total profit in Jira custom field to {} for issueKey: {}", totalProfit, issueKey);
+                        logger.info("Updated total optimized cost in Jira custom field to {} for issueKey: {}", totalProfit, issueKey);
                     } catch (Exception e) {
-                        logger.warn("Failed to update total profit in Jira custom field for issueKey: {}", issueKey, e);
+                        logger.warn("Failed to update total optimized cost in Jira custom field for issueKey: {}", issueKey, e);
                     }
                 }
                 
-                // Also store the profit in the comment field as a backup
+                // Also store the optimized cost in the comment field as a backup
                 String additionalComment = contract.getAdditionalComment();
                 if (additionalComment == null) {
                     additionalComment = "";
                 }
-                additionalComment += "\nTotal Profit: " + totalProfit;
+                additionalComment += "\nTotal Optimized Cost: " + totalProfit;
                 contract.setAdditionalComment(additionalComment);
-                logger.info("Updated total profit in comment field to {} for issueKey: {}", totalProfit, issueKey);
+                logger.info("Updated total optimized cost in comment field to {} for issueKey: {}", totalProfit, issueKey);
             }
             
             // Save the updated contract

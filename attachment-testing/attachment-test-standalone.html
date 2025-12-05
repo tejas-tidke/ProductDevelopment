@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attachment Testing Page</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 2s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-white rounded-lg shadow-md p-6 max-w-4xl mx-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800 mb-2">Standalone Attachment Testing Page</h1>
+                    <p class="text-gray-600">Test the attachment functionality with local storage and Jira integration</p>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Test Type</label>
+                <div class="flex space-x-4">
+                    <label class="inline-flex items-center">
+                        <input type="radio" class="form-radio" name="testType" value="create" checked>
+                        <span class="ml-2">Create Issue + Attach</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="radio" class="form-radio" name="testType" value="attach">
+                        <span class="ml-2">Attach to Existing Issue</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Select File</label>
+                <input type="file" id="fileInput" class="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-md file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100">
+                <div id="fileInfo" class="mt-2 text-sm text-gray-600 hidden"></div>
+            </div>
+
+            <div class="mb-6">
+                <button id="testButton" class="px-4 py-2 rounded-md text-white font-medium bg-blue-600 hover:bg-blue-700">
+                    Create Issue with Attachment
+                </button>
+            </div>
+
+            <div id="resultContainer" class="hidden mb-6"></div>
+
+            <div class="mt-8 pt-6 border-t border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-800 mb-4">Testing Instructions</h2>
+                <ol class="list-decimal list-inside space-y-2 text-gray-600">
+                    <li>Select a test file (any type/size)</li>
+                    <li>Choose test type:
+                        <ul class="list-disc list-inside ml-6 mt-1">
+                            <li>"Create Issue + Attach" - Creates a new procurement request and attaches the file</li>
+                            <li>"Attach to Existing Issue" - Attaches the file to an existing issue</li>
+                        </ul>
+                    </li>
+                    <li>Click the test button to execute</li>
+                    <li>Check the results panel for success/failure messages</li>
+                    <li>Verify in Jira that the attachment was properly uploaded</li>
+                </ol>
+                
+                <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <h3 class="font-medium text-yellow-800 mb-2">API Configuration</h3>
+                    <p class="text-yellow-700">
+                        This test page communicates with the backend API at: <code class="bg-yellow-100 px-1 rounded" id="apiUrl">http://localhost:8080</code>
+                    </p>
+                    <div class="mt-2">
+                        <label class="block text-sm text-yellow-700">Change API URL:</label>
+                        <input type="text" id="apiUrlInput" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-yellow-500 focus:ring-yellow-500 sm:text-sm" value="http://localhost:8080">
+                        <button id="updateApiUrl" class="mt-2 px-3 py-1 bg-yellow-500 text-white rounded text-sm">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const testButton = document.getElementById('testButton');
+        const resultContainer = document.getElementById('resultContainer');
+        const apiUrlElement = document.getElementById('apiUrl');
+        const apiUrlInput = document.getElementById('apiUrlInput');
+        const updateApiUrlButton = document.getElementById('updateApiUrl');
+        
+        // State
+        let selectedFile = null;
+        let apiUrl = 'http://localhost:8080';
+        let testType = 'create';
+
+        // Event Listeners
+        fileInput.addEventListener('change', handleFileSelect);
+        testButton.addEventListener('click', handleTest);
+        updateApiUrlButton.addEventListener('click', updateApiUrl);
+        
+        // Radio button listeners
+        document.querySelectorAll('input[name="testType"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                testType = e.target.value;
+                updateButtonText();
+            });
+        });
+
+        // Functions
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedFile = file;
+                fileInfo.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+                fileInfo.classList.remove('hidden');
+            } else {
+                selectedFile = null;
+                fileInfo.classList.add('hidden');
+            }
+        }
+
+        function updateButtonText() {
+            if (testType === 'create') {
+                testButton.innerHTML = 'Create Issue with Attachment';
+            } else {
+                testButton.innerHTML = 'Attach to Existing Issue';
+            }
+        }
+
+        function updateApiUrl() {
+            apiUrl = apiUrlInput.value;
+            apiUrlElement.textContent = apiUrl;
+        }
+
+        async function handleTest() {
+            if (!selectedFile) {
+                showResult('Please select a file first', false);
+                return;
+            }
+
+            if (testType === 'create') {
+                await handleCreateIssueWithAttachment();
+            } else {
+                await handleAttachToFile();
+            }
+        }
+
+        async function handleCreateIssueWithAttachment() {
+            // Show loading state
+            testButton.disabled = true;
+            testButton.innerHTML = '<span class="flex items-center"><span class="loader"></span>Processing...</span>';
+
+            try {
+                // Create a test issue first
+                const issuePayload = {
+                    vendorDetails: {
+                        vendorName: 'Test Vendor',
+                        productName: 'Test Product',
+                        vendorContractType: 'license',
+                        newLicenseCount: 5,
+                        newLicenseUnit: 'users',
+                        contractDuration: 12,
+                        dueDate: new Date().toISOString().split('T')[0],
+                        requesterName: 'Test User',
+                        requesterMail: 'test@example.com',
+                        department: 'IT',
+                        organization: 'Test Org',
+                        contractMode: 'new',
+                        additionalComment: 'Test issue for attachment testing',
+                        attachments: [] // We'll handle the file separately
+                    }
+                };
+
+                console.log('Sending payload:', issuePayload);
+
+                // Create the issue
+                const response = await fetch(`${apiUrl}/api/jira/contracts/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(issuePayload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const createdIssue = await response.json();
+                console.log('Created issue:', createdIssue);
+
+                // If we have an issue key, try to attach the file
+                if (createdIssue.key && selectedFile) {
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', selectedFile);
+
+                        const attachResponse = await fetch(`${apiUrl}/api/jira/issues/${createdIssue.key}/attachments`, {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Atlassian-Token': 'no-check'
+                            }
+                        });
+
+                        if (!attachResponse.ok) {
+                            throw new Error(`Attachment failed with status: ${attachResponse.status}`);
+                        }
+
+                        const attachmentResult = await attachResponse.json();
+                        
+                        showResult(
+                            `Successfully created issue ${createdIssue.key} and attached file`,
+                            true,
+                            createdIssue.key
+                        );
+                    } catch (attachmentError) {
+                        console.error('Attachment error:', attachmentError);
+                        showResult(
+                            `Issue created (${createdIssue.key}) but attachment failed: ${attachmentError.message}`,
+                            false
+                        );
+                    }
+                } else {
+                    showResult(
+                        `Successfully created issue ${createdIssue.key || 'unknown'} (no attachment sent)`,
+                        true
+                    );
+                }
+            } catch (error) {
+                console.error('Create issue error:', error);
+                showResult(`Failed to create issue: ${error.message}`, false);
+            } finally {
+                // Reset button state
+                testButton.disabled = false;
+                updateButtonText();
+            }
+        }
+
+        async function handleAttachToFile() {
+            const issueKey = prompt('Enter existing issue key to attach file to (e.g., PROJ-123):');
+            if (!issueKey) {
+                showResult('Issue key is required', false);
+                return;
+            }
+
+            // Show loading state
+            testButton.disabled = true;
+            testButton.innerHTML = '<span class="flex items-center"><span class="loader"></span>Processing...</span>';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const response = await fetch(`${apiUrl}/api/jira/issues/${issueKey}/attachments`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Atlassian-Token': 'no-check'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                showResult(`Successfully attached file to issue ${issueKey}`, true, issueKey);
+            } catch (error) {
+                console.error('Attachment error:', error);
+                showResult(`Failed to attach file: ${error.message}`, false);
+            } finally {
+                // Reset button state
+                testButton.disabled = false;
+                updateButtonText();
+            }
+        }
+
+        function showResult(message, isSuccess, issueKey = null) {
+            resultContainer.className = `p-4 rounded-md ${isSuccess ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'} block`;
+            resultContainer.innerHTML = `
+                <div class="${isSuccess ? 'text-green-800' : 'text-red-800'} font-medium">
+                    ${message}
+                </div>
+                ${issueKey ? `
+                    <div class="mt-2 text-sm">
+                        Issue Key: <strong>${issueKey}</strong>
+                    </div>
+                ` : ''}
+            `;
+        }
+    </script>
+</body>
+</html>

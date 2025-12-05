@@ -69,6 +69,10 @@ public class JiraFieldConfig {
     // 🔹 Total Profit
     @Value("${jira.customfield.totalprofit}")
     private String totalprofit;
+    
+    // 🔹 Total Optimized Cost
+    @Value("${jira.customfield.totaloptimizedcost}")
+    private String totaloptimizedcost;
 
     // 🔹 Contract Duration
     @Value("${jira.customfield.contractDuration}")
@@ -84,5 +88,9 @@ public class JiraFieldConfig {
     
     public String getTotalprofit() {
         return totalprofit;
+    }
+    
+    public String getTotaloptimizedcost() {
+        return totaloptimizedcost;
     }
 }

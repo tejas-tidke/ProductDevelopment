@@ -1141,25 +1141,25 @@ public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedReq
                 hasSubmittedFinalQuote = proposals.stream().anyMatch(p -> p.isFinal());
                 logger.info("hasSubmittedFinalQuote: {} for issueKey: {}", hasSubmittedFinalQuote, issueKey);
                 
-                // Get the total profit field value directly from Jira
-                logger.info("Calling JiraService to get field value for issueKey: {} and fieldId: {}", issueKey, jiraFieldConfig.getTotalprofit());
-                String totalProfitStr = jiraService.getIssueFieldValue(issueKey, jiraFieldConfig.getTotalprofit());
+                // Get the total optimized cost field value directly from Jira
+                logger.info("Calling JiraService to get field value for issueKey: {} and fieldId: {}", issueKey, jiraFieldConfig.getTotaloptimizedcost());
+                String totalProfitStr = jiraService.getIssueFieldValue(issueKey, jiraFieldConfig.getTotaloptimizedcost());
                 logger.info("Received totalProfitStr: '{}' for issueKey: {}", totalProfitStr, issueKey);
                 if (totalProfitStr != null && !totalProfitStr.isEmpty()) {
                     try {
                         totalProfit = Double.parseDouble(totalProfitStr);
                         logger.info("Parsed totalProfit: {} for issueKey: {}", totalProfit, issueKey);
                     } catch (NumberFormatException e) {
-                        logger.warn("Failed to parse total profit value '{}' for issueKey: {}", totalProfitStr, issueKey, e);
+                        logger.warn("Failed to parse total optimized cost value '{}' for issueKey: {}", totalProfitStr, issueKey, e);
                     }
                 } else {
                     logger.info("totalProfitStr is null or empty for issueKey: {}", issueKey);
                 }
                 
-                logger.info("Successfully retrieved profit data for issueKey: {} - profit: {}, finalSubmitted: {}", 
+                logger.info("Successfully retrieved optimized cost data for issueKey: {} - profit: {}, finalSubmitted: {}", 
                            issueKey, totalProfit, hasSubmittedFinalQuote);
             } catch (Exception e) {
-                logger.warn("Failed to fetch profit data from Jira for issueKey: {}", issueKey, e);
+                logger.warn("Failed to fetch optimized cost data from Jira for issueKey: {}", issueKey, e);
                 // Return default values instead of error to avoid breaking the UI
             }
             
@@ -1394,7 +1394,7 @@ public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
 	}
 
 	/**
-     * Update license count and total profit for a contract
+     * Update license count and total optimized cost for a contract
      * @param payload Request payload containing issueKey, newLicenseCount, and totalProfit
      * @return Response indicating success or failure
      */
@@ -1483,16 +1483,16 @@ public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Missing issueKey"));
             }
             
-            // Calculate total profit before marking as submitted
+            // Calculate total optimized cost before marking as submitted
             Double totalProfit = contractProposalService.calculateTotalProfit(issueKey);
             
-            // Update the total profit in Jira
+            // Update the total optimized cost in Jira
             if (totalProfit != null) {
                 try {
                     // Update the contract with the calculated profit
                     contractDetailsService.updateLicenseCountAndProfit(issueKey, null, totalProfit);
                 } catch (Exception e) {
-                    logger.warn("Failed to update total profit for issueKey: {}", issueKey, e);
+                    logger.warn("Failed to update total optimized cost for issueKey: {}", issueKey, e);
                 }
             }
             
