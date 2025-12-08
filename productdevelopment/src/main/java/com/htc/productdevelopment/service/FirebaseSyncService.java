@@ -364,6 +364,18 @@ public class FirebaseSyncService {
     }
 
     /**
+     * Sync a Firebase user into the local database by UID.
+     * Used by diagnostic/manual sync endpoints.
+     */
+    public User syncFirebaseUserToDB(String uid) throws Exception {
+        if (uid == null || uid.isBlank()) {
+            throw new IllegalArgumentException("UID cannot be null or blank");
+        }
+        logger.info("Syncing Firebase user to DB for UID: {}", uid);
+        return autoSyncUser(uid);
+    }
+
+    /**
      * Check if an email domain is likely to be valid by checking against common providers
      * @param email User email
      * @return true if domain is likely valid, false otherwise

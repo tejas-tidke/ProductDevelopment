@@ -93,33 +93,33 @@ public class DiagnosticController {
         }
     }
     
-    @PostMapping("/test-single-user-sync")
-    public ResponseEntity<?> testSingleUserSync(@RequestBody Map<String, String> requestData) {
-        logger.info("Testing single user sync");
-        
-        try {
-            String uid = requestData.get("uid");
-            if (uid == null || uid.isEmpty()) {
-                return ResponseEntity.badRequest().body("UID is required");
-            }
-            
-            // Try to sync a single user
-            User user = firebaseSyncService.syncFirebaseUserToDB(uid);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "Success");
-            response.put("user", user);
-            
-            logger.info("Single user sync test completed successfully");
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            logger.error("Error during single user sync test: {}", e.getMessage(), e);
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "Failed");
-            response.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(response);
-        }
-    }
+//    @PostMapping("/test-single-user-sync")
+//    public ResponseEntity<?> testSingleUserSync(@RequestBody Map<String, String> requestData) {
+//        logger.info("Testing single user sync");
+//        
+//        try {
+//            String uid = requestData.get("uid");
+//            if (uid == null || uid.isEmpty()) {
+//                return ResponseEntity.badRequest().body("UID is required");
+//            }
+//            
+//            // Try to sync a single user
+//            User user = firebaseSyncService.syncFirebaseUserToDB(uid);
+//            
+//            Map<String, Object> response = new HashMap<>();
+//            response.put("status", "Success");
+//            response.put("user", user);
+//            
+//            logger.info("Single user sync test completed successfully");
+//            return ResponseEntity.ok(response);
+//        } catch (Exception e) {
+//            logger.error("Error during single user sync test: {}", e.getMessage(), e);
+//            Map<String, Object> response = new HashMap<>();
+//            response.put("status", "Failed");
+//            response.put("error", e.getMessage());
+//            return ResponseEntity.status(500).body(response);
+//        }
+//    }
     
     @GetMapping("/test-firebase-list-users")
     public ResponseEntity<?> testFirebaseListUsers() {

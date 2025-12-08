@@ -2,6 +2,8 @@ package com.htc.productdevelopment.service;
 
 import com.htc.productdevelopment.dto.VendorDetailsDTO;
 import com.htc.productdevelopment.model.VendorDetails;
+import com.htc.productdevelopment.model.ContractDetails;
+import com.htc.productdevelopment.repository.ContractDetailsRepository;
 import com.htc.productdevelopment.repository.VendorDetailsRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,9 @@ public class VendorDetailsService {
 
     @Autowired
     private VendorDetailsRepository vendorDetailsRepository;
+    
+    @Autowired
+    private ContractDetailsRepository contractDetailsRepository;
     
 
     // Fetch distinct vendor names for dropdown
@@ -40,6 +45,23 @@ public class VendorDetailsService {
         return vendorDetailsList.stream()
             .map(this::convertToDTO)
             .collect(Collectors.toList());
+    }
+
+    // Fetch contract details for a vendor (existing contracts)
+    public List<ContractDetails> getContractsByVendor(String vendorName) {
+        return contractDetailsRepository.findByNameOfVendorIgnoreCase(vendorName);
+    }
+
+    // Fetch existing license count for a vendor/product (fallback to first vendor match)
+    public Integer getExistingLicenseCount(String vendorName, String productName) {
+        ContractDetails contract;
+        if (productName != null && !productName.isBlank()) {
+            contract = contractDetailsRepository.findByNameOfVendorAndProductNameIgnoreCase(vendorName, productName);
+        } else {
+            List<ContractDetails> contracts = contractDetailsRepository.findByNameOfVendorIgnoreCase(vendorName);
+            contract = contracts.isEmpty() ? null : contracts.get(0);
+        }
+        return contract != null ? contract.getCurrentLicenseCount() : null;
     }
     
     // Convert VendorDetails entity to VendorDetailsDTO

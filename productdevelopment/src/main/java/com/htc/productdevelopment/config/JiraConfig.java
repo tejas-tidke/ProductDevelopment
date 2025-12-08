@@ -9,6 +9,9 @@ import java.time.Duration;
 import org.springframework.context.annotation.Profile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.htc.productdevelopment.service.JiraService;
+import com.htc.productdevelopment.service.jira.JiraCoreService;
+import com.htc.productdevelopment.service.jira.JiraProjectService;
+import com.htc.productdevelopment.service.jira.JiraFieldService;
 
 @Configuration
 @Profile("!test")
@@ -58,7 +61,24 @@ public class JiraConfig {
     // Removed objectMapper bean definition to avoid conflict with JacksonConfig
     
     @Bean
-    public JiraService jiraService(RestTemplate restTemplate, ObjectMapper objectMapper) {
-        return new JiraService(this, restTemplate, objectMapper);
+    public JiraCoreService jiraCoreService(RestTemplate restTemplate, ObjectMapper objectMapper) {
+        return new JiraCoreService(this, restTemplate, objectMapper);
+    }
+    
+    @Bean
+    public JiraFieldService jiraFieldService() {
+        return new JiraFieldService();
+    }
+    
+    @Bean
+    public JiraProjectService jiraProjectService(JiraCoreService jiraCoreService) {
+        return new JiraProjectService(this, jiraCoreService);
+    }
+    
+    @Bean
+    public JiraService jiraService(RestTemplate restTemplate, ObjectMapper objectMapper, 
+                                  JiraCoreService jiraCoreService, JiraProjectService jiraProjectService, 
+                                  JiraFieldService jiraFieldService) {
+        return new JiraService(this, restTemplate, objectMapper, jiraCoreService, jiraProjectService, jiraFieldService);
     }
 }

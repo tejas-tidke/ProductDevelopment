@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.htc.productdevelopment.config.JiraConfig;
 import com.htc.productdevelopment.model.ContractDetails;
 import com.htc.productdevelopment.repository.ContractDetailsRepository;
+import com.htc.productdevelopment.service.jira.JiraCoreService;
+import com.htc.productdevelopment.service.jira.JiraProjectService;
+import com.htc.productdevelopment.service.jira.JiraFieldService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.*;
@@ -30,6 +33,15 @@ class JiraServiceTest {
     @Mock
     private ContractDetailsRepository contractDetailsRepository;
 
+    @Mock
+    private JiraCoreService jiraCoreService;
+
+    @Mock
+    private JiraProjectService jiraProjectService;
+
+    @Mock
+    private JiraFieldService jiraFieldService;
+
     @InjectMocks
     private JiraService jiraService;
 
@@ -37,7 +49,7 @@ class JiraServiceTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         // Initialize the service with mocked dependencies
-        jiraService = new JiraService(jiraConfig, restTemplate, objectMapper);
+        jiraService = new JiraService(jiraConfig, restTemplate, objectMapper, jiraCoreService, jiraProjectService, jiraFieldService);
         
         // Use reflection to set the private contractDetailsRepository field
         try {

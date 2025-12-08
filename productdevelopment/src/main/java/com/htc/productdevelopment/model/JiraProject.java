@@ -98,6 +98,10 @@ public class JiraProject {
         this.lead = lead;
     }
     
+    public void setLeadName(String leadName) {
+        this.lead = leadName;
+    }
+    
     @Override
     public String toString() {
         return "JiraProject{" +

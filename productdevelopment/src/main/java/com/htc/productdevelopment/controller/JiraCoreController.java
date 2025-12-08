@@ -16,21 +16,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Controller class for handling Jira-related API requests
- * This controller provides endpoints for managing Jira projects and issues
+ * Controller class for handling core Jira API requests
+ * This controller provides endpoints for direct interactions with Jira Cloud API
  */
 @RestController
-@RequestMapping("/api/jira")
+@RequestMapping("/api/jira/core")
 
-public class JiraController {
+public class JiraCoreController {
 
     // Logger for tracking controller operations
-    private static final Logger logger = LoggerFactory.getLogger(JiraController.class);
+    private static final Logger logger = LoggerFactory.getLogger(JiraCoreController.class);
     
     // Service for handling Jira operations
     private final JiraService jiraService;
 
-    public JiraController(JiraService jiraService) {
+    public JiraCoreController(JiraService jiraService) {
         this.jiraService = jiraService;
     }
 
@@ -630,17 +630,6 @@ public class JiraController {
         } catch (Exception e) {
             logger.error("Error adding comment to issue: {}", issueIdOrKey, e);
             return ResponseEntity.internalServerError().body(Map.of("message", "Failed to add comment: " + e.getMessage()));
-        }
-    }
-    
-    @GetMapping("/projects/request-management")
-    public ResponseEntity<?> getRequestManagementProject() {
-        try {
-            JsonNode project = jiraService.getRequestManagementProject();
-            return ResponseEntity.ok(project);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                .body(Map.of("message", "Failed to fetch Request Management project: " + e.getMessage()));
         }
     }
 }

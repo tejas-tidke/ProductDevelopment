@@ -14,6 +14,9 @@ import com.htc.productdevelopment.service.ContractDetailsService;
 import com.htc.productdevelopment.service.OrganizationService;
 import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.repository.UserRepository;
+import com.htc.productdevelopment.service.jira.JiraCoreService;
+import com.htc.productdevelopment.service.jira.JiraProjectService;
+import com.htc.productdevelopment.service.jira.JiraFieldService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,6 +101,11 @@ public class JiraService {
     // JSON parser for handling API responses
     private final ObjectMapper objectMapper;
 
+    // Core Jira HTTP client
+    private final JiraCoreService jiraCoreService;
+    private final JiraProjectService jiraProjectService;
+    private final JiraFieldService jiraFieldService;
+
     // Add getter for jiraConfig
     public JiraConfig getJiraConfig() {
         return jiraConfig;
@@ -109,191 +117,55 @@ public class JiraService {
      * @param restTemplate HTTP client for making API calls
      * @param objectMapper JSON parser for handling API responses
      */
-    public JiraService(JiraConfig jiraConfig, RestTemplate restTemplate, ObjectMapper objectMapper) {
+    public JiraService(JiraConfig jiraConfig, RestTemplate restTemplate, ObjectMapper objectMapper, JiraCoreService jiraCoreService, JiraProjectService jiraProjectService, JiraFieldService jiraFieldService) {
         this.jiraConfig = jiraConfig;
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
+        this.jiraCoreService = jiraCoreService;
+        this.jiraProjectService = jiraProjectService;
+        this.jiraFieldService = jiraFieldService;
     }
     
     public String getAuthHeader() {
-        String auth = jiraConfig.getEmail() + ":" + jiraConfig.getApiToken();
-        String encoded = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
-        return "Basic " + encoded;
+        return jiraCoreService.getAuthHeader();
     }
     
     
-    /**
-     * Get recent Jira projects (max 3)
-     * @return List of recent Jira projects
-     */
+    // --- Project operations delegated to JiraProjectService ---
     public List<JiraProject> getRecentProjects() {
-        try {
-            logger.info("Fetching recent Jira projects");
-            
-            // Build the API URL for getting projects with a limit of 3
-            String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/recent?maxResults=3";
-            
-            // Make the API call
-            JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
-            
-            // Parse the response and create project objects
-            List<JiraProject> projects = parseProjectsResponse(response);
-            
-            // Ensure we don't return more than 3 projects
-            if (projects.size() > 3) {
-                projects = projects.subList(0, 3);
-            }
-            
-            logger.info("Successfully fetched {} recent projects", projects.size());
-            return projects;
-        } catch (Exception e) {
-            logger.error("Error fetching recent Jira projects", e);
-            return List.of(); // Return empty list on error
-        }
+        return jiraProjectService.getRecentProjects();
     }
 
-    /**
-     * Get all Jira projects
-     * @return List of all Jira projects
-     */
     public List<JiraProject> getAllProjects() {
-        try {
-            logger.info("Fetching all Jira projects");
-            
-            // Build the API URL for getting projects
-            String url = jiraConfig.getBaseUrl() + "/rest/api/3/project";
-            
-            // Make the API call
-            JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
-            
-            // Parse the response and create project objects
-            List<JiraProject> projects = parseProjectsResponse(response);
-            
-            logger.info("Successfully fetched {} projects", projects.size());
-            return projects;
-        } catch (Exception e) {
-            logger.error("Error fetching all Jira projects", e);
-            return List.of(); // Return empty list on error
-        }
+        return jiraProjectService.getAllProjects();
+    }
+
+    public JiraProject getProjectByIdOrKey(String projectIdOrKey) throws Exception {
+        return jiraProjectService.getProjectByKey(projectIdOrKey);
+    }
+
+    public JiraProject getProjectByKey(String projectKey) throws Exception {
+        return jiraProjectService.getProjectByKey(projectKey);
     }
 
     /**
-     * Parse projects response from Jira API
-     * @param response The JSON response from Jira API
-     * @return List of JiraProject objects
-     */
-    private List<JiraProject> parseProjectsResponse(JsonNode response) {
-        try {
-            // Create a list to hold the projects
-            List<JiraProject> projects = new java.util.ArrayList<>();
-            
-            // Iterate through the projects in the response
-            if (response.isArray()) {
-                for (JsonNode projectNode : response) {
-                    // Create a new project object and populate its fields
-                    JiraProject project = new JiraProject();
-                    project.setProjectId(getTextValue(projectNode, "id"));
-                    project.setKey(getTextValue(projectNode, "key"));
-                    project.setName(getTextValue(projectNode, "name"));
-                    project.setDescription(getTextValue(projectNode, "description"));
-                    project.setProjectTypeKey(getTextValue(projectNode, "projectTypeKey"));
-                    
-                    // Extract project lead information if available
-                    JsonNode leadNode = projectNode.get("lead");
-                    if (leadNode != null) {
-                        String leadName = getTextValue(leadNode, "displayName");
-                        project.setLead(leadName);
-                    } else {
-                        project.setLead(null);
-                    }
-                    
-                    projects.add(project);
-                }
-            }
-            
-            return projects;
-        } catch (Exception e) {
-            logger.error("Error parsing projects response", e);
-            return List.of();
-        }
-    }
-    
-    public JsonNode getRequestManagementProject() {
-        String projectKey = jiraConfig.getContractProjectKey(); // We’ll create getter
-        String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/" + projectKey;
-
-        HttpHeaders headers = createAuthHeaders();
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-
-        ResponseEntity<String> response = restTemplate.exchange(
-            url, HttpMethod.GET, entity, String.class
-        );
-
-        ObjectMapper mapper = new ObjectMapper();
-        try {
-            return mapper.readTree(response.getBody());
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to parse Request Management project details", e);
-        }
-    }
-
-    
-    private HttpHeaders createAuthHeaders() {
-        String auth = jiraConfig.getEmail() + ":" + jiraConfig.getApiToken();
-        String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "Basic " + encodedAuth);
-        headers.set("Accept", "application/json");
-        headers.set("Content-Type", "application/json");
-
-        return headers;
-    }
-    
-
-    /**
-     * Get a specific Jira project by ID or key
-     * @param projectIdOrKey The project ID or key
-     * @return JiraProject containing the project details
+     * Get the Request Management project
+     * @return JsonNode containing the project details
      * @throws Exception if the API call fails
      */
-    public JiraProject getProjectByIdOrKey(String projectIdOrKey) throws Exception {
+    public JsonNode getRequestManagementProject() throws Exception {
         try {
-            logger.info("Fetching Jira project with ID/Key: {}", projectIdOrKey);
+            String projectKey = jiraConfig.getContractProjectKey();
+            String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/" + projectKey;
             
-            // Build the API URL for getting a specific project
-            String url = jiraConfig.getBaseUrl() + "/rest/api/3/project/" + projectIdOrKey;
-            
-            // Make the API call
-            JsonNode response = makeJiraApiCall(url, HttpMethod.GET, null);
-            
-            // Create a new project object and populate its fields
-            JiraProject project = new JiraProject();
-            project.setProjectId(getTextValue(response, "id"));
-            project.setKey(getTextValue(response, "key"));
-            project.setName(getTextValue(response, "name"));
-            project.setDescription(getTextValue(response, "description"));
-            project.setProjectTypeKey(getTextValue(response, "projectTypeKey"));
-            
-            // Extract project lead information if available
-            JsonNode leadNode = response.get("lead");
-            if (leadNode != null) {
-                String leadName = getTextValue(leadNode, "displayName");
-                project.setLead(leadName);
-            } else {
-                project.setLead(null);
-            }
-            
-            logger.info("Project fetched successfully: {}", project.getKey());
-            return project;
+            return makeJiraApiCall(url, HttpMethod.GET, null);
         } catch (Exception e) {
-            logger.error("Error fetching Jira project with ID/Key: {}", projectIdOrKey, e);
-            // Provide more detailed error information
-            throw new Exception("Failed to fetch Jira project '" + projectIdOrKey + "': " + e.getMessage(), e);
+            logger.error("Error fetching Request Management project", e);
+            throw new Exception("Failed to fetch Request Management project: " + e.getMessage(), e);
         }
     }
 
-    /**
+            /**
      * Get all issues across all projects
      * @return JsonNode containing all issues
      * @throws Exception if the API call fails
@@ -972,103 +844,9 @@ public class JiraService {
      * @throws Exception if the API call fails
      */
     private JsonNode makeJiraApiCall(String url, HttpMethod method, Object body) throws Exception {
-        // Create authorization header using email and API token
-        String credentials = jiraConfig.getEmail() + ":" + jiraConfig.getApiToken();
-        String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-        
-        logger.info("Making {} request to Jira API: {}", method, url);
-        logger.info("Using credentials email: {}, token length: {}", jiraConfig.getEmail(), jiraConfig.getApiToken().length());
-        if (body != null) {
-            logger.info("Request body: {}", body);
-        }
-        
-        // Build the URI
-        URI uri = UriComponentsBuilder.fromUriString(url).build().toUri();
-        
-        // Create headers for the request
-        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        headers.set("Authorization", "Basic " + encodedCredentials);
-        headers.set("Accept", "application/json");
-        
-        // For multipart requests (attachments), don't set Content-Type
-        // For regular JSON requests, set Content-Type to application/json
-        if (!url.contains("/attachments")) {
-            headers.set("Content-Type", "application/json");
-        } else {
-            // For attachments, we need the X-Atlassian-Token header
-            headers.set("X-Atlassian-Token", "no-check");
-        }
-        
-        // Log headers for debugging
-        logger.info("Request headers: Authorization={}, Accept={}, Content-Type={}", 
-                   headers.getFirst("Authorization") != null ? "Basic ***" : "null",
-                   headers.getFirst("Accept"),
-                   headers.getFirst("Content-Type"));
-        
-        // Create request entity
-        RequestEntity<?> requestEntity;
-        if (body != null) {
-            // For multipart requests (attachments)
-            if (body instanceof org.springframework.util.MultiValueMap) {
-                requestEntity = new RequestEntity<>(
-                    (org.springframework.util.MultiValueMap<String, Object>) body,
-                    headers,
-                    method,
-                    uri
-                );
-            } else {
-                // 👉 Send body as JSON object (NOT stringified)
-                requestEntity = new RequestEntity<>(body, headers, method, uri);
-            }
-        } else {
-            requestEntity = new RequestEntity<>(headers, method, uri);
-        }
-        
-        try {
-            // Make the API call with timeout
-            logger.info("Executing request to Jira API...");
-            ResponseEntity<String> response = restTemplate.exchange(requestEntity, String.class);
-            logger.info("Received response from Jira API: {} {}", response.getStatusCode(), response.getStatusCodeValue());
-            
-            // Handle empty responses (204 No Content, etc.)
-            String responseBody = response.getBody();
-            logger.info("Response body length: {}", responseBody != null ? responseBody.length() : 0);
-            if (responseBody == null || responseBody.isEmpty()) {
-                logger.info("Response body is empty");
-                // Return an empty JSON object for empty responses
-                return objectMapper.readTree("{}");
-            }
-            
-            logger.info("Response body: {}", responseBody);
-            
-            // Parse and return the response
-            return objectMapper.readTree(responseBody);
-        } catch (Exception e) {
-            logger.error("Error executing request to Jira API: {}", e.getMessage(), e);
-            // Provide more specific error information
-            if (e.getMessage() != null && e.getMessage().contains("504")) {
-                throw new Exception("Gateway Timeout: Unable to connect to Jira API. This may be due to network issues or Jira server being temporarily unavailable. Please try again later.", e);
-            } else if (e.getMessage() != null && e.getMessage().contains("401")) {
-                throw new Exception("Authentication failed: Please check your Jira email and API token in the configuration.", e);
-            } else if (e.getMessage() != null && e.getMessage().contains("403")) {
-                throw new Exception("Access forbidden: Please check your Jira permissions and API token.", e);
-            } else {
-                throw new Exception("Failed to connect to Jira API: " + e.getMessage(), e);
-            }
-        }
+        return jiraCoreService.makeJiraApiCall(url, method, body);
     }
     
-    /**
-     * Helper method to safely extract text values from JsonNode
-     * @param node The JsonNode to extract from
-     * @param fieldName The field name to extract
-     * @return The text value or null if not found
-     */
-    private String getTextValue(JsonNode node, String fieldName) {
-        JsonNode fieldNode = node.get(fieldName);
-        return fieldNode != null ? fieldNode.asText() : null;
-    }
-
     /**
      * Delete a Jira project
      * @param projectKey The project key to delete
@@ -2308,39 +2086,9 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
      * @return The field value as a string, or null if not found
      */
     private String getTextValue(JsonNode fields, String fieldId) {
-        if (fields == null || fieldId == null) {
-            return null;
-        }
-        
-        JsonNode field = fields.path(fieldId);
-        if (field.isNull() || field.isMissingNode()) {
-            return null;
-        }
-        
-        // If it's a text field, return as string
-        if (field.isTextual()) {
-            return field.asText();
-        }
-        
-        // If it's a number, convert to string
-        if (field.isNumber()) {
-            return field.asText();
-        }
-        
-        // If it's an object with a value property (select lists, etc.)
-        if (field.has("value")) {
-            return field.get("value").asText();
-        }
-        
-        // If it's an object with a displayName property (users, etc.)
-        if (field.has("displayName")) {
-            return field.get("displayName").asText();
-        }
-        
-        // For all other cases, convert to string
-        return field.toString();
+        return jiraFieldService.getFlexibleTextValue(fields, fieldId);
+    }
 
-    
     public List<ContractDTO> getAllContractsDTO() {
         return contractDetailsRepository.findAll().stream().map(c -> {
             ContractDTO dto = new ContractDTO();
@@ -2353,7 +2101,7 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
             dto.setRequesterDepartment(c.getRequesterDepartment());
             dto.setVendorContractType(c.getVendorContractType());
             dto.setAdditionalComment(c.getAdditionalComment());
-            
+
             dto.setCurrentLicenseCount(c.getCurrentLicenseCount());
             dto.setCurrentUsageCount(c.getCurrentUsageCount());
             dto.setCurrentUnits(c.getCurrentUnits());
@@ -2365,11 +2113,8 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
             dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
             dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
 
-
             return dto;
         }).collect(java.util.stream.Collectors.toList());
     }
 
-
-}
 }
