@@ -42,7 +42,6 @@ public class VendorDetailsService {
             .collect(Collectors.toList());
     }
     
-    // Convert VendorDetails entity to VendorDetailsDTO
     private VendorDetailsDTO convertToDTO(VendorDetails vendorDetails) {
         VendorDetailsDTO dto = new VendorDetailsDTO();
         dto.setId(vendorDetails.getId());
@@ -50,6 +49,8 @@ public class VendorDetailsService {
         dto.setProductName(vendorDetails.getProductName());
         dto.setProductLink(vendorDetails.getProductLink());
         dto.setProductType(vendorDetails.getProductType());
+        dto.setVendorOwner(vendorDetails.getVendorOwner());
+        dto.setDepartment(vendorDetails.getDepartment());
         return dto;
     }
     
@@ -66,6 +67,8 @@ public class VendorDetailsService {
 		entity.setProductName(dto.getProductName());
 		entity.setProductLink(dto.getProductLink());
 		entity.setProductType(dto.getProductType());
+		entity.setVendorOwner(dto.getVendorOwner());
+		entity.setDepartment(dto.getDepartment());
 		return entity;
 	}
     

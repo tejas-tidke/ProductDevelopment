@@ -60,3 +60,4 @@ WHERE NOT EXISTS (
     SELECT 1 FROM vendor_details 
     WHERE name_of_vendor = 'Atlassian' AND product_name = 'Confluence'
 );
+

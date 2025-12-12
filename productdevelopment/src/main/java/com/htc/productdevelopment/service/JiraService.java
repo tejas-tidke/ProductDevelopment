@@ -2339,10 +2339,10 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
         
         // For all other cases, convert to string
         return field.toString();
+    }
 
     
-    public List<ContractDTO> getAllContractsDTO() {
-        return contractDetailsRepository.findAll().stream().map(c -> {
+    public List<ContractDTO> getAllContractsDTO() {        return contractDetailsRepository.findAll().stream().map(c -> {
             ContractDTO dto = new ContractDTO();
 
             dto.setId(c.getId());
@@ -2370,6 +2370,4 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
         }).collect(java.util.stream.Collectors.toList());
     }
 
-
-}
 }

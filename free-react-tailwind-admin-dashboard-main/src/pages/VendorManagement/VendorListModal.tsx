@@ -27,31 +27,32 @@ const VendorListModal: React.FC<{
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Mock data for products based on vendor
-  const getMockProducts = (vendor: string): ProductItem[] => {
-    const productMap: Record<string, ProductItem[]> = {
-      "Atlassian": [
-        { id: "1", productName: "Jira", nameOfVendor: "Atlassian" },
-        { id: "2", productName: "Confluence", nameOfVendor: "Atlassian" },
-        { id: "3", productName: "Bitbucket", nameOfVendor: "Atlassian" },
-        { id: "4", productName: "Jira Service Management", nameOfVendor: "Atlassian" }
-      ],
-      "Microsoft": [
-        { id: "5", productName: "Microsoft 365", nameOfVendor: "Microsoft" },
-        { id: "6", productName: "Azure", nameOfVendor: "Microsoft" },
-        { id: "7", productName: "Dynamics 365", nameOfVendor: "Microsoft" }
-      ],
-      "Adobe": [
-        { id: "8", productName: "Adobe Creative Cloud", nameOfVendor: "Adobe" },
-        { id: "9", productName: "Adobe Sign", nameOfVendor: "Adobe" }
-      ]
-    };
+  // Fetch products for a vendor from the new vendor profiles system
+  const fetchVendorProducts = async (vendor: string): Promise<ProductItem[]> => {
+    try {
+      // Get vendor profiles for this vendor from the new API
+      const vendorProfiles = await jiraService.getVendorProfileDTOsByName(vendor);
+      
+      if (Array.isArray(vendorProfiles) && vendorProfiles.length > 0) {
+        // Map vendor profiles to ProductItem format
+        return vendorProfiles.map(profile => ({
+          id: profile.vendorId?.toString() || "",
+          productName: profile.productName || "",
+          nameOfVendor: profile.vendorName || vendor,
+          productType: profile.productType as 'license' | 'usage' || 'license',
+          vendorId: `V-${profile.vendorId}`,
+          vendorName: profile.vendorName || vendor,
+          owner: profile.vendorOwner || "",
+          department: profile.department || ""
+        }));
+      }
+    } catch (err) {
+      console.error(`Failed to fetch vendor profiles for ${vendor}:`, err);
+    }
     
-    return productMap[vendor] || [
-      { id: "10", productName: "General Product", nameOfVendor: vendor }
-    ];
+    // Return empty array if no data fetched
+    return [];
   };
-
   // Mock data for contracts
   const getMockContracts = (products: ProductItem[]): Contract[] => {
     const contracts: Contract[] = [];
@@ -82,8 +83,8 @@ const VendorListModal: React.FC<{
           setLoading(true);
           setError(null);
           
-          // Get mock products for the vendor
-          const products = getMockProducts(vendorName);
+          // Fetch products for the vendor from the new API
+          const products = await fetchVendorProducts(vendorName);
           
           // Get mock contracts for the products
           const contracts = getMockContracts(products);
@@ -109,7 +110,6 @@ const VendorListModal: React.FC<{
       fetchVendorDetails();
     }
   }, [isOpen, vendorName]);
-
   const handleProductSelect = (product: ProductItem) => {
     setSelectedProduct(product);
   };

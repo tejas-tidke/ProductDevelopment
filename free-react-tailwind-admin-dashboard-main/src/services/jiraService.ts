@@ -283,6 +283,34 @@ async function deleteVendorProduct(id: number | string): Promise<void> {
 // Jira API functions
 export const jiraService = {
 
+  // ------------------------------------------------------------------------- 
+  // 📦 Vendor Profiles API Endpoints (New System)
+  // These endpoints work with the new vendor_profiles and products tables
+  // -------------------------------------------------------------------------
+
+  // Get all vendors for dropdown (from new vendor_profiles system)
+  getVendorProfilesVendors: () => jiraApiCall("/api/vendor-profiles/vendors"),
+
+  // Get all vendor profiles
+  getAllVendorProfiles: () => jiraApiCall("/api/vendor-profiles"),
+
+  // Get vendor profiles by vendor name
+  getVendorProfilesByName: (vendorName: string) => 
+    jiraApiCall(`/api/vendor-profiles/${vendorName}`),
+
+  // Get vendor profiles as DTOs by vendor name (for frontend compatibility)
+  getVendorProfileDTOsByName: (vendorName: string) => 
+    jiraApiCall(`/api/vendor-profiles/${vendorName}/dtos`),
+
+  // Get vendor profiles by vendor name and product type
+  getVendorProfilesByNameAndType: (vendorName: string, productType: string) => 
+    jiraApiCall(`/api/vendor-profiles/${vendorName}/type/${productType}`),
+
+  // Get all products (from new products table)
+  getAllProducts: () => jiraApiCall("/api/products"),
+
+  // Get all products as DTOs (from new products table)
+  getAllProductDTOs: () => jiraApiCall("/api/products/dtos"),
    // 1️⃣ Get Request Management Project (only one project is allowed)
   getRequestManagementProject: () =>
     jiraApiCall("/api/jira/projects/request-management"),
@@ -301,9 +329,6 @@ export const jiraService = {
   // 5️⃣ Get products of a specific type for a Vendor
   getProductsByVendorAndType: (vendorName: string, productType: string) =>
     jiraApiCall(`/api/jira/vendors/${vendorName}/products/type/${productType}`),
-
-  // Get ALL products (Vendor Details)
-  getAllProducts: () => jiraApiCall("/api/jira/products"),
 
   // 6️⃣ Get ALL existing contracts for dropdown
   getContracts: () => jiraApiCall("/api/jira/contracts"),

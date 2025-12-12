@@ -147,7 +147,6 @@ const VendorList: React.FC = () => {
         owner: vendorOwner.trim() || undefined,
         department: vendorDepartment.trim() || undefined,
       });
-
       // Check if vendor already exists to avoid duplication
       const existingVendorIndex = products.findIndex(p => p.vendorName === vendorName.trim());
       
@@ -198,8 +197,8 @@ const VendorList: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        // 1. Fetch all vendors
-        const vendors = await jiraService.getVendors();
+        // 1. Fetch all vendors from the new vendor profiles system
+        const vendors = await jiraService.getVendorProfilesVendors();
 
         if (!Array.isArray(vendors)) {
           throw new Error("Failed to fetch vendors");
@@ -208,25 +207,30 @@ const VendorList: React.FC = () => {
         // 2. Create a unique list of vendors with their products
         const vendorMap: Record<string, ProductItem> = {};
 
-        // 3. Fetch products for each vendor
+        // 3. Fetch products for each vendor using the new vendor profiles system
         const productPromises = vendors.map(async (vendorName: string) => {
           try {
-            const products = await jiraService.getProductsByVendor(vendorName);
-            if (Array.isArray(products) && products.length > 0) {
-              // Take the first product for each vendor to avoid duplicates
-              const firstProduct = products[0];
+            // Get vendor profiles for this vendor
+            const vendorProfiles = await jiraService.getVendorProfileDTOsByName(vendorName);
+            
+            if (Array.isArray(vendorProfiles) && vendorProfiles.length > 0) {
+              // Take the first profile for each vendor to avoid duplicates
+              const firstProfile = vendorProfiles[0];
               vendorMap[vendorName] = {
-                ...firstProduct,
-                vendorId: `V-${firstProduct.id}`,
-                vendorName: firstProduct.nameOfVendor || vendorName,
-                owner: "John Doe", // Dummy data
-                department: "IT Department", // Dummy data
+                id: firstProfile.vendorId?.toString() || "",
+                productName: firstProfile.productName || "",
+                nameOfVendor: firstProfile.vendorName || vendorName,
+                productType: firstProfile.productType as 'license' | 'usage' || 'license',
+                vendorId: `V-${firstProfile.vendorId}`,
+                vendorName: firstProfile.vendorName || vendorName,
+                owner: firstProfile.vendorOwner || "John Doe",
+                department: firstProfile.department || "IT Department",
                 activeAgreementSpend: "$10,000", // Dummy data
               };
             }
             return [];
           } catch (e) {
-            console.warn(`Failed to fetch products for vendor ${vendorName}`, e);
+            console.warn(`Failed to fetch vendor profiles for vendor ${vendorName}`, e);
             return [];
           }
         });
@@ -246,7 +250,6 @@ const VendorList: React.FC = () => {
 
     fetchProducts();
   }, []);
-
   // Filtering & Sorting
   const filteredProducts = useMemo(() => {
     let res = products.filter((p) => {
@@ -527,7 +530,7 @@ const VendorList: React.FC = () => {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Search products..."
+                  placeholder="Search vendors..."
                   className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
