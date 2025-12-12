@@ -17,9 +17,8 @@ import { useSidebar } from "../context/SidebarContext";
 import { JIRA_CONFIG, getJiraAuthHeaders, getJiraRequestUrl } from "../config/jiraConfig";
 import { useAuth } from "../context/AuthContext";
 
-import NotificationDropdown from "../components/header/NotificationDropdown";
-import SettingsDropdown from "../components/header/SettingsDropdown";
-import UserDropdown from "../components/header/UserDropdown";
+import SettingsDropdown from "../components/header/ui/SettingsDropdown";
+import UserDropdown from "../components/header/ui/UserDropdown";
 
 
 type NavItem = {
@@ -166,13 +165,7 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
   );
 
   useEffect(() => {
-    // Update selected project when route changes
-    // const currentProject = recentProjects.find(project => project.path === location.pathname);
-    // if (currentProject) {
-    //   setSelectedProject(location.pathname);
-    // }
-    
-    // Handle submenu opening based on active route
+  
     let submenuMatched = false;
     ["main", "others"].forEach((menuType) => {
       const items = menuType === "main" ? navItems : othersItems;
@@ -188,8 +181,6 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
       });
     });
 
-    // Only close the submenu if it's not the Project menu (index 0) or if no submenu matched and it's not the Project menu
-    // Note: Project menu has been commented out, so we skip this condition
     if (!submenuMatched) {
       setOpenSubmenu(null);
     }
@@ -219,26 +210,6 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
     console.log('Projects state updated:', { recentProjects, isLoading, error });
   }, [recentProjects, isLoading, error]);
 
-  // State for recent issues
-  // const [recentIssues, setRecentIssues] = useState<Issue[]>([]);
-  // const [issuesLoading, setIssuesLoading] = useState<boolean>(false);
-
-  // Fetch recent issues
-  // const fetchRecentIssues = async () => {
-  //   setIssuesLoading(true);
-  //   try {
-  //     const issues = await jiraService.getRecentIssues();
-  //     
-  //     // Get first 3 issues
-  //     const recentIssuesData = Array.isArray(issues) ? issues.slice(0, 3) : [];
-  //     setRecentIssues(recentIssuesData);
-  //   } catch (error) {
-  //     console.error("Failed to fetch recent issues:", error);
-  //     setRecentIssues([]);
-  //   } finally {
-  //     setIssuesLoading(false);
-  //   }
-  // };
 
   // Update submenu height when content changes
   useEffect(() => {
@@ -288,25 +259,12 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
     icon: null,
     path: "#",
   },
-  // {
-  //   icon: <FolderIcon />,
-  //   name: "Project",
-  //   subItems: [
-  //     { name: "Loading...", path: "#", pro: false },
-  //   ],
-  // },
-  // {
-  //   icon: <IssuesIcon />,
-  //   name: "Issues",
-  //   subItems: [
-  //     { name: "Loading recent issues...", path: "/issues", pro: false },
-  //   ],
-  // },
+ 
   {
     name: "Procurement Request",
     icon: <DocsIcon />,
     subItems: [
-      { name: "Renewal", path: "/procurement/renewal", pro: false, new: true },
+      { name: "Renewal", path: "/procurement/renewal", pro: false },
     ],
   },
   {
@@ -324,9 +282,11 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
     name: "Vendor Management",
     icon: <FolderIcon />,
     subItems: [
-      { name: "Vendor List", path: "/vendor-management/list" },
-      { name: "Vendor Contracts", path: "/vendor-management/contracts" },
-      { name: "Vendor Performance", path: "/vendor-management/performance" },
+      { name: "Vendors", path: "/vendor-management/list" },
+      { name: "Renewal ", path: "/vendor-management/VendorRenewal/Renewal_vendor" },
+      { name: "Agreements", path: "/vendor-management/contracts" },
+      // { name: "Vendor Performance", path: "/vendor-management/performance" },
+      
     ],
   },
   {
@@ -361,152 +321,11 @@ const othersItems: NavItem[] = [
     name: "Calendar",
     path: "/calendar",
   },
-  // {
-  //   name: "Pages",
-  //   icon: <FileIcon />,
-  //   subItems: [
-  //     { name: "Create New User", path: "/blank", pro: false },
-  //     { name: "Send Invitation", path: "/send-invitation", pro: false },
-  //     { name: "404 Error", path: "/error-404", pro: false },
-  //   ],
-  // },
-  // {
-  //   icon: <PieChartIcon />,
-  //   name: "Charts",
-  //   subItems: [
-  //     { name: "Line Chart", path: "/line-chart", pro: false },
-  //     { name: "Bar Chart", path: "/bar-chart", pro: false },
-  //   ],
-  // },
-  // {
-  //   icon: <BoxCubeIcon />,
-  //   name: "UI Elements",
-  //   subItems: [
-  //     { name: "Alerts", path: "/alerts", pro: false },
-  //     { name: "Avatar", path: "/avatars", pro: false },
-  //     { name: "Badge", path: "/badge", pro: false },
-  //     { name: "Buttons", path: "/buttons", pro: false },
-  //     { name: "Images", path: "/images", pro: false },
-  //     { name: "Videos", path: "/videos", pro: false },
-  //   ],
-  // },
-  // {
-  //   icon: <PlugInIcon />,
-  //   name: "Authentication",
-  //   subItems: [
-  //     { name: "Sign In", path: "/signin", pro: false },
-  //     { name: "Sign Up", path: "/signup", pro: false },
-  //   ],
-  // },
+  //  { name: "Videos", path: "/videos", pro: false },
+  
 ];
+ 
 
-  // Project dropdown menu component
-  // const ProjectDropdownMenu: React.FC<{ project: Project }> = ({ project }) => {
-  //   const [isOpen, setIsOpen] = useState(false);
-  //   const dropdownRef = useRef<HTMLDivElement>(null);
-  //   const navigate = useNavigate();
-  //
-  //   // Close dropdown when clicking outside
-  //   useEffect(() => {
-  //     const handleClickOutside = (event: MouseEvent) => {
-  //       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-  //         setIsOpen(false);
-  //       }
-  //     };
-  //
-  //     if (isOpen) {
-  //       document.addEventListener('mousedown', handleClickOutside);
-  //     }
-  //
-  //     return () => {
-  //       document.removeEventListener('mousedown', handleClickOutside);
-  //     };
-  //   }, [isOpen]);
-  //
-  //   // Handle create issue
-  //   const handleCreateIssue = () => {
-  //     // Navigate to the project page with a query parameter to open the create issue modal
-  //     navigate(`${project.path}?createIssue=true`);
-  //     setIsOpen(false);
-  //   };
-  //
-  //   // Handle view issues
-  //   const handleViewIssues = () => {
-  //     // Navigate to the project page to view issues
-  //     navigate(project.path);
-  //     setIsOpen(false);
-  //   };
-  //
-  //   // Handle delete project
-  //   const handleDeleteProject = async () => {
-  //     if (window.confirm(`Are you sure you want to delete project "${project.name}"?`)) {
-  //       try {
-  //         const apiUrl = getJiraRequestUrl(`/api/jira/projects/${project.key}`);
-  //         const headers = getJiraAuthHeaders();
-  //         
-  //         const response = await fetch(apiUrl, {
-  //           method: 'DELETE',
-  //           headers: headers as HeadersInit,
-  //           mode: 'cors',
-  //           credentials: 'omit'
-  //         });
-  //
-  //         if (!response.ok) {
-  //           throw new Error(`Failed to delete project: ${response.statusText}`);
-  //         }
-  //
-  //         // Refresh the projects list
-  //         window.location.reload();
-  //       } catch (error) {
-  //         console.error("Failed to delete project:", error);
-  //         alert("Failed to delete project. Please try again.");
-  //       }
-  //     }
-  //     setIsOpen(false);
-  //   };
-  //
-  //   return (
-  //     <div className="relative" ref={dropdownRef}>
-  //       <button
-  //         onClick={(e) => {
-  //           e.stopPropagation();
-  //           setIsOpen(!isOpen);
-  //         }}
-  //         className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none"
-  //         aria-label="Project options"
-  //       >
-  //         <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-  //           <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-  //         </svg>
-  //       </button>
-  //
-  //       {isOpen && (
-  //         <div className="absolute right-0 top-0 mt-8 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700">
-  //           <div className="py-1">
-  //             <button
-  //               onClick={handleCreateIssue}
-  //               className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-  //             >
-  //               Create Issue
-  //             </button>
-  //             <button
-  //               onClick={handleViewIssues}
-  //               className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-  //             >
-  //               View Issues
-  //             </button>
-  //             <button
-  //               onClick={handleDeleteProject}
-  //               className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700"
-  //             >
-  //               Delete Project
-  //             </button>
-  //           </div>
-  //         </div>
-  //       )}
-  //     </div>
-  //   );
-  // };
 
   const renderMenuItems = (items: NavItem[], menuType: "main" | "others") => (
     <ul className="flex flex-col gap-4">

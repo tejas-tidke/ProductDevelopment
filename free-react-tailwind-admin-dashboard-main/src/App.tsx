@@ -3,7 +3,6 @@ import SignIn from "./pages/AuthPages/SignIn";
 import SignUp from "./pages/AuthPages/SignUp";
 import NotFound from "./pages/OtherPage/NotFound";
 import UserProfiles from "./pages/UserProfiles";
-import Videos from "./pages/UiElements/Videos";
 import Images from "./pages/UiElements/Images";
 import Alerts from "./pages/UiElements/Alerts";
 import Badges from "./pages/UiElements/Badges";
@@ -39,8 +38,10 @@ import Resolved from "./pages/request-management/Resolved";
 // import DEMO_REQUEST from "./pages/DEMO_REQUEST";
 // import ADMIN_Approver from "./pages/ADMIN_Approver";
 import VendorList from "./pages/VendorManagement/VendorList";
-import VendorContracts from "./pages/VendorManagement/VendorContracts";
+import VendorAgreementDetails from "./pages/VendorManagement/VendorAgreementDetails.tsx";
+import VendorAgreements from "./pages/VendorManagement/VendorAgreements.tsx";
 import VendorPerformance from "./pages/VendorManagement/VendorPerformance";
+import VendorRenewal from "./pages/VendorManagement/VendorRenewal/Renewal_vendor";
 import RequestSplitView from "./pages/RequestSplitView";
 import SendInvitation from "./pages/SendInvitation";
 import CompleteInvitation from "./pages/CompleteInvitation";
@@ -49,6 +50,7 @@ import { Permission } from "./config/permissions";
 import Organizations from "./pages/Organizations";
 // import AttachmentTestPage from "./pages/AttachmentTestPage";
 // import SimpleAttachmentTest from "./pages/SimpleAttachmentTest";
+
 export default function App() {
   return (
     <>
@@ -156,14 +158,7 @@ export default function App() {
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/videos" 
-              element={
-                <ProtectedRoute>
-                  <Videos />
-                </ProtectedRoute>
-              } 
-            />
+          
 
             {/* Charts */}
             <Route 
@@ -379,7 +374,7 @@ export default function App() {
                   <SimpleAttachmentTest />
                 </ProtectedRoute>
               } 
-            /> */}
+            /> */} 
             <Route
               path="/request-management/resolved"
               element={
@@ -413,7 +408,35 @@ export default function App() {
               path="/vendor-management/contracts" 
               element={
                 <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_CONTRACTS]}>
-                  <VendorContracts />
+                  <VendorAgreements />
+                </ProtectedPermissionRoute>
+              } 
+            />
+               <Route 
+              path="/vendor-management/VendorRenewal/Renewal_vendor" 
+              element={
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_CONTRACTS]}>
+                  <VendorRenewal />
+                </ProtectedPermissionRoute>
+              } 
+            />
+
+             <Route 
+              path="/vendor-management/contract" 
+              element={
+                <ProtectedPermissionRoute requiredPermissions={[Permission.VIEW_CONTRACTS]}>
+                  {/*
+                    VendorAgreementDetails requires props:
+                      - agreement
+                      - onBack
+
+                    Right now we provide a safe fallback using "as any". Replace this with
+                    actual data (from route params or location.state) when you wire it up.
+                  */}
+                  <VendorAgreementDetails
+                    agreement={{} as any}
+                    onBack={() => window.history.back()}
+                  />
                 </ProtectedPermissionRoute>
               } 
             />

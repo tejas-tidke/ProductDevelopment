@@ -1,7 +1,8 @@
-import { Dropdown } from "../ui/dropdown/Dropdown";
-import { Link } from "react-router";
 import { useRef, RefObject } from "react";
-import { useAuth } from "../../context/AuthContext";
+import { Link } from "react-router-dom";
+
+import { Dropdown } from "../../ui/dropdown/Dropdown";
+import { useAuth } from "../../../context/AuthContext";
 
 interface SettingsDropdownProps {
   isOpen: boolean;
@@ -10,7 +11,7 @@ interface SettingsDropdownProps {
 
 export default function SettingsDropdown({ isOpen, onToggle }: SettingsDropdownProps) {
   const { isAdmin, isSuperAdmin } = useAuth();
-  
+
   function closeDropdown() {
     onToggle();
   }
@@ -40,7 +41,7 @@ export default function SettingsDropdown({ isOpen, onToggle }: SettingsDropdownP
           />
         </svg>
       </button>
-        
+       
       {/*For Changing the Place of Dropdown of Settings  */}
       <Dropdown
         isOpen={isOpen}
