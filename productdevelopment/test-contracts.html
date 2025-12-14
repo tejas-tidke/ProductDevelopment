@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Contracts API</title>
+</head>
+<body>
+    <h1>Test Contracts API</h1>
+    <div>
+        <label>Vendor Name: <input type="text" id="vendorName" value="Atlassian"></label><br><br>
+        <label>Product Name: <input type="text" id="productName" value="Jira"></label><br><br>
+        <button onclick="testContracts()">Test Contracts Fetch</button>
+    </div>
+    <div id="result" style="margin-top: 20px; white-space: pre-wrap;"></div>
+
+    <script>
+        async function testContracts() {
+            const vendorName = document.getElementById('vendorName').value;
+            const productName = document.getElementById('productName').value;
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Loading...';
+            
+            try {
+                const response = await fetch(`/api/jira/contracts/completed/vendor/${encodeURIComponent(vendorName)}/product/${encodeURIComponent(productName)}`);
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `Status: ${response.status}\nData: ${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultDiv.innerHTML = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

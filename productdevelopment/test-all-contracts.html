@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test All Contracts API</title>
+</head>
+<body>
+    <h1>Test All Contracts API</h1>
+    <button onclick="testAllContracts()">Test All Contracts Fetch</button>
+    <button onclick="testDebugAllContracts()">Test Debug All Contracts</button>
+    <div id="result" style="margin-top: 20px; white-space: pre-wrap;"></div>
+
+    <script>
+        async function testAllContracts() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Loading all contracts...';
+            
+            try {
+                const response = await fetch('/api/jira/contracts/completed');
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `Status: ${response.status}\nAll Completed Contracts Count: ${data.length}\nData: ${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultDiv.innerHTML = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testDebugAllContracts() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Loading debug all contracts...';
+            
+            try {
+                const response = await fetch('/api/jira/contracts/debug-all');
+                const data = await response.json();
+                
+                resultDiv.innerHTML = `Status: ${response.status}\nDebug Data: ${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultDiv.innerHTML = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -964,6 +964,66 @@ public ResponseEntity<?> getCompletedContracts() {
     }
 }
 
+/**
+ * Get completed contract details by vendor name and product name
+ * @return List of completed contract details
+ */
+@GetMapping("/contracts/completed/vendor/{vendorName}/product/{productName}")
+public ResponseEntity<?> getCompletedContractsByVendorAndProduct(
+        @PathVariable String vendorName, 
+        @PathVariable String productName) {
+    try {
+        logger.info("Fetching COMPLETED contracts for vendor: {} and product: {}", vendorName, productName);
+
+        List<ContractDetails> completed = 
+                contractDetailsService.getCompletedContractsByVendorAndProduct(vendorName, productName);
+
+        List<ContractDTO> dtoList = completed.stream().map(c -> {
+            ContractDTO dto = new ContractDTO();
+
+            dto.setId(c.getId());
+
+            dto.setContractType(c.getContractType());
+            dto.setJiraIssueKey(c.getJiraIssueKey());
+            dto.setRenewalStatus(c.getRenewalStatus());
+
+            dto.setNameOfVendor(c.getNameOfVendor());
+            dto.setProductName(c.getProductName());
+            dto.setRequesterName(c.getRequesterName());
+            dto.setRequesterEmail(c.getRequesterMail());
+            dto.setRequesterDepartment(c.getRequesterDepartment());
+            dto.setRequesterOrganization(c.getRequesterOrganization());
+
+            dto.setVendorContractType(c.getVendorContractType());
+            dto.setAdditionalComment(c.getAdditionalComment());
+            dto.setBillingType(c.getBillingType());
+            dto.setLicenseUpdateType(c.getLicenseUpdateType());
+            dto.setExistingContractId(c.getExistingContractId());
+            dto.setContractDuration(c.getContractDuration());
+
+            dto.setCurrentLicenseCount(c.getCurrentLicenseCount());
+            dto.setCurrentUsageCount(c.getCurrentUsageCount());
+            dto.setCurrentUnits(c.getCurrentUnits());
+
+            dto.setNewLicenseCount(c.getNewLicenseCount());
+            dto.setNewUsageCount(c.getNewUsageCount());
+            dto.setNewUnits(c.getNewUnits());
+
+            dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
+            dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
+
+            return dto;
+        }).toList();
+
+        return ResponseEntity.ok(dtoList);
+
+    } catch (Exception e) {
+        logger.error("Error fetching completed contracts by vendor and product", e);
+        return ResponseEntity.status(500)
+                .body(Map.of("message", e.getMessage()));
+    }
+}
+
 
 //@GetMapping("/contracts/test")
 //public ResponseEntity<?> testContractData() {
@@ -1032,6 +1092,95 @@ public ResponseEntity<?> getCompletedContracts() {
 //                ));
 //    }
 //}
+
+//----------------------------------------------------------
+//⭐ DEBUG API — Get all contracts for debugging
+//----------------------------------------------------------
+@GetMapping("/contracts/debug-all")
+public ResponseEntity<?> debugAllContracts() {
+    try {
+        logger.info("Debug: Fetching all contracts");
+        List<ContractDetails> allContracts = contractDetailsService.getAllContracts();
+        logger.info("Debug: Found {} total contracts", allContracts.size());
+        
+        List<ContractDetails> completedContracts = contractDetailsService.getContractsByTypeIgnoreCase("completed");
+        logger.info("Debug: Found {} completed contracts", completedContracts.size());
+        
+        // Group by vendor and product for easier analysis
+        Map<String, Map<String, List<ContractDetails>>> grouped = new HashMap<>();
+        for (ContractDetails contract : completedContracts) {
+            String vendor = contract.getNameOfVendor() != null ? contract.getNameOfVendor() : "Unknown Vendor";
+            String product = contract.getProductName() != null ? contract.getProductName() : "Unknown Product";
+            
+            grouped.computeIfAbsent(vendor, k -> new HashMap<>())
+                   .computeIfAbsent(product, k -> new ArrayList<>())
+                   .add(contract);
+        }
+        
+        logger.info("Debug: Grouped contracts by vendor and product");
+        
+        return ResponseEntity.ok(Map.of(
+            "totalContracts", allContracts.size(),
+            "completedContracts", completedContracts.size(),
+            "groupedByVendorAndProduct", grouped
+        ));
+    } catch (Exception e) {
+        logger.error("Debug: Error fetching all contracts", e);
+        return ResponseEntity.status(500)
+                .body(Map.of("message", "Debug failed: " + e.getMessage()));
+    }
+}
+
+@GetMapping("/contracts/debug-vendor-product/{vendorName}/product/{productName}")
+public ResponseEntity<?> debugVendorProductContracts(
+        @PathVariable String vendorName, 
+        @PathVariable String productName) {
+    try {
+        logger.info("Debug: Fetching contracts for vendor: {} and product: {}", vendorName, productName);
+        
+        // Test 1: Direct repository call
+        List<ContractDetails> directResult = 
+            contractDetailsRepository.findByRenewalStatusAndNameOfVendorAndProductNameAllIgnoreCase(
+                "completed", vendorName, productName);
+        logger.info("Debug: Direct repository result count: {}", directResult.size());
+        
+        // Test 2: Service method call
+        List<ContractDetails> serviceResult = 
+            contractDetailsService.getCompletedContractsByVendorAndProduct(vendorName, productName);
+        logger.info("Debug: Service method result count: {}", serviceResult.size());
+        
+        // Test 3: Case insensitive checks
+        List<ContractDetails> allCompleted = contractDetailsService.getContractsByTypeIgnoreCase("completed");
+        logger.info("Debug: Total completed contracts: {}", allCompleted.size());
+        
+        List<ContractDetails> matchingContracts = allCompleted.stream()
+            .filter(c -> {
+                boolean vendorMatch = c.getNameOfVendor() != null && 
+                    c.getNameOfVendor().equalsIgnoreCase(vendorName);
+                boolean productMatch = c.getProductName() != null && 
+                    c.getProductName().equalsIgnoreCase(productName);
+                logger.debug("Debug: Checking contract ID {}: vendorMatch={}, productMatch={}", 
+                    c.getId(), vendorMatch, productMatch);
+                return vendorMatch && productMatch;
+            })
+            .collect(Collectors.toList());
+            
+        logger.info("Debug: Manual filter result count: {}", matchingContracts.size());
+        
+        return ResponseEntity.ok(Map.of(
+            "directResultCount", directResult.size(),
+            "serviceResultCount", serviceResult.size(),
+            "manualFilterCount", matchingContracts.size(),
+            "directResultSample", directResult.size() > 0 ? directResult.get(0) : null,
+            "serviceResultSample", serviceResult.size() > 0 ? serviceResult.get(0) : null,
+            "manualFilterSample", matchingContracts.size() > 0 ? matchingContracts.get(0) : null
+        ));
+    } catch (Exception e) {
+        logger.error("Debug: Error fetching vendor product contracts", e);
+        return ResponseEntity.status(500)
+                .body(Map.of("message", "Debug failed: " + e.getMessage(), "error", e.toString()));
+    }
+}
 
 //----------------------------------------------------------
 //⭐ NEW API — Save contract as COMPLETED

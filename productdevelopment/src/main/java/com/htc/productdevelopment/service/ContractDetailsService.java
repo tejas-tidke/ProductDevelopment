@@ -55,6 +55,12 @@ public class ContractDetailsService {
         logger.info("Fetching renewalStatus = completed");
         return contractDetailsRepository.findByRenewalStatusIgnoreCase("completed");
     }
+    
+    // Get completed contracts by vendor name and product name
+    public List<ContractDetails> getCompletedContractsByVendorAndProduct(String vendorName, String productName) {
+        logger.info("Fetching completed contracts for vendor: {} and product: {}", vendorName, productName);
+        return contractDetailsRepository.findByRenewalStatusAndNameOfVendorAndProductNameAllIgnoreCase("completed", vendorName, productName);
+    }
 
     // ⭐ DTO Conversion based on renewalStatus
     public List<ContractDTO> getContractsByTypeAsDTO(String contractType) {

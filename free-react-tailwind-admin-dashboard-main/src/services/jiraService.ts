@@ -156,6 +156,20 @@ export interface ProjectMeta {
   issuetypes: JiraIssueType[];
 }
 
+// Define the vendor profile response interface
+export interface VendorProfileResponse {
+  vendorId: number;
+  vendorName: string;
+  vendorOwner: string;
+  department: string;
+  product?: {
+    productId: number;
+    productName: string;
+    productType: string;
+  };
+}
+
+// Define the contract issue payload interface
 export interface ContractIssuePayload {
   vendorDetails: {
     vendorName: string;
@@ -305,6 +319,10 @@ export const jiraService = {
   // Get vendor profiles by vendor name and product type
   getVendorProfilesByNameAndType: (vendorName: string, productType: string) => 
     jiraApiCall(`/api/vendor-profiles/${vendorName}/type/${productType}`),
+  
+  // Get vendor profiles by vendor name and product name
+  getVendorProfilesByNameAndProductName: (vendorName: string, productName: string) => 
+    jiraApiCall(`/api/vendor-profiles/${vendorName}/product/${productName}`),
 
   // Get all products (from new products table)
   getAllProducts: () => jiraApiCall("/api/products"),
@@ -340,6 +358,14 @@ export const jiraService = {
   // New method to get contracts by contract type as DTOs
   getContractsByTypeAsDTO: (contractType: string) => 
     jiraApiCall(`/api/jira/contracts/type/${contractType}/dto`),
+  
+  // Get completed contracts for procurement renewal
+  getCompletedContracts: () => 
+    jiraApiCall(`/api/jira/contracts/completed`),
+  
+  // Get completed contracts by vendor name and product name
+  getCompletedContractsByVendorAndProduct: (vendorName: string, productName: string) => 
+    jiraApiCall(`/api/jira/contracts/completed/vendor/${vendorName}/product/${productName}`),
 
   // 7️⃣ Get one contract by ID (used when selecting existing contract)
   getContractById: (id: string) =>
@@ -362,10 +388,34 @@ export const jiraService = {
 },
 
  createVendor: async (payload: CreateVendorPayload) => {
-    return jiraApiCall("/api/jira/vendors", {
+    // Use the VendorProfile DTO API instead of the old vendor API
+    const response = await jiraApiCall("/api/vendor-profiles/dto", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        vendorName: payload.nameOfVendor,
+        vendorOwner: payload.owner,
+        department: payload.department,
+        productName: payload.productName,
+        productType: payload.productType
+      }),
     });
+    
+    // Convert VendorProfile response to ProductItem format
+    const productItem: ProductItem = {
+      id: response.vendorId?.toString() || "",
+      productName: response.productName || payload.productName,
+      nameOfVendor: response.vendorName || payload.nameOfVendor,
+      productLink: payload.productLink,
+      productType: (response.productType as 'license' | 'usage') || 
+                   (payload.productType as 'license' | 'usage'),
+      vendorId: `V-${response.vendorId}`,
+      vendorName: response.vendorName,
+      owner: response.vendorOwner,
+      department: response.department,
+      activeAgreementSpend: "$10,000"
+    };
+    
+    return productItem;
   },
 
    // Remove Vendor

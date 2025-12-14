@@ -1016,7 +1016,7 @@ public class JiraService {
                     method,
                     uri
                 );
-            } else {
+            } else {    
                 // 👉 Send body as JSON object (NOT stringified)
                 requestEntity = new RequestEntity<>(body, headers, method, uri);
             }
@@ -1058,17 +1058,6 @@ public class JiraService {
         }
     }
     
-    /**
-     * Helper method to safely extract text values from JsonNode
-     * @param node The JsonNode to extract from
-     * @param fieldName The field name to extract
-     * @return The text value or null if not found
-     */
-    private String getTextValue(JsonNode node, String fieldName) {
-        JsonNode fieldNode = node.get(fieldName);
-        return fieldNode != null ? fieldNode.asText() : null;
-    }
-
     /**
      * Delete a Jira project
      * @param projectKey The project key to delete
@@ -1477,7 +1466,7 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
                     String currentStatus = getIssueStatus(issueKey);
                     logger.info("Current status after transition: {}", currentStatus);
                     
-                    if ("Completed".equals(currentStatus)) {
+                    if ("Completed".equalsIgnoreCase(currentStatus)) {
                         logger.info("Issue {} is now completed, checking for contract details to save", issueKey);
                         
                         // Get the issue details to extract vendor details
@@ -1960,9 +1949,9 @@ public JsonNode addAttachmentToIssue(String issueIdOrKey, byte[] fileContent, St
             
             ContractDetails contract = new ContractDetails();
             
-            // Set contract type to "completed" for completed issues
-            contract.setContractType("completed");
-            logger.info("Set contract type to completed");
+            // Set renewal status to "completed" for completed issues
+            contract.setRenewalStatus("completed");
+            logger.info("Set renewal status to completed");
             
             // Set vendor and product details
             contract.setNameOfVendor(clean(vendorDetails.get("vendorName")));

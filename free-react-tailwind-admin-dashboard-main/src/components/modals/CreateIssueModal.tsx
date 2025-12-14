@@ -261,7 +261,14 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       if (contractType !== 'new') return;
       try {
         setLoadingVendors(true);
-        const list = await jiraService.getVendors();
+        // COMMENT OUT THE OLD CODE
+        // const list = await jiraService.getVendors();
+        // if (Array.isArray(list)) setVendors(list);
+        
+        // ADD THE NEW CODE - Use VendorProfile system
+        console.log('Fetching vendors from VendorProfile system');
+        const list = await jiraService.getVendorProfilesVendors();
+        console.log('Received vendors:', list);
         if (Array.isArray(list)) setVendors(list);
       } catch (err) {
         console.error('Error loading vendors', err);
@@ -276,14 +283,32 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     const loadProducts = async () => {
       if (!vendorName || contractType !== 'new') return;
 
-      // Only load when vendorName matches one from the list (avoid calls on "a", "ab", etc.)
-      const exactMatch = vendors.includes(vendorName);
-      if (!exactMatch) return;
+      // REMOVE THE exactMatch CONDITION - This was preventing products from loading
+      // when vendor name was typed manually instead of selected from dropdown
+      // const exactMatch = vendors.includes(vendorName);
+      // if (!exactMatch) return;
 
       try {
         setLoadingProducts(true);
-        const list = await jiraService.getProductsByVendor(vendorName);
-        if (Array.isArray(list)) setProducts(list);
+        // COMMENT OUT THE OLD CODE
+        // const list = await jiraService.getProductsByVendor(vendorName);
+        // if (Array.isArray(list)) setProducts(list);
+        
+        // ADD THE NEW CODE - Use VendorProfile system
+        console.log('Fetching products for vendor:', vendorName);
+        const vendorProfiles = await jiraService.getVendorProfileDTOsByName(vendorName);
+        console.log('Received vendor profiles:', vendorProfiles);
+        if (Array.isArray(vendorProfiles)) {
+          // Convert vendor profiles to product items
+          const productList = vendorProfiles.map(profile => ({
+            id: profile.vendorId?.toString() || '',
+            productName: profile.productName || '',
+            nameOfVendor: profile.vendorName,
+            productType: (profile.productType as 'license' | 'usage') || undefined
+          }));
+          console.log('Converted product list:', productList);
+          setProducts(productList);
+        }
         setProductType('');
       } catch (err) {
         console.error('Error loading products', err);
@@ -429,20 +454,33 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
     const selectedProductName = e.target.value;
     setProductName(selectedProductName);
     setVendorContractType('');
+    
+    // COMMENT OUT THE OLD CODE
+    // if (selectedProductName && vendorName) {
+    //   jiraService
+    //     .getProductType(vendorName, selectedProductName)
+    //     .then((response: { productType: string }) => {
+    //       if (response.productType) {
+    //         setProductType(response.productType as 'license' | 'usage' | '');
+    //         if (response.productType === 'license') setVendorContractType('license');
+    //         else if (response.productType === 'usage') setVendorContractType('usage');
+    //       }
+    //     })
+    //     .catch((err) => {
+    //       console.error('Error fetching product type', err);
+    //       setProductType('');
+    //     });
+    // }
+    
+    // ADD THE NEW CODE - Get product type from the selected product in the products array
     if (selectedProductName && vendorName) {
-      jiraService
-        .getProductType(vendorName, selectedProductName)
-        .then((response: { productType: string }) => {
-          if (response.productType) {
-            setProductType(response.productType as 'license' | 'usage' | '');
-            if (response.productType === 'license') setVendorContractType('license');
-            else if (response.productType === 'usage') setVendorContractType('usage');
-          }
-        })
-        .catch((err) => {
-          console.error('Error fetching product type', err);
-          setProductType('');
-        });
+      const selectedProduct = products.find(p => p.productName === selectedProductName);
+      if (selectedProduct && selectedProduct.productType) {
+        setProductType(selectedProduct.productType);
+        setVendorContractType(selectedProduct.productType);
+      } else {
+        setProductType('');
+      }
     }
   };
 
@@ -1051,6 +1089,8 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                               onClick={() => {
                                 setVendorName(v);
                                 setShowVendorDropdown(false);
+                                // Trigger product loading when vendor is selected
+                                setProducts([]); // Clear previous products
                               }}
                               className="block w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800"
                             >
@@ -1120,9 +1160,18 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
                               onClick={() => {
                                 setProductName(p.productName);
                                 setShowProductDropdown(false);
-                                handleProductChange({
-                                  target: { value: p.productName },
-                                } as React.ChangeEvent<HTMLSelectElement>);
+                                // COMMENT OUT THE OLD CODE
+                                // handleProductChange({
+                                //   target: { value: p.productName },
+                                // } as React.ChangeEvent<HTMLSelectElement>);
+                                
+                                // ADD THE NEW CODE - Set product type directly
+                                if (p.productType) {
+                                  setProductType(p.productType);
+                                  setVendorContractType(p.productType);
+                                } else {
+                                  setProductType('');
+                                }
                               }}
                               className="block w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800"
                             >

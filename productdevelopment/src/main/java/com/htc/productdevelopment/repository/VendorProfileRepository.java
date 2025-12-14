@@ -23,4 +23,8 @@ public interface VendorProfileRepository extends JpaRepository<VendorProfile, Lo
     // Find vendor profiles by vendor name and product type
     @Query("SELECT vp FROM VendorProfile vp WHERE vp.vendorName = ?1 AND vp.product.productType = ?2")
     List<VendorProfile> findByVendorNameAndProductType(String vendorName, String productType);
+    
+    // Find vendor profiles by vendor name and product name
+    @Query("SELECT vp FROM VendorProfile vp WHERE vp.vendorName = ?1 AND vp.product.productName = ?2")
+    List<VendorProfile> findByVendorNameAndProductName(String vendorName, String productName);
 }

@@ -57,6 +57,15 @@ public class VendorProfileController {
         List<VendorProfile> vendorProfiles = vendorProfileService.getVendorProfilesByNameAndProductType(vendorName, productType);
         return new ResponseEntity<>(vendorProfiles, HttpStatus.OK);
     }
+    
+    // Fetch vendor profiles by vendor name and product name
+    @GetMapping("/{vendorName}/product/{productName}")
+    public ResponseEntity<List<VendorProfile>> getVendorProfilesByNameAndProductName(
+            @PathVariable String vendorName, 
+            @PathVariable String productName) {
+        List<VendorProfile> vendorProfiles = vendorProfileService.getVendorProfilesByNameAndProductName(vendorName, productName);
+        return new ResponseEntity<>(vendorProfiles, HttpStatus.OK);
+    }
 
     // Create a new vendor profile
     @PostMapping

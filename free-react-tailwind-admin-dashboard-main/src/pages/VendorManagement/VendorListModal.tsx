@@ -2,13 +2,27 @@ import React, { useState, useEffect } from "react";
 import { Modal } from "../../components/ui/modal";
 import { jiraService, ProductItem } from "../../services/jiraService";
 
+interface ProposalData {
+  id: number;
+  jiraIssueKey: string;
+  proposalNumber: number;
+  licenseCount: number;
+  unitCost: number;
+  totalCost: number;
+  comment: string;
+  isFinal: boolean;
+  isFinalSubmitted: boolean;
+  proposalType: string;
+  createdAt: string;
+}
+
 interface Contract {
   id: string;
   productName: string;
   organization: string;
   totalQuantity: number;
   totalSpend: number;
-  totalOptimizedCost: number;
+  optimizedCost: number; // New field for optimized cost
 }
 
 interface VendorDetails {
@@ -53,25 +67,95 @@ const VendorListModal: React.FC<{
     // Return empty array if no data fetched
     return [];
   };
-  // Mock data for contracts
-  const getMockContracts = (products: ProductItem[]): Contract[] => {
+
+  // Fetch real contracts for products
+  const fetchContractsForProducts = async (vendorName: string, products: ProductItem[]): Promise<Contract[]> => {
     const contracts: Contract[] = [];
     
-    products.forEach((product, productIndex) => {
-      // Create multiple contracts for each product (1-3 contracts per product)
-      const contractCount = Math.floor(Math.random() * 3) + 1;
-      
-      for (let i = 0; i < contractCount; i++) {
-        contracts.push({
-          id: `CON-${productIndex + 1}-${i + 1}`,
-          productName: product.productName,
-          organization: ["CostRoom Inc.", "TechCorp Ltd.", "InnovateCo"][i % 3],
-          totalQuantity: Math.floor(Math.random() * 100) + 10,
-          totalSpend: (productIndex + 1) * 10000 + i * 5000,
-          totalOptimizedCost: (productIndex + 1) * 8000 + i * 4000
-        });
+    try {
+      console.log('Fetching contracts for vendor:', vendorName, 'products:', products);
+      // For each product, fetch the completed contracts
+      for (const product of products) {
+        console.log('Fetching contracts for product:', product.productName);
+        const contractData = await jiraService.getCompletedContractsByVendorAndProduct(vendorName, product.productName);
+        console.log('Received contract data:', contractData);
+        
+        if (Array.isArray(contractData)) {
+          // Convert contract data to Contract format
+          for (const contract of contractData as Array<{
+            id: number;
+            contractType: string;
+            renewalStatus: string;
+            jiraIssueKey: string;
+            nameOfVendor: string;
+            productName: string;
+            requesterName: string;
+            requesterEmail: string;
+            requesterDepartment: string;
+            requesterOrganization: string;
+            vendorContractType: string;
+            additionalComment: string;
+            currentLicenseCount: number;
+            currentUsageCount: number;
+            currentUnits: string;
+            newLicenseCount: number;
+            newUsageCount: number;
+            newUnits: string;
+            dueDate: string;
+            renewalDate: string;
+            licenseUpdateType: string;
+            existingContractId: string;
+            billingType: string;
+            contractDuration: string;
+          }>) {
+            // Determine quantity based on contract type
+            let totalQuantity = 0;
+            if (contract.vendorContractType === 'license') {
+              totalQuantity = contract.newLicenseCount || contract.currentLicenseCount || 0;
+            } else if (contract.vendorContractType === 'usage') {
+              totalQuantity = contract.newUsageCount || contract.currentUsageCount || 0;
+            }
+            
+            // Fetch proposal data to get optimized cost
+            let optimizedCost = 0;
+            let totalSpend = 0;
+            
+            try {
+              const proposals: ProposalData[] = await jiraService.getProposalsByIssueKey(contract.jiraIssueKey);
+              console.log('Proposals for contract:', contract.jiraIssueKey, proposals);
+              
+              if (Array.isArray(proposals) && proposals.length > 0) {
+                // Find the final proposal
+                const finalProposal = proposals.find(p => p.isFinal);
+                if (finalProposal) {
+                  optimizedCost = finalProposal.totalCost || 0;
+                }
+                
+                // Use the last proposal's total cost as total spend if no final proposal
+                const lastProposal = proposals[proposals.length - 1];
+                totalSpend = lastProposal.totalCost || 0;
+              }
+            } catch (proposalError) {
+              console.error('Failed to fetch proposals for contract:', contract.jiraIssueKey, proposalError);
+              // Fallback to using contract data for total spend
+              totalSpend = 10000; // Placeholder value
+            }
+            
+            contracts.push({
+              id: `CON-${contract.id}`,
+              productName: contract.productName,
+              organization: contract.requesterOrganization || contract.requesterDepartment || 'Unknown Organization',
+              totalQuantity: totalQuantity,
+              totalSpend: totalSpend,
+              optimizedCost: optimizedCost
+            });
+          }
+        }
       }
-    });
+      console.log('Final contracts array:', contracts);
+    } catch (error) {
+      console.error('Failed to fetch contracts:', error);
+    }
     
     return contracts;
   };
@@ -80,14 +164,17 @@ const VendorListModal: React.FC<{
     if (isOpen && vendorName) {
       const fetchVendorDetails = async () => {
         try {
+          console.log('Fetching vendor details for:', vendorName);
           setLoading(true);
           setError(null);
           
           // Fetch products for the vendor from the new API
           const products = await fetchVendorProducts(vendorName);
+          console.log('Fetched products:', products);
           
-          // Get mock contracts for the products
-          const contracts = getMockContracts(products);
+          // Fetch real contracts for the products
+          const contracts = await fetchContractsForProducts(vendorName, products);
+          console.log('Fetched contracts:', contracts);
           
           setVendorDetails({
             vendorName,
@@ -110,6 +197,7 @@ const VendorListModal: React.FC<{
       fetchVendorDetails();
     }
   }, [isOpen, vendorName]);
+
   const handleProductSelect = (product: ProductItem) => {
     setSelectedProduct(product);
   };
@@ -139,13 +227,20 @@ const VendorListModal: React.FC<{
   }
 
   // Get contracts for the selected product
+  console.log('Selected product:', selectedProduct);
+  console.log('All contracts:', vendorDetails.contracts);
   const productContracts = selectedProduct 
-    ? vendorDetails.contracts.filter(c => c.productName === selectedProduct.productName)
+    ? vendorDetails.contracts.filter(c => {
+        const match = c.productName === selectedProduct.productName;
+        console.log(`Checking contract ${c.id}: ${c.productName} === ${selectedProduct.productName} = ${match}`);
+        return match;
+      })
     : [];
+  console.log('Filtered product contracts:', productContracts);
 
-  // Calculate total spend for the selected product
+  // Calculate total spend and optimized cost for the selected product
   const totalSpend = productContracts.reduce((sum, contract) => sum + contract.totalSpend, 0);
-  const totalOptimizedCost = productContracts.reduce((sum, contract) => sum + contract.totalOptimizedCost, 0);
+  const totalOptimizedCost = productContracts.reduce((sum, contract) => sum + contract.optimizedCost, 0);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-6xl w-full p-6">
@@ -158,6 +253,7 @@ const VendorListModal: React.FC<{
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            aria-label="Close modal"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -244,7 +340,7 @@ const VendorListModal: React.FC<{
                             ${contract.totalSpend.toLocaleString()}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                            ${contract.totalOptimizedCost.toLocaleString()}
+                            ${contract.optimizedCost.toLocaleString()}
                           </td>
                         </tr>
                       ))}
@@ -262,14 +358,22 @@ const VendorListModal: React.FC<{
           </div>
         </div>
 
-        {/* Footer with Total Spend for selected product */}
+        {/* Footer with Total Spend and Optimized Cost for selected product */}
         <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-2">
             <div className="text-lg font-semibold text-gray-900 dark:text-white">
               {selectedProduct?.productName || "Product"} Total Spend:
             </div>
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
               ${totalSpend.toLocaleString()}
+            </div>
+          </div>
+          <div className="flex justify-between items-center">
+            <div className="text-lg font-semibold text-gray-900 dark:text-white">
+              {selectedProduct?.productName || "Product"} Total Optimized Cost:
+            </div>
+            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+              ${totalOptimizedCost.toLocaleString()}
             </div>
           </div>
         </div>

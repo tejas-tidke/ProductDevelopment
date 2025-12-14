@@ -46,6 +46,9 @@ public interface ContractDetailsRepository extends JpaRepository<ContractDetails
     ContractDetails findByNameOfVendorAndProductNameIgnoreCase(String vendorName, String productName);
     
     List<ContractDetails> findByRenewalStatusIgnoreCase(String renewalStatus);
+    
+    @Query("SELECT c FROM ContractDetails c WHERE UPPER(c.renewalStatus) = UPPER(?1) AND UPPER(c.nameOfVendor) = UPPER(?2) AND UPPER(c.productName) = UPPER(?3)")
+    List<ContractDetails> findByRenewalStatusAndNameOfVendorAndProductNameAllIgnoreCase(String renewalStatus, String vendorName, String productName);
 
  
     ContractDetails findByJiraIssueKey(String jiraIssueKey);

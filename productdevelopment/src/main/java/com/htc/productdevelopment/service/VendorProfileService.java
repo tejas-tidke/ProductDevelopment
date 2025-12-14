@@ -57,6 +57,11 @@ public class VendorProfileService {
         List<VendorProfile> vendorProfiles = vendorProfileRepository.findByVendorName(vendorName);
         return vendorProfiles.stream().map(this::convertToDTO).collect(Collectors.toList());
     }
+    
+    // Fetch vendor profiles by vendor name and product name
+    public List<VendorProfile> getVendorProfilesByNameAndProductName(String vendorName, String productName) {
+        return vendorProfileRepository.findByVendorNameAndProductName(vendorName, productName);
+    }
 
     // Create a new vendor profile
     public VendorProfile createVendorProfile(VendorProfile vendorProfile) {
@@ -75,6 +80,24 @@ public class VendorProfileService {
             Product product = productRepository.findById(vendorProfileDTO.getProductId())
                     .orElseThrow(() -> new RuntimeException("Product not found with id: " + vendorProfileDTO.getProductId()));
             vendorProfile.setProduct(product);
+        } 
+        // Create and set product if productName and productType are provided
+        else if (vendorProfileDTO.getProductName() != null && vendorProfileDTO.getProductType() != null) {
+            // Check if product already exists
+            Product existingProduct = productRepository.findByProductNameAndProductType(
+                vendorProfileDTO.getProductName(), vendorProfileDTO.getProductType())
+                .stream().findFirst().orElse(null);
+                
+            if (existingProduct != null) {
+                vendorProfile.setProduct(existingProduct);
+            } else {
+                // Create new product
+                Product newProduct = new Product();
+                newProduct.setProductName(vendorProfileDTO.getProductName());
+                newProduct.setProductType(vendorProfileDTO.getProductType());
+                Product savedProduct = productRepository.save(newProduct);
+                vendorProfile.setProduct(savedProduct);
+            }
         }
         
         return vendorProfileRepository.save(vendorProfile);
