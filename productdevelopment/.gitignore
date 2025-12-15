@@ -4,6 +4,10 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Java compiled output ###
+*.class
+bin/
+
 ### STS ###
 .apt_generated
 .classpath

@@ -1,131 +1,477 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
+/** Backend DTO */
+type ContractDetails = {
+  id?: number | string;
+  existingContractId?: string | null;
+  jiraIssueKey?: string | null;
+  issueKey?: string | null;
+  issue_key?: string | null;
+  // other fields possibly present; we conservatively allow any
+  nameOfVendor?: string | null;
+  productName?: string | null;
+  renewalDate?: string | null;
+  requesterName?: string | null;
+  totalValueUsd?: number | null;
+  totalValue?: number | null;
+  total_value?: number | null;
+  totalValueString?: string | null;
+  // sometimes backends include embedded proposals or firstProposalTotal
+  firstProposalTotal?: number | string | null;
+  proposals?: any;
+  [key: string]: any;
+};
+
+/** UI Row */
 interface RenewalItem {
   id: string;
   vendorName: string;
   product: string;
-  renewalDeadline: string; // display string (e.g. "Aug 29, 2025")
-  daysUntilRenewal: number;
-  renewalStage: "Completed" | "Alerted" | "In Progress";
+  renewalDeadline: string;
+  daysUntilRenewal: number | null;
+  renewalStage: "Active" | "Expired";
   owner: string;
-  totalValue: string; // display like "13,800"
+  totalValue: string;
 }
 
-const mockRenewals: RenewalItem[] = [
-  {
-    id: "C-152",
-    vendorName: "Tilt",
-    product: "Tilt",
-    renewalDeadline: "Aug 29, 2025",
-    daysUntilRenewal: 3,
-    renewalStage: "Completed",
-    owner: "Tara Lee Collard",
-    totalValue: "13,800",
-  },
-  {
-    id: "C-148",
-    vendorName: "Outreach Corporation",
-    product: "Outreach",
-    renewalDeadline: "Sep 01, 2025",
-    daysUntilRenewal: 6,
-    renewalStage: "Completed",
-    owner: "Lexis Jenkins",
-    totalValue: "21,240",
-  },
-  {
-    id: "C-160",
-    vendorName: "Lightcast",
-    product: "Lightcast",
-    renewalDeadline: "Sep 13, 2025",
-    daysUntilRenewal: 18,
-    renewalStage: "Alerted",
-    owner: "Fei Sha",
-    totalValue: "54,150",
-  },
-  {
-    id: "C-150",
-    vendorName: "Navan",
-    product: "Navan",
-    renewalDeadline: "Sep 13, 2025",
-    daysUntilRenewal: 18,
-    renewalStage: "Alerted",
-    owner: "Tara Lee Collard",
-    totalValue: "38,880",
-  },
-  {
-    id: "C-151",
-    vendorName: "Gong.IO INC",
-    product: "Gong",
-    renewalDeadline: "Sep 14, 2025",
-    daysUntilRenewal: 19,
-    renewalStage: "In Progress",
-    owner: "Lexis Jenkins",
-    totalValue: "172,137",
-  },
-  {
-    id: "C-154",
-    vendorName: "HubSpot,Inc.",
-    product: "Hubspot Marketing Hub",
-    renewalDeadline: "Sep 14, 2025",
-    daysUntilRenewal: 19,
-    renewalStage: "Completed",
-    owner: "Ryan Niehaus",
-    totalValue: "69,498",
-  },
-  {
-    id: "C-193",
-    vendorName: "Gong.IO INC",
-    product: "Gong +1",
-    renewalDeadline: "Sep 14, 2025",
-    daysUntilRenewal: 19,
-    renewalStage: "Alerted",
-    owner: "Lexis Jenkins",
-    totalValue: "4,859",
-  },
-  {
-    id: "C-203",
-    vendorName: "Gong.IO INC",
-    product: "Gong",
-    renewalDeadline: "Sep 14, 2025",
-    daysUntilRenewal: 19,
-    renewalStage: "Alerted",
-    owner: "Lexis Jenkins",
-    totalValue: "1,470",
-  },
-  {
-    id: "C-158",
-    vendorName: "Retool,Inc",
-    product: "Retool",
-    renewalDeadline: "Sep 20, 2025",
-    daysUntilRenewal: 25,
-    renewalStage: "Alerted",
-    owner: "Karthick Mohanram",
-    totalValue: "589",
-  },
-  {
-    id: "C-153",
-    vendorName: "Sendoso",
-    product: "Sendoso",
-    renewalDeadline: "Sep 27, 2025",
-    daysUntilRenewal: 32,
-    renewalStage: "In Progress",
-    owner: "Lexis Jenkins",
-    totalValue: "56,400",
-  },
-];
+/* Helpers */
+const formatDateDisplay = (iso?: string | null): string | null => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+};
+
+const calculateDaysUntil = (iso?: string | null): number | null => {
+  if (!iso) return null;
+  const target = new Date(iso);
+  if (isNaN(target.getTime())) return null;
+  const now = new Date();
+  const t = Date.UTC(target.getFullYear(), target.getMonth(), target.getDate());
+  const n = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.ceil((t - n) / (1000 * 60 * 60 * 24));
+};
+
+/* Determine NEW STAGE */
+const computeStage = (days: number | null): "Active" | "Expired" => {
+  if (days === null) return "Expired";
+  if (days <= 30) return "Expired";
+  if (days > 30 && days <= 90) return "Active";
+  return "Active";
+};
+
+/* DTO -> UI Row mapper */
+const mapContractToRenewalItem = (c: ContractDetails): RenewalItem => {
+  const rawId = c.id ?? c.existingContractId ?? c.key ?? "unknown";
+  const idStr = String(rawId).startsWith("C-") ? String(rawId) : `C-${String(rawId)}`;
+
+  const vendorName = c.nameOfVendor ?? c.vendor ?? "Unknown";
+  const product = c.productName ?? c.product ?? "Unknown";
+
+  const renewalDeadlineFormatted = formatDateDisplay(c.renewalDate) ?? "N/A";
+  const daysUntil = calculateDaysUntil(c.renewalDate);
+
+  const renewalStage = computeStage(daysUntil);
+
+  const owner = c.requesterName ?? c.requester ?? "N/A";
+
+  const totalNumber = c.totalValueUsd ?? c.totalValue ?? c.total_value;
+  const totalValueFallback =
+    totalNumber !== undefined && totalNumber !== null
+      ? Number(totalNumber).toLocaleString()
+      : c.totalValueString ?? "N/A";
+
+  // initially use fallback; we'll try to replace with first-proposal value async
+  return {
+    id: idStr,
+    vendorName,
+    product,
+    renewalDeadline: renewalDeadlineFormatted,
+    daysUntilRenewal: daysUntil,
+    renewalStage,
+    owner,
+    totalValue: totalValueFallback,
+  };
+};
+
+/* Utility to find issueKey on returned contract object reliably */
+const extractIssueKeyFromContract = (c: ContractDetails): string | null => {
+  // Try several likely property names
+  const possible =
+    c.issueKey ??
+    c.jiraIssueKey ??
+    c.issue_key ??
+    (c as any).jira_issue_key ??
+    (c as any).issue ??
+    null;
+  if (!possible) return null;
+  return String(possible);
+};
+
+/* Fetch first proposal for a given issueKey and return numeric totalCost or null */
+const fetchFirstProposalTotal = async (issueKey: string): Promise<number | null> => {
+  try {
+    const resp = await fetch(`http://localhost:8080/api/jira/proposals/issue/${encodeURIComponent(issueKey)}`);
+    if (!resp.ok) {
+      // no proposals or endpoint unavailable
+      return null;
+    }
+    const data = await resp.json();
+    if (!data) return null;
+    const proposals = Array.isArray(data) ? data : [data];
+
+    if (!proposals.length) return null;
+
+    // Try to pick proposalNumber === 1 or proposalType === 'FIRST' first
+    let chosen = proposals.find((p: any) => Number(p.proposalNumber) === 1) ?? proposals.find((p: any) => (p.proposalType || "").toString().toUpperCase().includes("FIRST"));
+
+    // otherwise find smallest proposalNumber
+    if (!chosen) {
+      const sorted = [...proposals].sort((a: any, b: any) => (Number(a.proposalNumber || 9999) - Number(b.proposalNumber || 9999)));
+      chosen = sorted[0];
+    }
+
+    if (!chosen) return null;
+   const tc =
+  chosen.totalCost ??
+  chosen.total_cost ??
+  ((chosen.unitCost && chosen.licenseCount)
+    ? Number(chosen.unitCost) * Number(chosen.licenseCount)
+    : null);
+
+    if (tc === null || tc === undefined) return null;
+    const num = Number(tc);
+    return isNaN(num) ? null : num;
+  } catch (err) {
+    console.warn("fetchFirstProposalTotal error:", err);
+    return null;
+  }
+};
 
 const Renewal_vendor: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [rows, setRows] = useState<RenewalItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState<string>("");
 
+  /** New filter state */
+  const [stageFilter, setStageFilter] = useState<"All" | "Active" | "Expired">("All");
+  const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
+
+  /* Helper to enforce the <= 90 rule */
+  const keepWithin90Days = (item: RenewalItem) => {
+    return item.daysUntilRenewal !== null && item.daysUntilRenewal <= 90;
+  };
+
+  /* Initial fetch & enrichment (adds first-proposal price if available) */
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchAndEnrich = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const resp = await fetch("http://localhost:8080/api/jira/contracts/completed");
+        if (!resp.ok) {
+          const txt = await resp.text().catch(() => "");
+          throw new Error(`Failed to fetch: ${resp.status} ${resp.statusText} ${txt}`);
+        }
+        const data: ContractDetails[] = await resp.json();
+        const mappedAll = Array.isArray(data) ? data.map(mapContractToRenewalItem) : [];
+
+        // Enrich each mapped row by attempting to read the first proposal total (if issueKey present)
+        const enriched = await Promise.all(
+          (mappedAll.map(async (row, idx) => {
+            // original contract object for discovery of issueKey / firstProposalTotal
+            const original = Array.isArray(data) ? data[idx] : undefined;
+            // if backend already provided a firstProposalTotal (common optimization), use it
+            const preExisting = original && (original.firstProposalTotal ?? original.first_proposal_total ?? original.firstProposalPrice ?? original.firstProposalAmount);
+            if (preExisting !== undefined && preExisting !== null && String(preExisting).trim() !== "") {
+              const n = Number(preExisting);
+              if (!isNaN(n)) {
+                row.totalValue = n.toLocaleString();
+                return row;
+              }
+            }
+
+            // Try to find an issueKey on the contract object
+            const issueKey = original ? extractIssueKeyFromContract(original) : null;
+            if (!issueKey) {
+              // no issue key - keep fallback totalValue already set
+              return row;
+            }
+
+            // fetch first proposal total for this issueKey
+            const firstTotal = await fetchFirstProposalTotal(issueKey);
+            if (firstTotal !== null) {
+              row.totalValue = Number(firstTotal).toLocaleString();
+            }
+            return row;
+          }))
+        );
+
+        // Filter to <= 90 as required
+        const filtered = enriched.filter(keepWithin90Days);
+        if (mounted) setRows(filtered);
+      } catch (err) {
+        console.error("Initial fetch error:", err);
+        if (mounted) {
+          setError("Failed to load renewals.");
+          setRows([]);
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    fetchAndEnrich();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /**
+   * Polling & Event listener:
+   * when new request is created we refresh and when issue moves to terminal state
+   * we fetch contracts by issueKey and merge (but only include <=90 days).
+   */
+  useEffect(() => {
+    const pollRegistry = new Map<string, { intervalId: number | null; attempts: number }>();
+    const POLL_INTERVAL_MS = 15000;
+    const MAX_ATTEMPTS = 40;
+
+    const checkIssueStatus = async (issueKey: string): Promise<string | null> => {
+      try {
+        const resp = await fetch(`http://localhost:8080/api/jira/issues/${encodeURIComponent(issueKey)}`);
+        if (!resp.ok) {
+          console.warn("checkIssueStatus non-ok", resp.status);
+          return null;
+        }
+        const data = await resp.json();
+        const status =
+          (data && data.fields && (data.fields as any).status && (data.fields as any).status.name) ||
+          data.status ||
+          data.issueStatus ||
+          (data && (data.status && data.status.name)) ||
+          null;
+        return status ? String(status) : null;
+      } catch (err) {
+        console.error("checkIssueStatus error:", err);
+        return null;
+      }
+    };
+
+    const fetchContractForIssue = async (issueKey: string): Promise<ContractDetails[] | null> => {
+      try {
+        const resp = await fetch(`http://localhost:8080/api/jira/contracts/byIssueKey/${encodeURIComponent(issueKey)}`);
+        if (!resp.ok) {
+          console.warn("fetchContractForIssue non-ok", resp.status);
+          return null;
+        }
+        const data = await resp.json();
+        if (!data) return null;
+        return Array.isArray(data) ? data : [data];
+      } catch (err) {
+        console.error("fetchContractForIssue error:", err);
+        return null;
+      }
+    };
+
+    const isTerminal = (statusRaw?: string | null) => {
+      if (!statusRaw) return false;
+      const s = statusRaw.toLowerCase();
+      return ["done", "completed", "closed", "resolved", "finished"].some((t) => s.includes(t));
+    };
+
+    const startPollingForIssue = (issueKey: string) => {
+      if (!issueKey) return;
+      if (pollRegistry.has(issueKey)) return;
+
+      const state = { intervalId: null as number | null, attempts: 0 };
+      pollRegistry.set(issueKey, state);
+
+      const runOnce = async () => {
+        const entry = pollRegistry.get(issueKey);
+        if (!entry) return;
+
+        entry.attempts += 1;
+        try {
+          const status = await checkIssueStatus(issueKey);
+          if (isTerminal(status)) {
+            const contracts = await fetchContractForIssue(issueKey);
+            if (contracts && contracts.length) {
+              const mapped = contracts.map(mapContractToRenewalItem);
+
+              // enrich those mapped entries with first proposal totals where possible
+              const enriched = await Promise.all(
+                mapped.map(async (m, idx) => {
+                  const orig = contracts[idx];
+                  // if orig contains firstProposalTotal, use it
+                  const preExisting = orig && (orig.firstProposalTotal ?? orig.first_proposal_total ?? orig.firstProposalPrice ?? orig.firstProposalAmount);
+                  if (preExisting !== undefined && preExisting !== null && String(preExisting).trim() !== "") {
+                    const n = Number(preExisting);
+                    if (!isNaN(n)) {
+                      m.totalValue = n.toLocaleString();
+                      return m;
+                    }
+                  }
+                  const issueKeyFromContract = extractIssueKeyFromContract(orig) ?? issueKey;
+                  if (issueKeyFromContract) {
+                    const ft = await fetchFirstProposalTotal(issueKeyFromContract);
+                    if (ft !== null) m.totalValue = Number(ft).toLocaleString();
+                  }
+                  return m;
+                })
+              );
+
+              setRows((prev) => {
+                const next = [...prev];
+                enriched.forEach((m) => {
+                  if (!keepWithin90Days(m)) return;
+                  const idx = next.findIndex((r) => r.id === m.id);
+                  if (idx >= 0) next[idx] = { ...next[idx], ...m };
+                  else next.unshift(m);
+                });
+                return next.filter(keepWithin90Days);
+              });
+            } else {
+              // fallback refresh
+              try {
+                const resp = await fetch("http://localhost:8080/api/jira/contracts/completed");
+                if (resp.ok) {
+                  const data = await resp.json();
+                  const mappedAll = Array.isArray(data) ? data.map(mapContractToRenewalItem) : [];
+                  // enrich mappedAll with first proposal totals where possible
+                  const enrichedAll = await Promise.all(
+                    mappedAll.map(async (row, idx) => {
+                      const orig = Array.isArray(data) ? data[idx] : undefined;
+                      if (!orig) return row;
+                      const preExisting = orig && (orig.firstProposalTotal ?? orig.first_proposal_total);
+                      if (preExisting !== undefined && preExisting !== null) {
+                        const n = Number(preExisting);
+                        if (!isNaN(n)) {
+                          row.totalValue = n.toLocaleString();
+                          return row;
+                        }
+                      }
+                      const ik = extractIssueKeyFromContract(orig);
+                      if (ik) {
+                        const ft = await fetchFirstProposalTotal(ik);
+                        if (ft !== null) row.totalValue = Number(ft).toLocaleString();
+                      }
+                      return row;
+                    })
+                  );
+                  setRows(enrichedAll.filter(keepWithin90Days));
+                }
+              } catch (err) {
+                console.error("fallback refresh error", err);
+              }
+            }
+
+            // done polling
+            const e = pollRegistry.get(issueKey);
+            if (e && e.intervalId) {
+              window.clearInterval(e.intervalId);
+            }
+            pollRegistry.delete(issueKey);
+            return;
+          }
+
+          if (entry.attempts >= MAX_ATTEMPTS) {
+            console.warn(`Polling stopped for ${issueKey} after max attempts`);
+            const e = pollRegistry.get(issueKey);
+            if (e && e.intervalId) window.clearInterval(e.intervalId);
+            pollRegistry.delete(issueKey);
+            return;
+          }
+        } catch (err) {
+          console.error("poll runOnce error", err);
+        }
+      };
+
+      runOnce();
+      const id = window.setInterval(runOnce, POLL_INTERVAL_MS);
+      state.intervalId = id;
+      pollRegistry.set(issueKey, state);
+    };
+
+    const onRequestCreated = (e: Event) => {
+      const evt = e as CustomEvent;
+      const issueKey = evt?.detail?.issueKey as string | undefined;
+
+      // Refresh list (and re-enrich)
+      (async () => {
+        try {
+          const resp = await fetch("http://localhost:8080/api/jira/contracts/completed");
+          if (resp.ok) {
+            const data: ContractDetails[] = await resp.json();
+            const mappedAll = Array.isArray(data) ? data.map(mapContractToRenewalItem) : [];
+            // attempt to enrich mappedAll with first proposal totals
+            const enrichedAll = await Promise.all(
+              mappedAll.map(async (row, idx) => {
+                const orig = Array.isArray(data) ? data[idx] : undefined;
+                if (!orig) return row;
+                const preExisting = orig && (orig.firstProposalTotal ?? orig.first_proposal_total);
+                if (preExisting !== undefined && preExisting !== null) {
+                  const n = Number(preExisting);
+                  if (!isNaN(n)) {
+                    row.totalValue = n.toLocaleString();
+                    return row;
+                  }
+                }
+                const ik = extractIssueKeyFromContract(orig);
+                if (ik) {
+                  const ft = await fetchFirstProposalTotal(ik);
+                  if (ft !== null) row.totalValue = Number(ft).toLocaleString();
+                }
+                return row;
+              })
+            );
+            setRows(enrichedAll.filter(keepWithin90Days));
+          }
+        } catch (err) {
+          console.error("refresh after request created failed", err);
+        }
+      })();
+
+      if (issueKey) {
+        startPollingForIssue(issueKey);
+      }
+    };
+
+    window.addEventListener("requestCreated", onRequestCreated as EventListener);
+
+    return () => {
+      window.removeEventListener("requestCreated", onRequestCreated as EventListener);
+      pollRegistry.forEach((v) => {
+        if (v.intervalId) window.clearInterval(v.intervalId);
+      });
+      pollRegistry.clear();
+    };
+  }, []);
+
+  /* FILTER + SEARCH */
   const filteredRenewals = useMemo(() => {
-    const term = searchTerm.toLowerCase();
-    if (!term) return mockRenewals;
-    return mockRenewals.filter(
-      (r) =>
-        r.vendorName.toLowerCase().includes(term) ||
-        r.product.toLowerCase().includes(term)
-    );
-  }, [searchTerm]);
+    let list = rows;
+
+    if (stageFilter !== "All") {
+      list = list.filter((r) => r.renewalStage === stageFilter);
+    }
+
+    const term = searchTerm.trim().toLowerCase();
+    if (term) {
+      list = list.filter(
+        (r) =>
+          r.vendorName.toLowerCase().includes(term) ||
+          r.product.toLowerCase().includes(term) ||
+          r.id.toLowerCase().includes(term)
+      );
+    }
+    return list;
+  }, [searchTerm, stageFilter, rows]);
 
   const handleExportCSV = () => {
     if (!filteredRenewals.length) {
@@ -146,21 +492,23 @@ const Renewal_vendor: React.FC = () => {
 
     const escapeCell = (val: string) => `"${val.replace(/"/g, '""')}"`;
 
-    const rows = filteredRenewals.map((r) =>
+    const rowsCsv = filteredRenewals.map((r) =>
       [
         r.id,
         r.vendorName,
         r.product,
         r.renewalDeadline,
-        r.daysUntilRenewal.toString(),
+        r.daysUntilRenewal ?? "",
         r.renewalStage,
         r.owner,
         r.totalValue,
-      ].map(escapeCell)
-       .join(",")
+      ]
+        .map(String)
+        .map(escapeCell)
+        .join(",")
     );
 
-    const csv = [headers.map(escapeCell).join(","), ...rows].join("\r\n");
+    const csv = [headers.map(escapeCell).join(","), ...rowsCsv].join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -177,237 +525,140 @@ const Renewal_vendor: React.FC = () => {
   const renderStageBadge = (stage: RenewalItem["renewalStage"]) => {
     const base =
       "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border";
-    switch (stage) {
-      case "Completed":
-        return (
-          <span className={`${base} border-green-200 bg-green-50 text-green-600`}>
-            Completed
-          </span>
-        );
-      case "Alerted":
-        return (
-          <span className={`${base} border-blue-200 bg-blue-50 text-blue-600`}>
-            Alerted
-          </span>
-        );
-      case "In Progress":
-        return (
-          <span className={`${base} border-pink-200 bg-pink-50 text-pink-600`}>
-            In Progress
-          </span>
-        );
-      default:
-        return stage;
+    if (stage === "Expired") {
+      return <span className={`${base} border-red-200 bg-red-50 text-red-600`}>Expired</span>;
     }
+    return <span className={`${base} border-green-200 bg-green-50 text-green-600`}>Active</span>;
   };
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8">
-      {/* Card */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="px-6 pt-6 pb-4">
-          {/* Breadcrumb + title + right controls */}
-          <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="text-xs text-gray-400 tracking-wide mb-1">
-                VENDOR MANAGEMENT &gt; RENEWALS
-              </div>
+              <div className="text-xs text-gray-400 tracking-wide mb-1">VENDOR MANAGEMENT &gt; RENEWALS</div>
               <h1 className="text-2xl font-semibold text-gray-900">Renewals</h1>
             </div>
 
             <div className="flex items-center space-x-3">
-              {/* Small calendar button */}
-              <button
-                type="button"
-                className="inline-flex items-center justify-center h-9 w-9 rounded-md bg-pink-50 text-pink-500 border border-pink-100 hover:bg-pink-100"
-              >
-                {/* calendar icon */}
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.6}
+              <div className="relative">
+                <button
+                  onClick={() => setShowFilterMenu((p) => !p)}
+                  className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M8 7V5m8 2V5M4 10h16M6 5h12a2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z"
-                  />
-                </svg>
-              </button>
+                  Filters
+                </button>
 
-              {/* small grid/list button */}
-              <button
-                type="button"
-                className="inline-flex items-center justify-center h-9 w-9 rounded-md bg-pink-500 text-white border border-pink-500 hover:bg-pink-600"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.8}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4 6h7M4 12h7M4 18h7M13 6h7M13 12h7M13 18h7"
-                  />
-                </svg>
-              </button>
+                {showFilterMenu && (
+                  <div className="absolute right-0 mt-2 w-40 bg-white border rounded-lg shadow-lg z-20">
+                    <button
+                      className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                      onClick={() => {
+                        setStageFilter("All");
+                        setShowFilterMenu(false);
+                      }}
+                    >
+                      All
+                    </button>
+                    <button
+                      className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                      onClick={() => {
+                        setStageFilter("Active");
+                        setShowFilterMenu(false);
+                      }}
+                    >
+                      Active
+                    </button>
+                    <button
+                      className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                      onClick={() => {
+                        setStageFilter("Expired");
+                        setShowFilterMenu(false);
+                      }}
+                    >
+                      Expired
+                    </button>
+                  </div>
+                )}
+              </div>
 
-              {/* Export CSV */}
               <button
-                type="button"
                 onClick={handleExportCSV}
                 className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4 mr-2"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.6}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4v10m0 0l-3-3m3 3l3-3M5 20h14"
-                  />
-                </svg>
                 Export CSV
               </button>
             </div>
           </div>
 
-          {/* Search + Filters row */}
-          <div className="flex items-center justify-between mt-4">
-            <div className="flex items-center space-x-3">
-              <div className="relative w-72">
-                <input
-                  type="text"
-                  placeholder="Search"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-pink-500 focus:border-pink-500"
-                />
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg
-                    className="h-4 w-4 text-gray-400"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4 mr-1.5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={1.6}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4 6h16M6 10h12M9 14h9M11 18h7"
-                  />
-                </svg>
-                Filters
-              </button>
-            </div>
-            <div /> {/* right side empty to match spacing in screenshot */}
+          {/* Search */}
+          <div className="mt-4 w-80 relative">
+            <input
+              type="text"
+              placeholder="Search"
+              className="w-full border px-3 py-2 rounded-md pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
           </div>
         </div>
 
-        {/* Table */}
+        {/* TABLE */}
         <div className="border-t border-gray-200">
           <div className="overflow-x-auto max-h-[calc(100vh-260px)]">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-pink-50/60">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Renewal ID
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Vendor Name
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Product(s)
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Renewal Deadline
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Days Until Renewal
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Renewal Stage
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Owner
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    Total Value (USD)
-                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Renewal ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Product(s)</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Renewal Deadline</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Days Until Renewal</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Owner</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Value (USD)</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredRenewals.length === 0 && (
+                {loading && (
                   <tr>
-                    <td
-                      colSpan={8}
-                      className="px-6 py-8 text-center text-sm text-gray-500"
-                    >
+                    <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500">
+                      Loading...
+                      {error && <div className="text-red-600 mt-2">{error}</div>}
+                    </td>
+                  </tr>
+                )}
+
+                {!loading && error && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-8 text-center text-sm text-red-600">
+                      {error}
+                    </td>
+                  </tr>
+                )}
+
+                {!loading && !error && filteredRenewals.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500">
                       No renewals found
                     </td>
                   </tr>
                 )}
 
-                {filteredRenewals.map((r) => (
-                  <tr
-                    key={r.id}
-                    className="hover:bg-pink-50/40 transition-colors"
-                  >
-                    <td className="px-4 py-3 text-sm text-pink-600 font-medium">
-                      {r.id}
+                {!loading && !error && filteredRenewals.map((r) => (
+                  <tr key={r.id} className="hover:bg-pink-50/40 transition-colors">
+                    <td className="px-4 py-3 text-sm text-pink-600 font-medium">{r.id}</td>
+                    <td className="px-4 py-3 text-sm text-pink-600 hover:underline cursor-pointer">{r.vendorName}</td>
+                    <td className="px-4 py-3 text-sm text-gray-800">{r.product}</td>
+                    <td className="px-4 py-3 text-sm text-gray-800">{r.renewalDeadline}</td>
+                    <td className={`px-4 py-3 text-sm ${r.daysUntilRenewal !== null && r.daysUntilRenewal <= 30 ? "text-red-600 font-semibold" : "text-gray-800"}`}>
+                      {r.daysUntilRenewal !== null ? r.daysUntilRenewal : "N/A"}
                     </td>
-                    <td className="px-4 py-3 text-sm text-pink-600 hover:underline cursor-pointer">
-                      {r.vendorName}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-800">
-                      {r.product}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-800">
-                      {r.renewalDeadline}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-800">
-                      {r.daysUntilRenewal}
-                    </td>
-                    <td className="px-4 py-3 text-sm">
-                      {renderStageBadge(r.renewalStage)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-800">
-                      {r.owner}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 font-semibold text-right">
-                      {r.totalValue}
-                    </td>
+                    <td className="px-4 py-3 text-sm">{renderStageBadge(r.renewalStage)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-800">{r.owner}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900 font-semibold text-right">{r.totalValue}</td>
                   </tr>
                 ))}
               </tbody>
@@ -415,7 +666,7 @@ const Renewal_vendor: React.FC = () => {
           </div>
 
           <div className="px-6 py-3 text-xs text-gray-500">
-            Showing {filteredRenewals.length} of {mockRenewals.length} renewals
+            {loading ? "Loading renewals..." : `Showing ${filteredRenewals.length} of ${rows.length} renewals (only items with daysUntilRenewal ≤ 90 are shown)`}
           </div>
         </div>
       </div>

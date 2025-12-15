@@ -826,7 +826,11 @@ const CreateIssueModal: React.FC<CreateIssueModalProps> = ({
       setSuccessMessage('Request successfully created');
       setErrorMessage('');
       setShowSuccess(true);
-      window.dispatchEvent(new CustomEvent('requestCreated'));
+      // window.dispatchEvent(new CustomEvent('requestCreated'));
+      // after 'created' is returned from jiraService.createContractIssue(payload)
+const issueKey = (created && (created as any).key) || (created && (created as any).issueKey);
+window.dispatchEvent(new CustomEvent('requestCreated', { detail: { issueKey } }));
+
 
       setTimeout(() => {
         setShowSuccess(false);
