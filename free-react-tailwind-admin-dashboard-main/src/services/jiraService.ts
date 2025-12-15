@@ -191,6 +191,12 @@ export interface ProductItem {
   nameOfVendor?: string;
   productLink?: string;
   productType?: 'license' | 'usage'; // New field to indicate if product is license-based or usage-based
+  // Added new fields for VendorList component
+  vendorId?: string;
+  vendorName?: string;
+  owner?: string;
+  department?: string;
+  activeAgreementSpend?: string;
 }
 
 // Define the proposal data interface
@@ -208,6 +214,9 @@ export interface CreateVendorPayload {
   productName: string;
   productLink?: string;
   productType: string;
+  // Added new fields for vendor management
+  owner?: string;
+  department?: string;
 }
 
 async function createVendor(payload: CreateVendorPayload): Promise<ProductItem> {

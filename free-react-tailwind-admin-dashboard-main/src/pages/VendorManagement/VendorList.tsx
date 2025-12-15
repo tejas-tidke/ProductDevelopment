@@ -6,7 +6,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import PageMeta from "../../components/common/PageMeta";
 import { jiraService, ProductItem } from "../../services/jiraService";
 import { Modal } from "../../components/ui/modal/index.tsx";
-
+import VendorListModal from "./VendorListModal";
 
 interface Column {
   key: string;
@@ -18,7 +18,7 @@ interface Column {
 const VendorList: React.FC = () => {
   // --- UI / filter state
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortField, setSortField] = useState<string | null>("nameOfVendor");
+  const [sortField, setSortField] = useState<string | null>("vendorId");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,24 +28,31 @@ const VendorList: React.FC = () => {
 
   // column visibility + ordering
   const [allColumns, setAllColumns] = useState<Column[]>([
-    { key: "id", title: "Sr. No.", isSortable: true, isSelected: true },
-    { key: "nameOfVendor", title: "Vendor Name", isSortable: true, isSelected: true },
-    { key: "productName", title: "Product Name", isSortable: true, isSelected: true },
-    { key: "productLink", title: "Product Link", isSortable: true, isSelected: true },
-    { key: "productType", title: "Product Type", isSortable: true, isSelected: true },
+    { key: "vendorId", title: "Vendor ID", isSortable: true, isSelected: true },
+    { key: "vendorName", title: "Vendor Name", isSortable: true, isSelected: true },
+    { key: "owner", title: "Owner", isSortable: true, isSelected: true },
+    { key: "department", title: "Department", isSortable: true, isSelected: true },
+    { key: "activeAgreementSpend", title: "Active Agreement Spend", isSortable: true, isSelected: true },
     { key: "actions", title: "Action", isSortable: false, isSelected: true },
   ]);
 
   const visibleColumns = allColumns.filter((c) => c.isSelected);
 
-  // --- Add Vendor Modal state
+  // --- Vendor Modal state
+  const [selectedVendor, setSelectedVendor] = useState<string | null>(null);
   const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
+
+  // --- Add Vendor Modal state
+  const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState(false);
   const [vendorName, setVendorName] = useState("");
   const [vendorProductName, setVendorProductName] = useState("");
   const [vendorProductLink, setVendorProductLink] = useState("");
   const [vendorProductType, setVendorProductType] = useState<"License Based" | "Usage Based">(
     "License Based"
   );
+  // New fields for the modal
+  const [vendorOwner, setVendorOwner] = useState("");
+  const [vendorDepartment, setVendorDepartment] = useState("");
 
   const [addSuccess, setAddSuccess] = useState(false);
   const [lastAddedProduct, setLastAddedProduct] = useState<ProductItem | null>(null);
@@ -97,18 +104,31 @@ const VendorList: React.FC = () => {
     }
   };
 
-
-
-  const openVendorModal = () => {
+  const openAddVendorModal = () => {
     setVendorName("");
     setVendorProductName("");
     setVendorProductLink("");
     setVendorProductType("License Based");
+    // Reset new fields
+    setVendorOwner("");
+    setVendorDepartment("");
+    setIsAddVendorModalOpen(true);
+  };
+
+  const closeAddVendorModal = () => {
+    setIsAddVendorModalOpen(false);
+  };
+
+  // Add this function to open the vendor modal
+  const openVendorDetailsModal = (vendorName: string) => {
+    setSelectedVendor(vendorName);
     setIsVendorModalOpen(true);
   };
 
-  const closeVendorModal = () => {
+  // Add this function to close the vendor modal
+  const closeVendorDetailsModal = () => {
     setIsVendorModalOpen(false);
+    setSelectedVendor(null);
   };
 
   // 🔥 async version – talks to backend
@@ -124,16 +144,47 @@ const VendorList: React.FC = () => {
         productName: vendorProductName.trim(),
         productLink: vendorProductLink.trim(),
         productType: vendorProductType,
+        owner: vendorOwner.trim() || undefined,
+        department: vendorDepartment.trim() || undefined,
       });
 
-      // Update table
-      setProducts((prev) => [...prev, created]);
+      // Check if vendor already exists to avoid duplication
+      const existingVendorIndex = products.findIndex(p => p.vendorName === vendorName.trim());
+      
+      if (existingVendorIndex >= 0) {
+        // Update existing vendor
+        const updatedProducts = [...products];
+        updatedProducts[existingVendorIndex] = {
+          ...updatedProducts[existingVendorIndex],
+          owner: vendorOwner || "John Doe",
+          department: vendorDepartment || "IT Department",
+          activeAgreementSpend: "$10,000"
+        };
+        setProducts(updatedProducts);
+      } else {
+        // Add new vendor
+        setProducts((prev) => [...prev, {
+          ...created,
+          vendorId: `V-${created.id}`,
+          vendorName: created.nameOfVendor,
+          owner: vendorOwner || "John Doe",
+          department: vendorDepartment || "IT Department",
+          activeAgreementSpend: "$10,000"
+        }]);
+      }
 
       // 🔹 Save info for success message
-      setLastAddedProduct(created);
+      setLastAddedProduct({
+        ...created,
+        vendorId: `V-${created.id}`,
+        vendorName: created.nameOfVendor,
+        owner: vendorOwner || "John Doe",
+        department: vendorDepartment || "IT Department",
+        activeAgreementSpend: "$10,000"
+      });
       setAddSuccess(true);
 
-      closeVendorModal();
+      closeAddVendorModal();
     } catch (err: any) {
       console.error("Failed to create vendor", err);
       alert(err.message || "Something went wrong");
@@ -154,16 +205,24 @@ const VendorList: React.FC = () => {
           throw new Error("Failed to fetch vendors");
         }
 
-        // 2. Fetch products for each vendor
+        // 2. Create a unique list of vendors with their products
+        const vendorMap: Record<string, ProductItem> = {};
+
+        // 3. Fetch products for each vendor
         const productPromises = vendors.map(async (vendorName: string) => {
           try {
             const products = await jiraService.getProductsByVendor(vendorName);
-            if (Array.isArray(products)) {
-              // Ensure nameOfVendor is populated
-              return products.map((p: ProductItem) => ({
-                ...p,
-                nameOfVendor: p.nameOfVendor || vendorName,
-              }));
+            if (Array.isArray(products) && products.length > 0) {
+              // Take the first product for each vendor to avoid duplicates
+              const firstProduct = products[0];
+              vendorMap[vendorName] = {
+                ...firstProduct,
+                vendorId: `V-${firstProduct.id}`,
+                vendorName: firstProduct.nameOfVendor || vendorName,
+                owner: "John Doe", // Dummy data
+                department: "IT Department", // Dummy data
+                activeAgreementSpend: "$10,000", // Dummy data
+              };
             }
             return [];
           } catch (e) {
@@ -172,11 +231,11 @@ const VendorList: React.FC = () => {
           }
         });
 
-        const results = await Promise.all(productPromises);
-        const allProducts = results.flat();
+        await Promise.all(productPromises);
+        const uniqueVendors = Object.values(vendorMap);
 
-        console.log("Fetched all products:", allProducts);
-        setProducts(allProducts);
+        console.log("Fetched unique vendors:", uniqueVendors);
+        setProducts(uniqueVendors);
       } catch (err) {
         console.error("Failed to fetch products", err);
         setError("Failed to load vendor products.");
@@ -192,10 +251,18 @@ const VendorList: React.FC = () => {
   const filteredProducts = useMemo(() => {
     let res = products.filter((p) => {
       const term = searchTerm.toLowerCase();
-      const vendor = (p.nameOfVendor || "").toLowerCase();
-      const product = (p.productName || "").toLowerCase();
+      const vendorId = (p.vendorId || "").toLowerCase();
+      const vendorName = (p.vendorName || "").toLowerCase();
+      const owner = (p.owner || "").toLowerCase();
+      const department = (p.department || "").toLowerCase();
+      const agreementSpend = (p.activeAgreementSpend || "").toLowerCase();
 
-      return searchTerm === "" || vendor.includes(term) || product.includes(term);
+      return searchTerm === "" || 
+             vendorId.includes(term) || 
+             vendorName.includes(term) || 
+             owner.includes(term) || 
+             department.includes(term) || 
+             agreementSpend.includes(term);
     });
 
     if (sortField) {
@@ -284,28 +351,24 @@ const VendorList: React.FC = () => {
     index: number
   ): React.ReactNode => {
     switch (colKey) {
-      case "id":
-        // Sr. No. (1-based index)
-        return index + 1;
-      case "nameOfVendor":
-        return product.nameOfVendor || "-";
-      case "productName":
-        return product.productName || "-";
-      case "productLink":
-        return product.productLink ? (
-          <a
-            href={product.productLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline"
+      case "vendorId":
+        return product.vendorId || "-";
+      case "vendorName":
+        // Make vendor name clickable
+        return (
+          <button
+            onClick={() => openVendorDetailsModal(product.vendorName || "")}
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
           >
-            {product.productLink}
-          </a>
-        ) : (
-          "-"
+            {product.vendorName || "-"}
+          </button>
         );
-      case "productType":
-        return product.productType || "-";
+      case "owner":
+        return product.owner || "N/A";
+      case "department":
+        return product.department || "N/A";
+      case "activeAgreementSpend":
+        return product.activeAgreementSpend || "$0";
       case "actions":
         return (
           <div className="relative">
@@ -487,7 +550,7 @@ const VendorList: React.FC = () => {
               {/* Add Vendor Button */}
               <button
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
-                onClick={openVendorModal}
+                onClick={openAddVendorModal}
               >
                 Add Vendor
               </button>
@@ -556,8 +619,8 @@ const VendorList: React.FC = () => {
 
       {/* Add Vendor Modal */}
       <Modal
-        isOpen={isVendorModalOpen}
-        onClose={closeVendorModal}
+        isOpen={isAddVendorModalOpen}
+        onClose={closeAddVendorModal}
         className="max-w-[700px] p-6 lg:p-10 "
       >
         <div className="flex flex-col px-2 overflow-y-auto custom-scrollbar">
@@ -645,11 +708,47 @@ const VendorList: React.FC = () => {
                 <option value="Usage Based">Usage Based</option>
               </select>
             </div>
+
+            {/* Owner */}
+            <div className="mt-4">
+              <label
+                htmlFor="vendor-owner"
+                className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
+              >
+                Owner
+              </label>
+              <input
+                id="vendor-owner"
+                type="text"
+                value={vendorOwner}
+                onChange={(e) => setVendorOwner(e.target.value)}
+                placeholder="Enter owner name"
+                className="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              />
+            </div>
+
+            {/* Department */}
+            <div className="mt-4">
+              <label
+                htmlFor="vendor-department"
+                className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400"
+              >
+                Department
+              </label>
+              <input
+                id="vendor-department"
+                type="text"
+                value={vendorDepartment}
+                onChange={(e) => setVendorDepartment(e.target.value)}
+                placeholder="Enter department"
+                className="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-3 mt-6 modal-footer sm:justify-end">
             <button
-              onClick={closeVendorModal}
+              onClick={closeAddVendorModal}
               type="button"
               className="flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto"
             >
@@ -715,6 +814,14 @@ const VendorList: React.FC = () => {
         </div>
       </Modal>
 
+      {/* Vendor Details Modal */}
+      {selectedVendor && (
+        <VendorListModal
+          vendorName={selectedVendor}
+          isOpen={isVendorModalOpen}
+          onClose={closeVendorDetailsModal}
+        />
+      )}
     </>
   );
 };
