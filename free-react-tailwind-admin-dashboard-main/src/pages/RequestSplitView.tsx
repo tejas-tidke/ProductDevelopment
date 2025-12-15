@@ -1996,6 +1996,9 @@ const RequestSplitView: React.FC = () => {
 
       const newStatus = updatedIssue?.fields?.status?.name;
       if (newStatus === "Completed") {
+        // Include the total optimized cost in the request
+        const totalOptimizedCost = totalProfit !== null ? totalProfit : null;
+        
         await fetch(
           "http://localhost:8080/api/jira/contracts/mark-completed",
           {
@@ -2024,6 +2027,7 @@ const RequestSplitView: React.FC = () => {
               existingContractId: existingContractIdVal || null,
               billingType: billingTypeVal || null,
               contractDuration: contractDurationVal || null,
+              totalOptimizedCost: totalOptimizedCost
             }),
           }
         );

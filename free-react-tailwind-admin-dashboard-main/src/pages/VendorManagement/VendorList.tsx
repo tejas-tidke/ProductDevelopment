@@ -147,17 +147,67 @@ const VendorList: React.FC = () => {
         owner: vendorOwner.trim() || undefined,
         department: vendorDepartment.trim() || undefined,
       });
+      
+      // Calculate total spend for the newly added vendor
+      let totalSpend = 0;
+      try {
+        // Get ALL vendor profiles for this vendor using DTOs to get product information
+        const vendorProfiles = await jiraService.getVendorProfileDTOsByName(vendorName.trim());
+        
+        if (Array.isArray(vendorProfiles)) {
+          // Process all products for this vendor
+          for (const profile of vendorProfiles) {
+            try {
+              // Only process if we have product information
+              if (profile.productName) {
+                const contracts = await jiraService.getCompletedContractsByVendorAndProduct(
+                  vendorName.trim(), 
+                  profile.productName
+                );
+                
+                if (Array.isArray(contracts)) {
+                  for (const contract of contracts) {
+                    // Fetch proposals to get the final total cost
+                    try {
+                      const proposals = await jiraService.getProposalsByIssueKey(contract.jiraIssueKey);
+                      
+                      if (Array.isArray(proposals) && proposals.length > 0) {
+                        // Find the final proposal for total spend
+                        const finalProposal = proposals.find((p: any) => p.isFinal);
+                        if (finalProposal) {
+                          totalSpend += finalProposal.totalCost || 0;
+                        } else {
+                          // If no final proposal, use the last proposal's total cost
+                          const lastProposal = proposals[proposals.length - 1];
+                          totalSpend += lastProposal.totalCost || 0;
+                        }
+                      }
+                    } catch (proposalError) {
+                      console.error('Failed to fetch proposals for contract:', contract.jiraIssueKey, proposalError);
+                    }
+                  }
+                }
+              }
+            } catch (contractError) {
+              console.error('Failed to fetch contracts for product:', profile.productName, contractError);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to calculate total spend for vendor:', vendorName.trim(), error);
+      }
+      
       // Check if vendor already exists to avoid duplication
       const existingVendorIndex = products.findIndex(p => p.vendorName === vendorName.trim());
       
       if (existingVendorIndex >= 0) {
-        // Update existing vendor
+        // Update existing vendor with calculated total spend
         const updatedProducts = [...products];
         updatedProducts[existingVendorIndex] = {
           ...updatedProducts[existingVendorIndex],
           owner: vendorOwner || "John Doe",
           department: vendorDepartment || "IT Department",
-          activeAgreementSpend: "$10,000"
+          activeAgreementSpend: `$${totalSpend.toLocaleString()}`
         };
         setProducts(updatedProducts);
       } else {
@@ -168,7 +218,7 @@ const VendorList: React.FC = () => {
           vendorName: created.nameOfVendor,
           owner: vendorOwner || "John Doe",
           department: vendorDepartment || "IT Department",
-          activeAgreementSpend: "$10,000"
+          activeAgreementSpend: `$${totalSpend.toLocaleString()}`
         }]);
       }
 
@@ -179,7 +229,7 @@ const VendorList: React.FC = () => {
         vendorName: created.nameOfVendor,
         owner: vendorOwner || "John Doe",
         department: vendorDepartment || "IT Department",
-        activeAgreementSpend: "$10,000"
+        activeAgreementSpend: `$${totalSpend.toLocaleString()}`
       });
       setAddSuccess(true);
 
@@ -210,11 +260,52 @@ const VendorList: React.FC = () => {
         // 3. Fetch products for each vendor using the new vendor profiles system
         const productPromises = vendors.map(async (vendorName: string) => {
           try {
-            // Get vendor profiles for this vendor
+            // Get ALL vendor profiles for this vendor using DTOs to get product information
             const vendorProfiles = await jiraService.getVendorProfileDTOsByName(vendorName);
             
             if (Array.isArray(vendorProfiles) && vendorProfiles.length > 0) {
-              // Take the first profile for each vendor to avoid duplicates
+              // Calculate total spend for this vendor by fetching all contracts for all products
+              let totalSpend = 0;
+              
+              // Process all products for this vendor
+              for (const profile of vendorProfiles) {
+                try {
+                  // Only process if we have product information
+                  if (profile.productName) {
+                    const contracts = await jiraService.getCompletedContractsByVendorAndProduct(
+                      vendorName, 
+                      profile.productName
+                    );
+                    
+                    if (Array.isArray(contracts)) {
+                      for (const contract of contracts) {
+                        // Fetch proposals to get the final total cost
+                        try {
+                          const proposals = await jiraService.getProposalsByIssueKey(contract.jiraIssueKey);
+                          
+                          if (Array.isArray(proposals) && proposals.length > 0) {
+                            // Find the final proposal for total spend
+                            const finalProposal = proposals.find((p: any) => p.isFinal);
+                            if (finalProposal) {
+                              totalSpend += finalProposal.totalCost || 0;
+                            } else {
+                              // If no final proposal, use the last proposal's total cost
+                              const lastProposal = proposals[proposals.length - 1];
+                              totalSpend += lastProposal.totalCost || 0;
+                            }
+                          }
+                        } catch (proposalError) {
+                          console.error('Failed to fetch proposals for contract:', contract.jiraIssueKey, proposalError);
+                        }
+                      }
+                    }
+                  }
+                } catch (contractError) {
+                  console.error('Failed to fetch contracts for product:', profile.productName, contractError);
+                }
+              }
+              
+              // Use the first profile for vendor details but with calculated total spend
               const firstProfile = vendorProfiles[0];
               vendorMap[vendorName] = {
                 id: firstProfile.vendorId?.toString() || "",
@@ -225,7 +316,7 @@ const VendorList: React.FC = () => {
                 vendorName: firstProfile.vendorName || vendorName,
                 owner: firstProfile.vendorOwner || "John Doe",
                 department: firstProfile.department || "IT Department",
-                activeAgreementSpend: "$10,000", // Dummy data
+                activeAgreementSpend: `$${totalSpend.toLocaleString()}`, // Actual calculated total spend
               };
             }
             return [];
@@ -270,6 +361,14 @@ const VendorList: React.FC = () => {
 
     if (sortField) {
       res = [...res].sort((a, b) => {
+        // Special handling for activeAgreementSpend sorting
+        if (sortField === "activeAgreementSpend") {
+          // Extract numeric value from formatted string like "$10,000"
+          const aVal = parseFloat(a.activeAgreementSpend?.replace(/[^0-9.-]+/g,"") || "0");
+          const bVal = parseFloat(b.activeAgreementSpend?.replace(/[^0-9.-]+/g,"") || "0");
+          return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+        }
+        
         // @ts-ignore
         const aVal = String(a[sortField] || "").toLowerCase();
         // @ts-ignore

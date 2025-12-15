@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.htc.productdevelopment.model.ContractAttachment;
 import com.htc.productdevelopment.model.ContractDetails;
@@ -1011,6 +1012,7 @@ public ResponseEntity<?> getCompletedContractsByVendorAndProduct(
 
             dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
             dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
+            dto.setTotalProfit(c.getTotalOptimizedCost());
 
             return dto;
         }).toList();
@@ -1103,7 +1105,7 @@ public ResponseEntity<?> debugAllContracts() {
         List<ContractDetails> allContracts = contractDetailsService.getAllContracts();
         logger.info("Debug: Found {} total contracts", allContracts.size());
         
-        List<ContractDetails> completedContracts = contractDetailsService.getContractsByTypeIgnoreCase("completed");
+        List<ContractDetails> completedContracts = contractDetailsService.getCompletedContracts();
         logger.info("Debug: Found {} completed contracts", completedContracts.size());
         
         // Group by vendor and product for easier analysis
@@ -1150,7 +1152,7 @@ public ResponseEntity<?> debugVendorProductContracts(
         logger.info("Debug: Service method result count: {}", serviceResult.size());
         
         // Test 3: Case insensitive checks
-        List<ContractDetails> allCompleted = contractDetailsService.getContractsByTypeIgnoreCase("completed");
+        List<ContractDetails> allCompleted = contractDetailsService.getCompletedContracts();
         logger.info("Debug: Total completed contracts: {}", allCompleted.size());
         
         List<ContractDetails> matchingContracts = allCompleted.stream()
@@ -1240,6 +1242,7 @@ public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedReq
         contract.setExistingContractId(request.getExistingContractId());
         contract.setBillingType(request.getBillingType());
         contract.setContractDuration(request.getContractDuration());
+        contract.setTotalOptimizedCost(request.getTotalOptimizedCost());
 
         if (request.getDueDate() != null && !request.getDueDate().trim().isEmpty()) {
             contract.setDueDate(LocalDate.parse(request.getDueDate()));

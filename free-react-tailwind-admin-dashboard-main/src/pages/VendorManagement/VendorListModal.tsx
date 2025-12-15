@@ -107,38 +107,39 @@ const VendorListModal: React.FC<{
             existingContractId: string;
             billingType: string;
             contractDuration: string;
+            totalProfit: number;
           }>) {
-            // Determine quantity based on contract type
+            // Determine quantity based on billing type
             let totalQuantity = 0;
-            if (contract.vendorContractType === 'license') {
+            if (contract.billingType === 'license') {
               totalQuantity = contract.newLicenseCount || contract.currentLicenseCount || 0;
-            } else if (contract.vendorContractType === 'usage') {
+            } else if (contract.billingType === 'usage') {
               totalQuantity = contract.newUsageCount || contract.currentUsageCount || 0;
             }
             
-            // Fetch proposal data to get optimized cost
-            let optimizedCost = 0;
+            // Fetch the final proposal for total spend
             let totalSpend = 0;
+            let optimizedCost = contract.totalProfit || 0;
             
             try {
               const proposals: ProposalData[] = await jiraService.getProposalsByIssueKey(contract.jiraIssueKey);
               console.log('Proposals for contract:', contract.jiraIssueKey, proposals);
               
               if (Array.isArray(proposals) && proposals.length > 0) {
-                // Find the final proposal
+                // Find the final proposal for total spend
                 const finalProposal = proposals.find(p => p.isFinal);
                 if (finalProposal) {
-                  optimizedCost = finalProposal.totalCost || 0;
+                  totalSpend = finalProposal.totalCost || 0;
+                } else {
+                  // If no final proposal, use the last proposal's total cost
+                  const lastProposal = proposals[proposals.length - 1];
+                  totalSpend = lastProposal.totalCost || 0;
                 }
-                
-                // Use the last proposal's total cost as total spend if no final proposal
-                const lastProposal = proposals[proposals.length - 1];
-                totalSpend = lastProposal.totalCost || 0;
               }
             } catch (proposalError) {
               console.error('Failed to fetch proposals for contract:', contract.jiraIssueKey, proposalError);
               // Fallback to using contract data for total spend
-              totalSpend = 10000; // Placeholder value
+              totalSpend = optimizedCost;
             }
             
             contracts.push({
@@ -368,14 +369,14 @@ const VendorListModal: React.FC<{
               ${totalSpend.toLocaleString()}
             </div>
           </div>
-          <div className="flex justify-between items-center">
+          {/* <div className="flex justify-between items-center">
             <div className="text-lg font-semibold text-gray-900 dark:text-white">
               {selectedProduct?.productName || "Product"} Total Optimized Cost:
             </div>
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               ${totalOptimizedCost.toLocaleString()}
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </Modal>

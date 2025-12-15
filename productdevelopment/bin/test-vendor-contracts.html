@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Vendor Contracts API</title>
+</head>
+<body>
+    <h1>Test Vendor Contracts API</h1>
+    
+    <div>
+        <h2>Get Completed Contracts by Vendor and Product</h2>
+        <label>Vendor Name: <input type="text" id="vendorName" value="Atlassian"></label><br><br>
+        <label>Product Name: <input type="text" id="productName" value="Jira"></label><br><br>
+        <button onclick="getCompletedContracts()">Get Contracts</button>
+        <div id="contractsResult"></div>
+    </div>
+    
+    <div>
+        <h2>Get Proposals by Issue Key</h2>
+        <label>Issue Key: <input type="text" id="issueKey" value="RM-1"></label><br><br>
+        <button onclick="getProposals()">Get Proposals</button>
+        <div id="proposalsResult"></div>
+    </div>
+
+    <script>
+        async function getCompletedContracts() {
+            const vendorName = document.getElementById('vendorName').value;
+            const productName = document.getElementById('productName').value;
+            
+            try {
+                const response = await fetch(`/api/jira/contracts/completed/vendor/${encodeURIComponent(vendorName)}/product/${encodeURIComponent(productName)}`);
+                const data = await response.json();
+                document.getElementById('contractsResult').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('contractsResult').innerHTML = '<p style="color: red;">Error: ' + error.message + '</p>';
+            }
+        }
+        
+        async function getProposals() {
+            const issueKey = document.getElementById('issueKey').value;
+            
+            try {
+                const response = await fetch(`/api/jira/proposals/issue/${encodeURIComponent(issueKey)}`);
+                const data = await response.json();
+                document.getElementById('proposalsResult').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('proposalsResult').innerHTML = '<p style="color: red;">Error: ' + error.message + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>

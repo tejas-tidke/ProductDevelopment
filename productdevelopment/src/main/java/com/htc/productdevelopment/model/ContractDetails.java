@@ -160,6 +160,17 @@ public class ContractDetails {
     @Column(name = "contract_duration")
     private String contractDuration;
     
+    @Column(name = "total_profit")
+    private Double totalOptimizedCost;
+    
+    public Double getTotalOptimizedCost() {
+        return totalOptimizedCost;
+    }
+    
+    public void setTotalOptimizedCost(Double totalOptimizedCost) {
+        this.totalOptimizedCost = totalOptimizedCost;
+    }
+    
     public String getJiraIssueKey() {
         return jiraIssueKey;
     }

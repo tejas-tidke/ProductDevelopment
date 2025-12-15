@@ -275,6 +275,9 @@ public class ContractDetailsService {
         }
 
         contract.setAdditionalComment(incoming.getAdditionalComment());
+        
+        // Set the total optimized cost if provided
+        contract.setTotalOptimizedCost(incoming.getTotalOptimizedCost());
 
         // 4️⃣ Save and return
         ContractDetails saved = contractDetailsRepository.save(contract);

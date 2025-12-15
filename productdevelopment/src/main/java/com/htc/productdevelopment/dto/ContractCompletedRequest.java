@@ -31,5 +31,14 @@ public class ContractCompletedRequest {
     private String dueDate;
     private String renewalDate;
     private String contractDuration;
+    private Double totalOptimizedCost;
+    
+    public Double getTotalOptimizedCost() {
+        return totalOptimizedCost;
+    }
+    
+    public void setTotalOptimizedCost(Double totalOptimizedCost) {
+        this.totalOptimizedCost = totalOptimizedCost;
+    }
 }
 
