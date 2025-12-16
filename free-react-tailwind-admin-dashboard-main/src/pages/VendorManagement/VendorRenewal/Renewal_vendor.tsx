@@ -16,8 +16,8 @@ type ContractDetails = {
   totalValue?: number | null;
   total_value?: number | null;
   totalValueString?: string | null;
-  // sometimes backends include embedded proposals or firstProposalTotal
-  firstProposalTotal?: number | string | null;
+  // sometimes backends include embedded proposals or finalProposalTotal
+  finalProposalTotal?: number | string | null;
   proposals?: any;
   [key: string]: any;
 };
@@ -81,7 +81,7 @@ const mapContractToRenewalItem = (c: ContractDetails): RenewalItem => {
       ? Number(totalNumber).toLocaleString()
       : c.totalValueString ?? "N/A";
 
-  // initially use fallback; we'll try to replace with first-proposal value async
+  // initially use fallback; we'll try to replace with final-proposal value async
   return {
     id: idStr,
     vendorName,
@@ -108,8 +108,9 @@ const extractIssueKeyFromContract = (c: ContractDetails): string | null => {
   return String(possible);
 };
 
-/* Fetch first proposal for a given issueKey and return numeric totalCost or null */
-const fetchFirstProposalTotal = async (issueKey: string): Promise<number | null> => {
+
+/* Fetch final proposal for a given issueKey and return numeric totalCost or null */
+const fetchFinalProposalTotal = async (issueKey: string): Promise<number | null> => {
   try {
     const resp = await fetch(`http://localhost:8080/api/jira/proposals/issue/${encodeURIComponent(issueKey)}`);
     if (!resp.ok) {
@@ -122,28 +123,28 @@ const fetchFirstProposalTotal = async (issueKey: string): Promise<number | null>
 
     if (!proposals.length) return null;
 
-    // Try to pick proposalNumber === 1 or proposalType === 'FIRST' first
-    let chosen = proposals.find((p: any) => Number(p.proposalNumber) === 1) ?? proposals.find((p: any) => (p.proposalType || "").toString().toUpperCase().includes("FIRST"));
-
-    // otherwise find smallest proposalNumber
-    if (!chosen) {
-      const sorted = [...proposals].sort((a: any, b: any) => (Number(a.proposalNumber || 9999) - Number(b.proposalNumber || 9999)));
-      chosen = sorted[0];
+    // Find the final proposal
+    let finalProposal = proposals.find((p: any) => p.isFinal === true);
+    
+    // If no final proposal found, use the last proposal
+    if (!finalProposal && proposals.length > 0) {
+      finalProposal = proposals[proposals.length - 1];
     }
 
-    if (!chosen) return null;
-   const tc =
-  chosen.totalCost ??
-  chosen.total_cost ??
-  ((chosen.unitCost && chosen.licenseCount)
-    ? Number(chosen.unitCost) * Number(chosen.licenseCount)
-    : null);
+    if (!finalProposal) return null;
+    
+    const tc =
+      finalProposal.totalCost ??
+      finalProposal.total_cost ??
+      ((finalProposal.unitCost && finalProposal.licenseCount)
+        ? Number(finalProposal.unitCost) * Number(finalProposal.licenseCount)
+        : null);
 
     if (tc === null || tc === undefined) return null;
     const num = Number(tc);
     return isNaN(num) ? null : num;
   } catch (err) {
-    console.warn("fetchFirstProposalTotal error:", err);
+    console.warn("fetchFinalProposalTotal error:", err);
     return null;
   }
 };
@@ -163,7 +164,7 @@ const Renewal_vendor: React.FC = () => {
     return item.daysUntilRenewal !== null && item.daysUntilRenewal <= 90;
   };
 
-  /* Initial fetch & enrichment (adds first-proposal price if available) */
+  /* Initial fetch & enrichment (adds final-proposal price if available) */
   useEffect(() => {
     let mounted = true;
 
@@ -180,13 +181,13 @@ const Renewal_vendor: React.FC = () => {
         const data: ContractDetails[] = await resp.json();
         const mappedAll = Array.isArray(data) ? data.map(mapContractToRenewalItem) : [];
 
-        // Enrich each mapped row by attempting to read the first proposal total (if issueKey present)
+        // Enrich each mapped row by attempting to read the final proposal total (if issueKey present)
         const enriched = await Promise.all(
           (mappedAll.map(async (row, idx) => {
-            // original contract object for discovery of issueKey / firstProposalTotal
+            // original contract object for discovery of issueKey / finalProposalTotal
             const original = Array.isArray(data) ? data[idx] : undefined;
-            // if backend already provided a firstProposalTotal (common optimization), use it
-            const preExisting = original && (original.firstProposalTotal ?? original.first_proposal_total ?? original.firstProposalPrice ?? original.firstProposalAmount);
+            // if backend already provided a finalProposalTotal (common optimization), use it
+            const preExisting = original && (original.finalProposalTotal ?? original.final_proposal_total ?? original.finalProposalPrice ?? original.finalProposalAmount);
             if (preExisting !== undefined && preExisting !== null && String(preExisting).trim() !== "") {
               const n = Number(preExisting);
               if (!isNaN(n)) {
@@ -202,10 +203,10 @@ const Renewal_vendor: React.FC = () => {
               return row;
             }
 
-            // fetch first proposal total for this issueKey
-            const firstTotal = await fetchFirstProposalTotal(issueKey);
-            if (firstTotal !== null) {
-              row.totalValue = Number(firstTotal).toLocaleString();
+            // fetch final proposal total for this issueKey
+            const finalTotal = await fetchFinalProposalTotal(issueKey);
+            if (finalTotal !== null) {
+              row.totalValue = Number(finalTotal).toLocaleString();
             }
             return row;
           }))
@@ -308,8 +309,8 @@ const Renewal_vendor: React.FC = () => {
               const enriched = await Promise.all(
                 mapped.map(async (m, idx) => {
                   const orig = contracts[idx];
-                  // if orig contains firstProposalTotal, use it
-                  const preExisting = orig && (orig.firstProposalTotal ?? orig.first_proposal_total ?? orig.firstProposalPrice ?? orig.firstProposalAmount);
+                  // if orig contains finalProposalTotal, use it
+                  const preExisting = orig && (orig.finalProposalTotal ?? orig.final_proposal_total ?? orig.finalProposalPrice ?? orig.finalProposalAmount);
                   if (preExisting !== undefined && preExisting !== null && String(preExisting).trim() !== "") {
                     const n = Number(preExisting);
                     if (!isNaN(n)) {
@@ -319,7 +320,7 @@ const Renewal_vendor: React.FC = () => {
                   }
                   const issueKeyFromContract = extractIssueKeyFromContract(orig) ?? issueKey;
                   if (issueKeyFromContract) {
-                    const ft = await fetchFirstProposalTotal(issueKeyFromContract);
+                    const ft = await fetchFinalProposalTotal(issueKeyFromContract);
                     if (ft !== null) m.totalValue = Number(ft).toLocaleString();
                   }
                   return m;
@@ -343,12 +344,12 @@ const Renewal_vendor: React.FC = () => {
                 if (resp.ok) {
                   const data = await resp.json();
                   const mappedAll = Array.isArray(data) ? data.map(mapContractToRenewalItem) : [];
-                  // enrich mappedAll with first proposal totals where possible
+                  // enrich mappedAll with final proposal totals where possible
                   const enrichedAll = await Promise.all(
                     mappedAll.map(async (row, idx) => {
                       const orig = Array.isArray(data) ? data[idx] : undefined;
                       if (!orig) return row;
-                      const preExisting = orig && (orig.firstProposalTotal ?? orig.first_proposal_total);
+                      const preExisting = orig && (orig.finalProposalTotal ?? orig.final_proposal_total);
                       if (preExisting !== undefined && preExisting !== null) {
                         const n = Number(preExisting);
                         if (!isNaN(n)) {
@@ -358,7 +359,7 @@ const Renewal_vendor: React.FC = () => {
                       }
                       const ik = extractIssueKeyFromContract(orig);
                       if (ik) {
-                        const ft = await fetchFirstProposalTotal(ik);
+                        const ft = await fetchFinalProposalTotal(ik);
                         if (ft !== null) row.totalValue = Number(ft).toLocaleString();
                       }
                       return row;
@@ -409,12 +410,12 @@ const Renewal_vendor: React.FC = () => {
           if (resp.ok) {
             const data: ContractDetails[] = await resp.json();
             const mappedAll = Array.isArray(data) ? data.map(mapContractToRenewalItem) : [];
-            // attempt to enrich mappedAll with first proposal totals
+            // attempt to enrich mappedAll with final proposal totals
             const enrichedAll = await Promise.all(
               mappedAll.map(async (row, idx) => {
                 const orig = Array.isArray(data) ? data[idx] : undefined;
                 if (!orig) return row;
-                const preExisting = orig && (orig.firstProposalTotal ?? orig.first_proposal_total);
+                const preExisting = orig && (orig.finalProposalTotal ?? orig.final_proposal_total);
                 if (preExisting !== undefined && preExisting !== null) {
                   const n = Number(preExisting);
                   if (!isNaN(n)) {
@@ -424,7 +425,7 @@ const Renewal_vendor: React.FC = () => {
                 }
                 const ik = extractIssueKeyFromContract(orig);
                 if (ik) {
-                  const ft = await fetchFirstProposalTotal(ik);
+                  const ft = await fetchFinalProposalTotal(ik);
                   if (ft !== null) row.totalValue = Number(ft).toLocaleString();
                 }
                 return row;
@@ -609,7 +610,7 @@ const Renewal_vendor: React.FC = () => {
         <div className="border-t border-gray-200">
           <div className="overflow-x-auto max-h-[calc(100vh-260px)]">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-pink-50/60">
+              <thead className="bg-blue-50/60">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Renewal ID</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor Name</th>
@@ -648,9 +649,9 @@ const Renewal_vendor: React.FC = () => {
                 )}
 
                 {!loading && !error && filteredRenewals.map((r) => (
-                  <tr key={r.id} className="hover:bg-pink-50/40 transition-colors">
-                    <td className="px-4 py-3 text-sm text-pink-600 font-medium">{r.id}</td>
-                    <td className="px-4 py-3 text-sm text-pink-600 hover:underline cursor-pointer">{r.vendorName}</td>
+                  <tr key={r.id} className="hover:bg-blue-50/40 transition-colors">
+                    <td className="px-4 py-3 text-sm text-black-600 font-medium">{r.id}</td>
+                    <td className="px-4 py-3 text-sm text-black-600 hover:underline cursor-pointer">{r.vendorName}</td>
                     <td className="px-4 py-3 text-sm text-gray-800">{r.product}</td>
                     <td className="px-4 py-3 text-sm text-gray-800">{r.renewalDeadline}</td>
                     <td className={`px-4 py-3 text-sm ${r.daysUntilRenewal !== null && r.daysUntilRenewal <= 30 ? "text-red-600 font-semibold" : "text-gray-800"}`}>

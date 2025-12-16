@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Modal } from "../../components/ui/modal";
 import { jiraService, ProductItem } from "../../services/jiraService";
 
@@ -31,21 +31,49 @@ interface VendorDetails {
   contracts: Contract[];
 }
 
-const VendorListModal: React.FC<{
+interface VendorListModalProps {
   vendorName: string;
   isOpen: boolean;
   onClose: () => void;
-}> = ({ vendorName, isOpen, onClose }) => {
-  const [vendorDetails, setVendorDetails] = useState<VendorDetails | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+}
 
-  // Fetch products for a vendor from the new vendor profiles system
+// Add cache outside the component
+const modalDataCache = new Map<string, { data: any; timestamp: number }>();
+const MODAL_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+const VendorListModal: React.FC<VendorListModalProps> = ({ vendorName, isOpen, onClose }) => {
+  const [vendorDetails, setVendorDetails] = useState<VendorDetails | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
+
+  // Function to get cached data or fetch new data
+  const getModalCachedOrFetch = async (key: string, fetchFn: () => Promise<any>) => {
+    const cached = modalDataCache.get(key);
+    const now = Date.now();
+    
+    // Check if cache exists and is still valid
+    if (cached && (now - cached.timestamp) < MODAL_CACHE_DURATION) {
+      console.log(`Using cached data for ${key}`);
+      return cached.data;
+    }
+    
+    // Fetch fresh data
+    console.log(`Fetching fresh data for ${key}`);
+    const data = await fetchFn();
+    
+    // Cache the data
+    modalDataCache.set(key, { data, timestamp: now });
+    return data;
+  };
+
+  // Fetch vendor products with caching
   const fetchVendorProducts = async (vendor: string): Promise<ProductItem[]> => {
     try {
-      // Get vendor profiles for this vendor from the new API
-      const vendorProfiles = await jiraService.getVendorProfileDTOsByName(vendor);
+      // Use cached data for vendor profiles
+      const vendorProfiles = await getModalCachedOrFetch(`vendorProfiles_${vendor}`, () => 
+        jiraService.getVendorProfileDTOsByName(vendor)
+      );
       
       if (Array.isArray(vendorProfiles) && vendorProfiles.length > 0) {
         // Map vendor profiles to ProductItem format
@@ -68,18 +96,35 @@ const VendorListModal: React.FC<{
     return [];
   };
 
-  // Fetch real contracts for products
+  // Fetch real contracts for products with caching
   const fetchContractsForProducts = async (vendorName: string, products: ProductItem[]): Promise<Contract[]> => {
     const contracts: Contract[] = [];
     
     try {
       console.log('Fetching contracts for vendor:', vendorName, 'products:', products);
-      // For each product, fetch the completed contracts
-      for (const product of products) {
-        console.log('Fetching contracts for product:', product.productName);
-        const contractData = await jiraService.getCompletedContractsByVendorAndProduct(vendorName, product.productName);
-        console.log('Received contract data:', contractData);
-        
+      
+      // Create promises for all products
+      const contractPromises: Promise<any>[] = [];
+      const productMap = new Map<number, ProductItem>();
+      
+      // Collect all contract fetch promises
+      products.forEach((product, index) => {
+        const promise = getModalCachedOrFetch(
+          `contracts_${vendorName}_${product.productName}`,
+          () => jiraService.getCompletedContractsByVendorAndProduct(vendorName, product.productName)
+        );
+        contractPromises.push(promise);
+        // Store mapping to associate results with products
+      });
+      
+      // Fetch all contracts in parallel
+      const contractResults = await Promise.all(contractPromises);
+      
+      // Process results
+      const proposalPromises: Promise<any>[] = [];
+      const contractDataToProcess: any[] = [];
+      
+      contractResults.forEach((contractData, index) => {
         if (Array.isArray(contractData)) {
           // Convert contract data to Contract format
           for (const contract of contractData as Array<{
@@ -109,50 +154,59 @@ const VendorListModal: React.FC<{
             contractDuration: string;
             totalProfit: number;
           }>) {
-            // Determine quantity based on billing type
-            let totalQuantity = 0;
-            if (contract.billingType === 'license') {
-              totalQuantity = contract.newLicenseCount || contract.currentLicenseCount || 0;
-            } else if (contract.billingType === 'usage') {
-              totalQuantity = contract.newUsageCount || contract.currentUsageCount || 0;
-            }
-            
-            // Fetch the final proposal for total spend
-            let totalSpend = 0;
-            let optimizedCost = contract.totalProfit || 0;
-            
-            try {
-              const proposals: ProposalData[] = await jiraService.getProposalsByIssueKey(contract.jiraIssueKey);
-              console.log('Proposals for contract:', contract.jiraIssueKey, proposals);
-              
-              if (Array.isArray(proposals) && proposals.length > 0) {
-                // Find the final proposal for total spend
-                const finalProposal = proposals.find(p => p.isFinal);
-                if (finalProposal) {
-                  totalSpend = finalProposal.totalCost || 0;
-                } else {
-                  // If no final proposal, use the last proposal's total cost
-                  const lastProposal = proposals[proposals.length - 1];
-                  totalSpend = lastProposal.totalCost || 0;
-                }
-              }
-            } catch (proposalError) {
-              console.error('Failed to fetch proposals for contract:', contract.jiraIssueKey, proposalError);
-              // Fallback to using contract data for total spend
-              totalSpend = optimizedCost;
-            }
-            
-            contracts.push({
-              id: `CON-${contract.id}`,
-              productName: contract.productName,
-              organization: contract.requesterOrganization || contract.requesterDepartment || 'Unknown Organization',
-              totalQuantity: totalQuantity,
-              totalSpend: totalSpend,
-              optimizedCost: optimizedCost
-            });
+            contractDataToProcess.push(contract);
+            proposalPromises.push(
+              getModalCachedOrFetch(
+                `proposals_${contract.jiraIssueKey}`,
+                () => jiraService.getProposalsByIssueKey(contract.jiraIssueKey)
+              )
+            );
           }
         }
+      });
+      
+      // Fetch all proposals in parallel
+      const proposalResults = await Promise.all(proposalPromises);
+      
+      // Process contracts with their proposals
+      for (let i = 0; i < contractDataToProcess.length; i++) {
+        const contract = contractDataToProcess[i];
+        const proposals = proposalResults[i];
+        
+        // Determine quantity based on billing type
+        let totalQuantity = 0;
+        if (contract.billingType === 'license') {
+          totalQuantity = contract.newLicenseCount || contract.currentLicenseCount || 0;
+        } else if (contract.billingType === 'usage') {
+          totalQuantity = contract.newUsageCount || contract.currentUsageCount || 0;
+        }
+        
+        // Process proposals to get total spend
+        let totalSpend = 0;
+        let optimizedCost = contract.totalProfit || 0;
+        
+        if (Array.isArray(proposals) && proposals.length > 0) {
+          // Find the final proposal for total spend
+          const finalProposal = proposals.find(p => p.isFinal);
+          if (finalProposal) {
+            totalSpend = finalProposal.totalCost || 0;
+          } else {
+            // If no final proposal, use the last proposal's total cost
+            const lastProposal = proposals[proposals.length - 1];
+            totalSpend = lastProposal.totalCost || 0;
+          }
+        }
+        
+        contracts.push({
+          id: `CON-${contract.id}`,
+          productName: contract.productName,
+          organization: contract.requesterOrganization || contract.requesterDepartment || 'Unknown Organization',
+          totalQuantity: totalQuantity,
+          totalSpend: totalSpend,
+          optimizedCost: optimizedCost
+        });
       }
+      
       console.log('Final contracts array:', contracts);
     } catch (error) {
       console.error('Failed to fetch contracts:', error);
@@ -169,11 +223,11 @@ const VendorListModal: React.FC<{
           setLoading(true);
           setError(null);
           
-          // Fetch products for the vendor from the new API
+          // Use cached data for products
           const products = await fetchVendorProducts(vendorName);
           console.log('Fetched products:', products);
           
-          // Fetch real contracts for the products
+          // Use cached data for contracts
           const contracts = await fetchContractsForProducts(vendorName, products);
           console.log('Fetched contracts:', contracts);
           
@@ -203,6 +257,26 @@ const VendorListModal: React.FC<{
     setSelectedProduct(product);
   };
 
+  // Get contracts for the selected product
+  const productContracts = useMemo(() => {
+    if (!vendorDetails || !selectedProduct) return [];
+    
+    return vendorDetails.contracts.filter(c => {
+      return c.productName === selectedProduct.productName;
+    });
+  }, [vendorDetails, selectedProduct]);
+
+  // Calculate total spend and optimized cost for the selected product
+  const totalSpend = useMemo(() => {
+    if (productContracts.length === 0) return 0;
+    return productContracts.reduce((sum: number, contract: Contract) => sum + contract.totalSpend, 0);
+  }, [productContracts]);
+
+  const totalOptimizedCost = useMemo(() => {
+    if (productContracts.length === 0) return 0;
+    return productContracts.reduce((sum: number, contract: Contract) => sum + contract.optimizedCost, 0);
+  }, [productContracts]);
+
   if (loading) {
     return (
       <Modal isOpen={isOpen} onClose={onClose} className="max-w-6xl w-full p-6">
@@ -226,22 +300,6 @@ const VendorListModal: React.FC<{
   if (!vendorDetails) {
     return null;
   }
-
-  // Get contracts for the selected product
-  console.log('Selected product:', selectedProduct);
-  console.log('All contracts:', vendorDetails.contracts);
-  const productContracts = selectedProduct 
-    ? vendorDetails.contracts.filter(c => {
-        const match = c.productName === selectedProduct.productName;
-        console.log(`Checking contract ${c.id}: ${c.productName} === ${selectedProduct.productName} = ${match}`);
-        return match;
-      })
-    : [];
-  console.log('Filtered product contracts:', productContracts);
-
-  // Calculate total spend and optimized cost for the selected product
-  const totalSpend = productContracts.reduce((sum, contract) => sum + contract.totalSpend, 0);
-  const totalOptimizedCost = productContracts.reduce((sum, contract) => sum + contract.optimizedCost, 0);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className="max-w-6xl w-full p-6">
@@ -329,7 +387,7 @@ const VendorListModal: React.FC<{
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {productContracts.map((contract) => (
+                      {productContracts.map((contract: Contract) => (
                         <tr key={contract.id}>
                           <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
                             {contract.organization}

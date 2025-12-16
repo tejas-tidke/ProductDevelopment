@@ -15,6 +15,10 @@ interface Column {
   isSelected: boolean;
 }
 
+// Add cache outside the component
+const vendorDataCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 const VendorList: React.FC = () => {
   const { userOrganizationName, userDepartmentName } = useAuth(); // Add this to get user's org and dept
   // --- UI / filter state
@@ -284,69 +288,113 @@ const VendorList: React.FC = () => {
     fetchVendorNames();
   }, []);
 
-  // Fetch data
+  // Function to get cached data or fetch new data
+  const getCachedOrFetch = async (key: string, fetchFn: () => Promise<any>) => {
+    const cached = vendorDataCache.get(key);
+    const now = Date.now();
+    
+    // Check if cache exists and is still valid
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      console.log(`Using cached data for ${key}`);
+      return cached.data;
+    }
+    
+    // Fetch fresh data
+    console.log(`Fetching fresh data for ${key}`);
+    const data = await fetchFn();
+    
+    // Cache the data
+    vendorDataCache.set(key, { data, timestamp: now });
+    return data;
+  };
+
+  // Fetch data with caching
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // 1. Fetch all vendors from the new vendor profiles system
-        const vendors = await jiraService.getVendorProfilesVendors();
+        // Use cached data for vendor profiles
+        const vendors = await getCachedOrFetch('vendorProfiles', () => jiraService.getVendorProfilesVendors());
 
         if (!Array.isArray(vendors)) {
           throw new Error("Failed to fetch vendors");
         }
 
-        // 2. Create a unique list of vendors with their products
+        // Create a unique list of vendors with their products
         const vendorMap: Record<string, ProductItem> = {};
 
-        // 3. Fetch products for each vendor using the new vendor profiles system
+        // Fetch products for each vendor using the new vendor profiles system
         const productPromises = vendors.map(async (vendorName: string) => {
           try {
-            // Get ALL vendor profiles for this vendor using DTOs to get product information
-            const vendorProfiles = await jiraService.getVendorProfileDTOsByName(vendorName);
+            // Use cached data for vendor profiles
+            const vendorProfiles = await getCachedOrFetch(`vendorProfiles_${vendorName}`, () => 
+              jiraService.getVendorProfileDTOsByName(vendorName)
+            );
             
             if (Array.isArray(vendorProfiles) && vendorProfiles.length > 0) {
-              // Calculate total spend for this vendor by fetching all contracts for all products
-              let totalSpend = 0;
+              // Create cache key for this vendor's total spend calculation
+              const cacheKey = `totalSpend_${vendorName}`;
               
-              // Process all products for this vendor
-              for (const profile of vendorProfiles) {
-                try {
+              // Check if we have cached total spend data
+              let totalSpend = 0;
+              const cachedSpend = vendorDataCache.get(cacheKey);
+              const now = Date.now();
+              
+              if (cachedSpend && (now - cachedSpend.timestamp) < CACHE_DURATION) {
+                totalSpend = cachedSpend.data;
+              } else {
+                // Calculate total spend for this vendor by fetching all contracts for all products
+                const contractPromises: Promise<any>[] = [];
+                
+                // Process all products for this vendor in parallel
+                for (const profile of vendorProfiles) {
                   // Only process if we have product information
                   if (profile.productName) {
-                    const contracts = await jiraService.getCompletedContractsByVendorAndProduct(
-                      vendorName, 
-                      profile.productName
+                    contractPromises.push(
+                      jiraService.getCompletedContractsByVendorAndProduct(vendorName, profile.productName)
                     );
-                    
-                    if (Array.isArray(contracts)) {
-                      for (const contract of contracts) {
-                        // Fetch proposals to get the final total cost
-                        try {
-                          const proposals = await jiraService.getProposalsByIssueKey(contract.jiraIssueKey);
-                          
-                          if (Array.isArray(proposals) && proposals.length > 0) {
-                            // Find the final proposal for total spend
-                            const finalProposal = proposals.find((p: any) => p.isFinal);
-                            if (finalProposal) {
-                              totalSpend += finalProposal.totalCost || 0;
-                            } else {
-                              // If no final proposal, use the last proposal's total cost
-                              const lastProposal = proposals[proposals.length - 1];
-                              totalSpend += lastProposal.totalCost || 0;
-                            }
-                          }
-                        } catch (proposalError) {
-                          console.error('Failed to fetch proposals for contract:', contract.jiraIssueKey, proposalError);
-                        }
-                      }
+                  }
+                }
+                
+                // Fetch all contracts in parallel
+                const contractResults = await Promise.all(contractPromises);
+                
+                // Process all contracts to calculate total spend
+                const proposalPromises: Promise<any>[] = [];
+                const contractsToProcess: any[] = [];
+                
+                contractResults.forEach(contracts => {
+                  if (Array.isArray(contracts)) {
+                    contracts.forEach(contract => {
+                      contractsToProcess.push(contract);
+                      proposalPromises.push(jiraService.getProposalsByIssueKey(contract.jiraIssueKey));
+                    });
+                  }
+                });
+                
+                // Fetch all proposals in parallel
+                const proposalResults = await Promise.all(proposalPromises);
+                
+                // Calculate total spend from proposals
+                for (let i = 0; i < proposalResults.length; i++) {
+                  const proposals = proposalResults[i];
+                  if (Array.isArray(proposals) && proposals.length > 0) {
+                    // Find the final proposal for total spend
+                    const finalProposal = proposals.find((p: any) => p.isFinal);
+                    if (finalProposal) {
+                      totalSpend += finalProposal.totalCost || 0;
+                    } else {
+                      // If no final proposal, use the last proposal's total cost
+                      const lastProposal = proposals[proposals.length - 1];
+                      totalSpend += lastProposal.totalCost || 0;
                     }
                   }
-                } catch (contractError) {
-                  console.error('Failed to fetch contracts for product:', profile.productName, contractError);
                 }
+                
+                // Cache the calculated total spend
+                vendorDataCache.set(cacheKey, { data: totalSpend, timestamp: now });
               }
               
               // Use the first profile for vendor details but with calculated total spend
@@ -385,24 +433,27 @@ const VendorList: React.FC = () => {
 
     fetchProducts();
   }, []);
-  // Filtering & Sorting
+  // Filtering & Sorting with better performance
   const filteredProducts = useMemo(() => {
-    let res = products.filter((p) => {
+    // Early return if no products
+    if (products.length === 0) return [];
+    
+    // Filter products
+    let res = products;
+    if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      const vendorId = (p.vendorId || "").toLowerCase();
-      const vendorName = (p.vendorName || "").toLowerCase();
-      const owner = (p.owner || "").toLowerCase();
-      const department = (p.department || "").toLowerCase();
-      const agreementSpend = (p.activeAgreementSpend || "").toLowerCase();
+      res = products.filter((p) => {
+        return (
+          (p.vendorId || "").toLowerCase().includes(term) || 
+          (p.vendorName || "").toLowerCase().includes(term) || 
+          (p.owner || "").toLowerCase().includes(term) || 
+          (p.department || "").toLowerCase().includes(term) || 
+          (p.activeAgreementSpend || "").toLowerCase().includes(term)
+        );
+      });
+    }
 
-      return searchTerm === "" || 
-             vendorId.includes(term) || 
-             vendorName.includes(term) || 
-             owner.includes(term) || 
-             department.includes(term) || 
-             agreementSpend.includes(term);
-    });
-
+    // Sort products if needed
     if (sortField) {
       res = [...res].sort((a, b) => {
         // Special handling for activeAgreementSpend sorting
@@ -575,6 +626,58 @@ const VendorList: React.FC = () => {
     }
   };
 
+  // Function to export vendors to CSV
+  const handleExportCSV = () => {
+    if (products.length === 0) {
+      alert("No data to export.");
+      return;
+    }
+
+    // Define CSV headers
+    const headers = [
+      "Vendor ID",
+      "Vendor Name",
+      "Product Name",
+      "Product Type",
+      "Product Link",
+      "Owner",
+      "Department",
+      "Active Agreement Spend"
+    ];
+
+    // Map products to CSV rows
+    const rows = products.map(product => [
+      product.vendorId || "",
+      product.vendorName || "",
+      product.productName || "",
+      product.productType || "",
+      product.productLink || "",
+      product.owner || "",
+      product.department || "",
+      product.activeAgreementSpend?.replace('$', '') || "0"
+    ]);
+
+    // Escape cell values and join them
+    const escapeCell = (val: string) => `"${val.replace(/"/g, '""')}"`;
+    const csvContent = [
+      headers.map(escapeCell).join(","),
+      ...rows.map(row => row.map(String).map(escapeCell).join(","))
+    ].join("\r\n");
+
+    // Create and download the CSV file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateStr = new Date().toISOString().slice(0, 10);
+    
+    link.href = url;
+    link.download = `vendors-${dateStr}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // --------- loading / error / normal return all INSIDE VendorList ---------
   if (loading) {
     return (
@@ -665,37 +768,61 @@ const VendorList: React.FC = () => {
 
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-lg font-bold text-gray-900 dark:text-white">Vendor List</h1>
-            <div className="flex space-x-3">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search vendors..."
-                  className="pl-7 pr-2.5 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                <div className="absolute inset-y-0 left-0 pl-1.5 flex items-center pointer-events-none">
-                  <svg
-                    className="h-3.5 w-3.5 text-gray-400"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Add Vendor Button */}
+            <div className="flex flex-col items-end space-y-2">
+              {/* Export CSV Button */}
               <button
-                className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-md hover:bg-blue-700 transition"
-                onClick={openAddVendorModal}
+                className="bg-green-600 text-white text-xs px-2.5 py-1 rounded-md hover:bg-green-700 transition flex items-center"
+                onClick={handleExportCSV}
               >
-                Add Vendor
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-3.5 w-3.5 mr-1"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+                Export CSV
               </button>
+              
+              <div className="flex space-x-3">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search vendors..."
+                    className="pl-7 pr-2.5 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  <div className="absolute inset-y-0 left-0 pl-1.5 flex items-center pointer-events-none">
+                    <svg
+                      className="h-3.5 w-3.5 text-gray-400"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Add Vendor Button */}
+                <button
+                  className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-md hover:bg-blue-700 transition"
+                  onClick={openAddVendorModal}
+                >
+                  Add Vendor
+                </button>
+              </div>
             </div>
           </div>
 
