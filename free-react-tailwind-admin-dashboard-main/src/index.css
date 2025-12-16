@@ -879,3 +879,24 @@ label.required::after {
   color: red;
   font-weight: bold;
 }
+
+
+.custom-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #222;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 9999;
+}
+
+.custom-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}

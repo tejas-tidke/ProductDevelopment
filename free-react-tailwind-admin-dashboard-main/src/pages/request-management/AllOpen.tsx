@@ -72,6 +72,8 @@ interface Column {
   isSelected: boolean;
 }
 
+type ToastType = "success" | "error" | "info";
+
 const AllOpen: React.FC = () => {
   const { userRole, userOrganizationId, userDepartmentId, userDepartmentName, userOrganizationName } = useAuth();
   // --- UI / filter state
@@ -93,6 +95,26 @@ const AllOpen: React.FC = () => {
   const navigate = useNavigate();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+
+  // Toast system
+  const [toasts, setToasts] = useState<{ id: string; message: string; type?: ToastType }[]>([]);
+  const showToast = (message: string, type: ToastType = "info", ttl = 2500) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    setToasts(t => [...t, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(t => t.filter(x => x.id !== id));
+    }, ttl);
+  };
+
+  // Confirm dialog state (non-blocking)
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    message?: string;
+    onConfirm?: () => Promise<void> | void;
+    onCancel?: () => void;
+    confirmLabel?: string;
+    cancelLabel?: string;
+  }>({ open: false });
 
   // column visibility + ordering (defaults tuned for Request Management)
   const [allColumns, setAllColumns] = useState<Column[]>([
@@ -134,26 +156,26 @@ const AllOpen: React.FC = () => {
       // Jira object shapes: { value } or { displayName } or { name } or array
       if (typeof val === 'object') {
         // Type guard for objects with value property
-        if (val && typeof val === 'object' && 'value' in val && val.value !== undefined) {
-          return String(val.value);
+        if (val && typeof val === 'object' && 'value' in val && (val as any).value !== undefined) {
+          return String((val as any).value);
         }
         // Type guard for objects with displayName property
-        if (val && typeof val === 'object' && 'displayName' in val && val.displayName !== undefined) {
-          return String(val.displayName);
+        if (val && typeof val === 'object' && 'displayName' in val && (val as any).displayName !== undefined) {
+          return String((val as any).displayName);
         }
         // Type guard for objects with name property
-        if (val && typeof val === 'object' && 'name' in val && val.name !== undefined) {
-          return String(val.name);
+        if (val && typeof val === 'object' && 'name' in val && (val as any).name !== undefined) {
+          return String((val as any).name);
         }
         if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'string') return val[0];
         // nested reporter email example: issue.fields.reporter?.emailAddress
         if (k.includes('.') && k.split('.').length > 1) {
           // support 'reporter.emailAddress'
           const parts = k.split('.');
-          let cur: Record<string, unknown> = issue.fields;
+          let cur: any = issue.fields;
           for (const p of parts) {
             if (!cur) break;
-            cur = cur[p] as Record<string, unknown>;
+            cur = cur[p];
           }
           if (cur) return String(cur);
         }
@@ -294,8 +316,6 @@ const AllOpen: React.FC = () => {
     return res;
   }, [issues, searchTerm, selectedIssueType, selectedStatus, sortField, sortDirection]);
 
-  // billing helpers per issue (returns booleans)
-
   // ActionsDropdown (view/edit/delete)
   const ActionsDropdown: React.FC<{ issue: Issue }> = ({ issue }) => {
     const [open, setOpen] = useState(false);
@@ -316,21 +336,32 @@ const AllOpen: React.FC = () => {
     const view = () => { navigate(`/request-management/${issue.key}`); setOpen(false); };
     const edit = () => { setSelectedIssue(issue); setIsEditModalOpen(true); setOpen(false); };
     const remove = async () => {
-      if (!confirm(`Delete ${issue.key}?`)) return;
-      try {
-        await jiraService.deleteIssue(issue.key);
-        // refresh with user context
-        const resp = await jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId);
-        const allIssues: Issue[] = Array.isArray(resp) ? resp : (resp && Array.isArray(resp.issues) ? resp.issues : []);
-        const filtered = allIssues.filter(i => i.fields?.project?.name === "Request Management");
-        setIssues(filtered);
-        alert('Deleted');
-      } catch (err) {
-        alert('Delete failed');
-        console.error(err);
-      } finally {
-        setOpen(false);
-      }
+      // show custom confirm dialog
+      setConfirmState({
+        open: true,
+        message: `Delete ${issue.key}?`,
+        confirmLabel: "Delete",
+        cancelLabel: "Cancel",
+        onConfirm: async () => {
+          try {
+            await jiraService.deleteIssue(issue.key);
+            // refresh with user context
+            const resp = await jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId);
+            const allIssues: Issue[] = Array.isArray(resp) ? resp : (resp && Array.isArray(resp.issues) ? resp.issues : []);
+            const filtered = allIssues.filter(i => i.fields?.project?.name === "Request Management");
+            setIssues(filtered);
+            showToast('Request Deleted', 'success');
+          } catch (err) {
+            showToast('Delete failed', 'error');
+            console.error(err);
+          } finally {
+            setOpen(false);
+          }
+        },
+        onCancel: () => {
+          /* no-op */
+        }
+      });
     };
 
     return (
@@ -434,67 +465,49 @@ const AllOpen: React.FC = () => {
       case 'status':
         return issue.fields?.status?.name || '-';
       case 'requesterName':
-  return (
-    getFieldValue(issue, ['customfield_10243']) ||
-    issue.fields?.reporter?.displayName ||
-    '-'
-  );
-
-case 'requesterEmail':
-  return (
-    getFieldValue(issue, ['customfield_10246']) ||
-    issue.fields?.reporter?.emailAddress ||
-    '-'
-  );
-
-case 'organization':
-  return getFieldValue(issue, ['customfield_10337']) || '-';
-
-case 'department':
-  return getFieldValue(issue, ['customfield_10244']) || '-';
-
-case 'vendorName':
-  return getFieldValue(issue, ['customfield_10290']) || '-';
-
-case 'productName':
-  return getFieldValue(issue, ['customfield_10291']) || '-';
-
-case 'billingType':
-  return getFieldValue(issue, ['customfield_10292']) || '-';
-
-case 'currentLicenseCount':
-  return getFieldValue(issue, ['customfield_10293']) || '-';
-
-case 'currentUsageCount':
-  return getFieldValue(issue, ['customfield_10294']) || '-';
-
-case 'currentUnits':
-  return getFieldValue(issue, ['customfield_10295']) || '-';
-
-case 'newLicenseCount':
-  return getFieldValue(issue, ['customfield_10296']) || '-';
-
-case 'newUsageCount':
-  return getFieldValue(issue, ['customfield_10297']) || '-';
-
-case 'newUnit':
-  return getFieldValue(issue, ['customfield_10298']) || '-';
-
-case 'licenseUpdateType':
-  return getFieldValue(issue, ['customfield_10300']) || '-';
-
-case 'existingContractId':
-  return getFieldValue(issue, ['customfield_10301']) || '-';
-
-case 'dueDate':
-  return formatDate(getFieldValue(issue, ['customfield_10302']));
-
-case 'renewalDate':
-  return formatDate(getFieldValue(issue, ['customfield_10303']));
-
-case 'additionalComments':
-  return getFieldValue(issue, ['customfield_10304']) || '-';
-
+        return (
+          getFieldValue(issue, ['customfield_10243']) ||
+          issue.fields?.reporter?.displayName ||
+          '-'
+        );
+      case 'requesterEmail':
+        return (
+          getFieldValue(issue, ['customfield_10246']) ||
+          issue.fields?.reporter?.emailAddress ||
+          '-'
+        );
+      case 'organization':
+        return getFieldValue(issue, ['customfield_10337']) || '-';
+      case 'department':
+        return getFieldValue(issue, ['customfield_10244']) || '-';
+      case 'vendorName':
+        return getFieldValue(issue, ['customfield_10290']) || '-';
+      case 'productName':
+        return getFieldValue(issue, ['customfield_10291']) || '-';
+      case 'billingType':
+        return getFieldValue(issue, ['customfield_10292']) || '-';
+      case 'currentLicenseCount':
+        return getFieldValue(issue, ['customfield_10293']) || '-';
+      case 'currentUsageCount':
+        return getFieldValue(issue, ['customfield_10294']) || '-';
+      case 'currentUnits':
+        return getFieldValue(issue, ['customfield_10295']) || '-';
+      case 'newLicenseCount':
+        return getFieldValue(issue, ['customfield_10296']) || '-';
+      case 'newUsageCount':
+        return getFieldValue(issue, ['customfield_10297']) || '-';
+      case 'newUnit':
+        return getFieldValue(issue, ['customfield_10298']) || '-';
+      case 'licenseUpdateType':
+        return getFieldValue(issue, ['customfield_10300']) || '-';
+      case 'existingContractId':
+        return getFieldValue(issue, ['customfield_10301']) || '-';
+      case 'dueDate':
+        return formatDate(getFieldValue(issue, ['customfield_10302']));
+      case 'renewalDate':
+        return formatDate(getFieldValue(issue, ['customfield_10303']));
+      case 'additionalComments':
+        return getFieldValue(issue, ['customfield_10304']) || '-';
       case 'created':
         return issue.fields?.created ? new Date(issue.fields.created).toLocaleDateString() : '-';
       case 'actions':
@@ -630,8 +643,59 @@ case 'additionalComments':
 
         </div>
         </div>
-      </>
-    );
+{/* Toast container - moved lower so it doesn't overlap header icons */}
+<div className="fixed right-5 z-[9999] flex flex-col gap-2 top-16 lg:top-20">
+  {toasts.map(t => (
+    <div
+      key={t.id}
+      role="status"
+      aria-live="polite"
+      className={`px-4 py-2 rounded shadow-md max-w-xs border pointer-events-auto ${
+        t.type === 'success' ? 'bg-green-600 text-white' :
+        t.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'
+      }`}
+    >
+      {t.message}
+    </div>
+  ))}
+</div>
+
+
+        {/* Confirm Dialog */}
+        {confirmState.open && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full p-6">
+              <div className="text-lg font-medium text-gray-900 dark:text-white mb-4">{confirmState.message}</div>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => {
+                    setConfirmState(s => ({ ...s, open: false }));
+                    confirmState.onCancel?.();
+                  }}
+                  className="px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white"
+                >
+                  {confirmState.cancelLabel || "Cancel"}
+                </button>
+                <button
+                  onClick={async () => {
+                    setConfirmState(s => ({ ...s, open: false }));
+                    try {
+                      await confirmState.onConfirm?.();
+                    } catch (e) {
+                      // if onConfirm throws, we swallow here (onConfirm should handle errors)
+                      console.error(e);
+                    }
+                  }}
+                  className="px-4 py-2 rounded bg-red-600 text-white"
+                >
+                  {confirmState.confirmLabel || "Confirm"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+    </>
+  );
 };
 
 export default AllOpen;

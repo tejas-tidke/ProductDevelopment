@@ -619,6 +619,7 @@ createIssueJira: async (payload: ContractIssuePayload) => {
       body: JSON.stringify(attachmentData),
     });
   },
+  
 }; // END OF OBJECT
 
 export default jiraService;

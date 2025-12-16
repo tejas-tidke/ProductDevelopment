@@ -1,6 +1,67 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import VendorAgreementDetails from "./VendorAgreementDetails";
+// Define the contract details type based on the backend DTO (same as in procurement-renewal.tsx)
+type ContractDetails = {
+  id: number;
+  contractType: string | null;
+  renewalStatus: string | null;
+  jiraIssueKey: string | null;
+  nameOfVendor: string;
+  productName: string;
+  requesterName: string;
+  requesterEmail: string;
+  requesterDepartment: string;
+  requesterOrganization: string;
+  vendorContractType: string;
+  additionalComment: string;
+  currentLicenseCount: number | null;
+  currentUsageCount: number | null;
+  currentUnits: string | null;
+  newLicenseCount: number | null;
+  newUsageCount: number | null;
+  newUnits: string | null;
+  dueDate: string | null;
+  renewalDate: string | null;
+  licenseUpdateType: string | null;
+  existingContractId: string | null;
+  billingType: string | null;
+  contractDuration: string | null;
+};
+
+// Map contract details to agreement format for the table
+export type AgreementFromContract = {
+  id: string; // e.g. C-242
+  vendor: string;
+  owner: string;
+  type: string;
+  category: string;
+  startDate: string;
+  endDate: string; // Add endDate property
+  totalCost: string;
+  status: AgreementStatus;
+  // Additional fields from procurement renewal
+  productId: number;
+  contractType: string | null;
+  renewalStatus: string | null;
+  jiraIssueKey: string | null;
+  productName: string;
+  requesterEmail: string;
+  requesterDepartment: string;
+  requesterOrganization: string;
+  billingType: string | null;
+  currentLicenseCount: number | null;
+  newLicenseCount: number | null;
+  currentUsageCount: number | null;
+  newUsageCount: number | null;
+  currentUnits: string | null;
+  newUnits: string | null;
+  dueDate: string | null;
+  renewalDate: string | null;
+  licenseUpdateType: string | null;
+  existingContractId: string | null;
+  contractDuration: string | null;
+  additionalComment: string | null;
+};
 
 export type AgreementStatus =
   | "All Agreements"
@@ -8,17 +69,6 @@ export type AgreementStatus =
   | "Subscriptions"
   | "Active"
   | "Expired";
-
-export interface Agreement {
-  id: string; // e.g. C-242
-  vendor: string;
-  owner: string;
-  type: string;
-  category: string;
-  startDate: string;
-  totalCost: string;
-  status: AgreementStatus;
-}
 
 const TABS: AgreementStatus[] = [
   "All Agreements",
@@ -28,282 +78,157 @@ const TABS: AgreementStatus[] = [
   "Expired",
 ];
 
-const initialAgreements: Agreement[] = [
-  {
-    id: "C-242",
-    vendor: "Freshworks, Inc.",
-    owner: "Tara Lee Collard",
-    type: "Contract",
-    category: "Software",
-    startDate: "Jul 30, 2025",
-    totalCost: "119,000",
-    status: "Active",
-  },
-  {
-    id: "C-241",
-    vendor: "Tilt",
-    owner: "Tara Lee Collard",
-    type: "Contract",
-    category: "Software",
-    startDate: "Aug 28, 2025",
-    totalCost: "110,000",
-    status: "Active",
-  },
-  {
-    id: "C-240",
-    vendor: "Outreach Corporation",
-    owner: "Lexis Jenkins",
-    type: "Contract",
-    category: "Software",
-    startDate: "Sep 01, 2025",
-    totalCost: "240,000",
-    status: "Active",
-  },
-  {
-    id: "C-239",
-    vendor: "SFTPGo",
-    owner: "Lizhi Yan",
-    type: "Contract",
-    category: "Software",
-    startDate: "Aug 12, 2025",
-    totalCost: "25,000",
-    status: "Active",
-  },
-  {
-    id: "C-238",
-    vendor: "Docker Inc",
-    owner: "Umesh Vermaji",
-    type: "Contract",
-    category: "Software",
-    startDate: "Aug 06, 2025",
-    totalCost: "50,000",
-    status: "Active",
-  },
-  {
-    id: "C-237",
-    vendor: "HubSpot, Inc.",
-    owner: "Ryan Niehaus",
-    type: "Contract",
-    category: "Software",
-    startDate: "Sep 15, 2025",
-    totalCost: "55,000",
-    status: "Active",
-  },
-  // Long-Term Contracts
-  {
-    id: "C-236",
-    vendor: "Microsoft Corporation",
-    owner: "Sarah Johnson",
-    type: "Contract",
-    category: "Software",
-    startDate: "Jan 15, 2024",
-    totalCost: "500,000",
-    status: "Long-Term Contracts",
-  },
-  {
-    id: "C-235",
-    vendor: "Oracle America, Inc.",
-    owner: "Michael Chen",
-    type: "Contract",
-    category: "Services",
-    startDate: "Mar 22, 2023",
-    totalCost: "750,000",
-    status: "Long-Term Contracts",
-  },
-  {
-    id: "C-234",
-    vendor: "IBM Corporation",
-    owner: "James Wilson",
-    type: "Contract",
-    category: "Hardware",
-    startDate: "Nov 10, 2022",
-    totalCost: "1,200,000",
-    status: "Long-Term Contracts",
-  },
-  {
-    id: "C-233",
-    vendor: "Cisco Systems",
-    owner: "Patricia Brown",
-    type: "Contract",
-    category: "Network",
-    startDate: "Jun 05, 2023",
-    totalCost: "850,000",
-    status: "Long-Term Contracts",
-  },
-  // Subscriptions
-  {
-    id: "C-101",
-    vendor: "Slack Technologies",
-    owner: "Emma Wilson",
-    type: "Subscription",
-    category: "Software",
-    startDate: "Apr 05, 2025",
-    totalCost: "12,000",
-    status: "Subscriptions",
-  },
-  {
-    id: "C-102",
-    vendor: "Zoom Video Communications",
-    owner: "David Park",
-    type: "Subscription",
-    category: "Software",
-    startDate: "May 18, 2025",
-    totalCost: "8,500",
-    status: "Subscriptions",
-  },
-  {
-    id: "C-103",
-    vendor: "Adobe Creative Cloud",
-    owner: "Lisa Anderson",
-    type: "Subscription",
-    category: "Software",
-    startDate: "Jul 22, 2025",
-    totalCost: "15,000",
-    status: "Subscriptions",
-  },
-  {
-    id: "C-104",
-    vendor: "Microsoft 365",
-    owner: "Robert Garcia",
-    type: "Subscription",
-    category: "Software",
-    startDate: "Aug 30, 2025",
-    totalCost: "9,800",
-    status: "Subscriptions",
-  },
-  // Expired
-  {
-    id: "C-501",
-    vendor: "Adobe Systems Incorporated",
-    owner: "Jennifer Lopez",
-    type: "Contract",
-    category: "Software",
-    startDate: "Jun 30, 2023",
-    totalCost: "45,000",
-    status: "Expired",
-  },
-  {
-    id: "C-502",
-    vendor: "Salesforce.com, Inc.",
-    owner: "Robert Taylor",
-    type: "Subscription",
-    category: "Software",
-    startDate: "Feb 14, 2024",
-    totalCost: "32,000",
-    status: "Expired",
-  },
-  {
-    id: "C-503",
-    vendor: "Dropbox, Inc.",
-    owner: "Maria Hernandez",
-    type: "Subscription",
-    category: "Software",
-    startDate: "Oct 05, 2023",
-    totalCost: "7,200",
-    status: "Expired",
-  },
-  {
-    id: "C-504",
-    vendor: "Amazon Web Services",
-    owner: "Thomas Moore",
-    type: "Contract",
-    category: "Cloud",
-    startDate: "Dec 18, 2023",
-    totalCost: "120,000",
-    status: "Expired",
-  },
-  // Additional static data
-  {
-    id: "C-001",
-    vendor: "Holograph",
-    owner: "John Doe",
-    type: "Contract",
-    category: "Services",
-    startDate: "Jan 01, 2024",
-    totalCost: "100,000",
-    status: "Long-Term Contracts",
-  },
-  {
-    id: "C-002",
-    vendor: "Atlassian",
-    owner: "Jane Smith",
-    type: "Contract",
-    category: "Software",
-    startDate: "Feb 01, 2024",
-    totalCost: "200,000",
-    status: "Long-Term Contracts",
-  },
-  {
-    id: "C-003",
-    vendor: "Google",
-    owner: "Bob Johnson",
-    type: "Subscription",
-    category: "Software",
-    startDate: "Mar 01, 2025",
-    totalCost: "5,000",
-    status: "Subscriptions",
-  },
-  {
-    id: "C-004",
-    vendor: "Microsoft",
-    owner: "Alice Williams",
-    type: "Subscription",
-    category: "Services",
-    startDate: "Apr 01, 2025",
-    totalCost: "10,000",
-    status: "Subscriptions",
-  },
-  {
-    id: "C-005",
-    vendor: "Honda",
-    owner: "Charlie Brown",
-    type: "Contract",
-    category: "Hardware",
-    startDate: "May 01, 2023",
-    totalCost: "50,000",
-    status: "Expired",
-  },
-  {
-    id: "C-006",
-    vendor: "TATA Motors",
-    owner: "Diana Prince",
-    type: "Subscription",
-    category: "Software",
-    startDate: "Jun 01, 2023",
-    totalCost: "25,000",
-    status: "Expired",
-  },
-];
+// Helper function to format dates in dd-mm-yyyy format
+const formatDateHelper = (value: string): string => {
+  if (!value) return "N/A";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "N/A";
+  // Format as dd-mm-yyyy (e.g., 16-12-2025)
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0'); // Months are zero-indexed
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+};
 
-const getStatusBadgeClasses = (status: AgreementStatus): string => {
-  switch (status) {
-    case "Active":
-      return "bg-green-50 text-green-700 border-green-200";
-    case "Expired":
-      return "bg-red-50 text-red-700 border-red-200";
-    case "Subscriptions":
-      return "bg-blue-50 text-blue-700 border-blue-200";
-    case "Long-Term Contracts":
-      return "bg-amber-50 text-amber-700 border-amber-200";
-    default:
-      return "bg-gray-50 text-gray-700 border-gray-200";
+// Function to map contract details to agreement format
+const mapContractToAgreement = (contract: ContractDetails, index: number): AgreementFromContract => {
+  // Determine agreement type based on contract data
+  let type = "Contract";
+  if (contract.vendorContractType && contract.vendorContractType.toLowerCase().includes("subscription")) {
+    type = "Subscription";
+  } else if (contract.contractDuration && parseInt(contract.contractDuration) >= 12) {
+    type = "Long-Term Contract";
   }
+
+  // Determine category based on product/service type
+  let category = "Software";
+  if (contract.productName.toLowerCase().includes("hardware") || contract.productName.toLowerCase().includes("equipment")) {
+    category = "Hardware";
+  } else if (contract.productName.toLowerCase().includes("service") || contract.productName.toLowerCase().includes("consult")) {
+    category = "Services";
+  } else if (contract.productName.toLowerCase().includes("cloud") || contract.productName.toLowerCase().includes("hosting")) {
+    category = "Cloud";
+  }
+
+  // Generate a pseudo cost based on license/usage counts
+  let totalCost = "0";
+  if (contract.currentLicenseCount) {
+    totalCost = (contract.currentLicenseCount * 1000).toString();
+  } else if (contract.currentUsageCount) {
+    totalCost = (contract.currentUsageCount * 50).toString();
+  }
+
+  // Determine status based on contract duration and dates
+  let status: AgreementStatus = "Active";
+  
+  // Parse contract duration (assuming it's in months)
+  const contractDurationValue = contract.contractDuration ? contract.contractDuration.toString().trim() : "";
+  const contractDurationMonths = contractDurationValue && 
+                               !contractDurationValue.toLowerCase().includes("n/a") && 
+                               !isNaN(parseInt(contractDurationValue)) ? 
+                               parseInt(contractDurationValue) : 0;
+  
+  // Calculate end date based on start date and duration
+  let endDate: Date | null = null;
+  
+  if (contract.renewalDate) {
+    endDate = new Date(contract.renewalDate);
+  } else if (contract.dueDate) {
+    endDate = new Date(contract.dueDate);
+  }
+  
+  // Determine the appropriate status based on exact requirements:
+  // Long-term: Contracts with duration of 12 months or more
+  // Subscription: Contracts with 1-month duration specifically
+  // Active: Contracts with 90 days remaining until end date
+  // Expired: Contracts whose end dates have passed
+  
+  if (endDate) {
+    const today = new Date();
+    const timeDiff = endDate.getTime() - today.getTime();
+    const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 3600 * 24));
+    
+    // If already expired (end date has passed)
+    if (daysUntilExpiration < 0) {
+      status = "Expired";
+    }
+    // If within 90 days of expiration, show in Active (regardless of duration)
+    else if (daysUntilExpiration <= 90) {
+      status = "Active";
+    }
+    // If not within 90 days, classify based on duration
+    else {
+      if (contractDurationMonths >= 12) {
+        // Long-term contracts (12 months or more)
+        status = "Long-Term Contracts";
+      } else if (contractDurationMonths === 1) {
+        // Subscription contracts (exactly 1 month duration)
+        status = "Subscriptions";
+      } else {
+        // All other contracts default to Active
+        status = "Active";
+      }
+    }
+  } else {
+    // If no end date, classify based on duration only
+    if (contractDurationMonths >= 12) {
+      status = "Long-Term Contracts";
+    } else if (contractDurationMonths === 1) {
+      status = "Subscriptions";
+    } else {
+      status = "Active";
+    }
+  }
+
+  return {
+    id: `C-${index + 1}`, // Use index-based numbering to match procurement renewal
+    vendor: contract.nameOfVendor,
+    owner: contract.requesterName,
+    type: type,
+    category: category,
+    startDate: contract.renewalDate || contract.dueDate || "N/A",
+    endDate: contract.renewalDate ? formatDateHelper(contract.renewalDate) : "N/A", // Show exact renewalDate from procurement renewal
+    totalCost: totalCost,
+    status: status,
+    // Additional fields from procurement renewal
+    productId: contract.id,
+    contractType: contract.contractType,
+    renewalStatus: contract.renewalStatus,
+    jiraIssueKey: contract.jiraIssueKey,
+    productName: contract.productName,
+    requesterEmail: contract.requesterEmail,
+    requesterDepartment: contract.requesterDepartment,
+    requesterOrganization: contract.requesterOrganization,
+    billingType: contract.billingType,
+    currentLicenseCount: contract.currentLicenseCount,
+    newLicenseCount: contract.newLicenseCount,
+    currentUsageCount: contract.currentUsageCount,
+    newUsageCount: contract.newUsageCount,
+    currentUnits: contract.currentUnits,
+    newUnits: contract.newUnits,
+    dueDate: contract.dueDate,
+    renewalDate: contract.renewalDate,
+    licenseUpdateType: contract.licenseUpdateType,
+    existingContractId: contract.existingContractId,
+    contractDuration: contract.contractDuration,
+    additionalComment: contract.additionalComment,
+  };
 };
 
 const VendorAgreements: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AgreementStatus>("All Agreements");
-  const [agreements, setAgreements] =
-    useState<Agreement[]>(initialAgreements);
+  const [agreements, setAgreements] = useState<AgreementFromContract[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedAgreement, setSelectedAgreement] =
-    useState<Agreement | null>(null);
 
   // Filter states
   const [filterMinCost, setFilterMinCost] = useState("");
   const [filterMaxCost, setFilterMaxCost] = useState("");
+  const [filterCategory, setFilterCategory] = useState(""); // Add this line for category filter
 
   const [formVendor, setFormVendor] = useState("");
   const [formOwner, setFormOwner] = useState("");
@@ -311,6 +236,45 @@ const VendorAgreements: React.FC = () => {
   const [formCategory, setFormCategory] = useState("Software");
   const [formStartDate, setFormStartDate] = useState("");
   const [formTotalCost, setFormTotalCost] = useState("");
+
+  // Fetch contract details from backend (same as in procurement-renewal.tsx)
+  useEffect(() => {
+    const fetchContractDetails = async () => {
+      try {
+        setLoading(true);
+        console.log("Fetching contract details from backend...");
+        const response = await fetch("http://localhost:8080/api/jira/contracts/completed");
+        console.log("Response status:", response.status);
+        console.log("Response headers:", response.headers);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Error response body:", errorText);
+          throw new Error(`Failed to fetch contracts: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+        
+        const contracts: ContractDetails[] = await response.json();
+        console.log("Received contracts:", contracts);
+        
+        // Map contracts to agreements using index-based numbering
+        const mappedAgreements = contracts.map((contract, index) => 
+          mapContractToAgreement(contract, index)
+        );
+        console.log("Mapped agreements:", mappedAgreements);
+        
+        setAgreements(mappedAgreements);
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching contract details:", err);
+        setError("Failed to load contract details. Please try again later.");
+        setAgreements([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchContractDetails();
+  }, []);
 
   const filteredAgreements = useMemo(() => {
     const term = search.toLowerCase().trim();
@@ -352,6 +316,7 @@ const VendorAgreements: React.FC = () => {
   const resetFilters = () => {
     setFilterMinCost("");
     setFilterMaxCost("");
+    setFilterCategory(""); // Add this line to reset category filter
     setSearch("");
   };
 
@@ -403,15 +368,100 @@ const VendorAgreements: React.FC = () => {
       return;
     }
 
-    const newAgreement: Agreement = {
+    // Determine status based on form data
+    let status: AgreementStatus = "Active";
+    // For manually added agreements, we'll determine duration based on category selection
+    let contractDurationMonths = 0;
+    if (formCategory === "Long-Term Contracts") {
+      contractDurationMonths = 12; // Minimum for long-term
+    } else if (formCategory === "Subscriptions") {
+      contractDurationMonths = 1; // Exactly 1 month for subscriptions
+    }
+    
+    // Calculate end date based on start date and duration
+    let endDate: Date | null = null;
+    const startDate = new Date(formStartDate);
+    
+    if (contractDurationMonths > 0) {
+      endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + contractDurationMonths);
+    }
+    
+    // Determine the appropriate status based on exact requirements:
+    // Long-term: Contracts with duration of 12 months or more
+    // Subscription: Contracts with 1-month duration specifically
+    // Active: Contracts with 90 days remaining until end date
+    // Expired: Contracts whose end dates have passed
+    
+    if (endDate) {
+      const today = new Date();
+      const timeDiff = endDate.getTime() - today.getTime();
+      const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 3600 * 24));
+      
+      // If already expired (end date has passed)
+      if (daysUntilExpiration < 0) {
+        status = "Expired";
+      }
+      // If within 90 days of expiration, show in Active (regardless of duration)
+      else if (daysUntilExpiration <= 90) {
+        status = "Active";
+      }
+      // If not within 90 days, classify based on duration
+      else {
+        if (contractDurationMonths >= 12) {
+          // Long-term contracts (12 months or more)
+          status = "Long-Term Contracts";
+        } else if (contractDurationMonths === 1) {
+          // Subscription contracts (exactly 1 month duration)
+          status = "Subscriptions";
+        } else {
+          // All other contracts default to Active
+          status = "Active";
+        }
+      }
+    } else {
+      // If no end date, classify based on duration only
+      if (contractDurationMonths >= 12) {
+        status = "Long-Term Contracts";
+      } else if (contractDurationMonths === 1) {
+        status = "Subscriptions";
+      } else {
+        status = "Active";
+      }
+    }
+
+    const newAgreement: AgreementFromContract = {
       id: getNextAgreementId(),
       vendor: formVendor,
       owner: formOwner,
       type: formType,
       category: formCategory,
       startDate: formatDate(formStartDate),
+      endDate: endDate ? formatDateHelper(endDate.toISOString()) : "N/A", // For manually added agreements, use calculated endDate
       totalCost: formTotalCost,
-      status: "Active",
+      status: status,
+      // Additional fields (set to default values for manually added agreements)
+      productId: 0,
+      contractType: null,
+      renewalStatus: null,
+      jiraIssueKey: null,
+      productName: "",
+      requesterEmail: "",
+      requesterDepartment: "",
+      requesterOrganization: "",
+      billingType: null,
+      currentLicenseCount: null,
+      newLicenseCount: null,
+      currentUsageCount: null,
+      newUsageCount: null,
+      currentUnits: null,
+      newUnits: null,
+      dueDate: null,
+      renewalDate: endDate ? endDate.toISOString() : null,
+      licenseUpdateType: null,
+      existingContractId: null,
+      contractDuration: contractDurationMonths > 0 ? contractDurationMonths.toString() : null,
+      additionalComment: null,
     };
 
     setAgreements((prev) => [...prev, newAgreement]);
@@ -471,17 +521,25 @@ const VendorAgreements: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const getStatusBadgeClasses = (status: AgreementStatus): string => {
+    switch (status) {
+      case "Active":
+        return "bg-green-50 text-green-700 border-green-200";
+      case "Expired":
+        return "bg-red-50 text-red-700 border-red-200";
+      case "Subscriptions":
+        return "bg-blue-50 text-blue-700 border-blue-200";
+      case "Long-Term Contracts":
+        return "bg-amber-50 text-amber-700 border-amber-200";
+      default:
+        return "bg-gray-50 text-gray-700 border-gray-200";
+    }
+  };
+
   return (
     <div className="p-6">
-      {/* If a vendor is selected, show detail page */}
-      {selectedAgreement ? (
-        <VendorAgreementDetails
-          agreement={selectedAgreement}
-          onBack={() => setSelectedAgreement(null)}
-        />
-      ) : (
-        <>
-          {/* Header */}
+      {/* Remove the conditional rendering for the detail page since we're removing the modal */}
+      <>          {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-300">
               <h1 className="text-2xl font-semibold text-gray-900">
@@ -576,7 +634,7 @@ const VendorAgreements: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 mb-3">
                       <div className="flex-1">
                         <label className="block text-xs font-medium mb-1 text-gray-600">
                           Min Cost ($)
@@ -603,6 +661,24 @@ const VendorAgreements: React.FC = () => {
                         />
                       </div>
                     </div>
+
+                    {/* Category Filter */}
+                    <div>
+                      <label className="block text-xs font-medium mb-1 text-gray-600">
+                        Agreement Category
+                      </label>
+                      <select
+                        className="w-full border rounded px-2 py-1 text-xs border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        value={filterCategory}
+                        onChange={(e) => setFilterCategory(e.target.value)}
+                      >
+                        <option value="">All Categories</option>
+                        <option value="Software">Software</option>
+                        <option value="Hardware">Hardware</option>
+                        <option value="Services">Services</option>
+                        <option value="Cloud">Cloud</option>
+                      </select>
+                    </div>
                   </div>
                 )}
               </div>
@@ -617,6 +693,20 @@ const VendorAgreements: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Loading indicator */}
+          {loading && (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            </div>
+          )}
+
+          {/* Error message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
+              <div className="text-red-800">{error}</div>
+            </div>
+          )}
 
           {/* Table */}
           <div className="overflow-hidden border border-gray-200 rounded-lg bg-white shadow-sm">
@@ -652,6 +742,9 @@ const VendorAgreements: React.FC = () => {
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
                       Start Date
                     </th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
+                      End Date
+                    </th>
                     <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">
                       Total Cost (USD)
                     </th>
@@ -676,10 +769,7 @@ const VendorAgreements: React.FC = () => {
                       <td className="px-4 py-2 text-indigo-600 font-medium">
                         {agreement.id}
                       </td>
-                      <td
-                        className="px-4 py-2 text-indigo-600 cursor-pointer hover:underline"
-                        onClick={() => setSelectedAgreement(agreement)}
-                      >
+                      <td className="px-4 py-2 text-gray-900">
                         {agreement.vendor}
                       </td>
                       <td className="px-4 py-2 text-gray-900">
@@ -693,6 +783,9 @@ const VendorAgreements: React.FC = () => {
                       </td>
                       <td className="px-4 py-2 text-gray-900">
                         {agreement.startDate}
+                      </td>
+                      <td className="px-4 py-2 text-gray-900">
+                        {agreement.endDate}
                       </td>
                       <td className="px-4 py-2 text-right text-gray-900 tabular-nums">
                         {agreement.totalCost}
@@ -709,10 +802,10 @@ const VendorAgreements: React.FC = () => {
                     </tr>
                   ))}
 
-                  {filteredAgreements.length === 0 && (
+                  {filteredAgreements.length === 0 && !loading && (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         className="px-4 py-6 text-center text-gray-500"
                       >
                         No agreements found for this view.
@@ -858,6 +951,8 @@ const VendorAgreements: React.FC = () => {
                               <option value="Services">Services</option>
                               <option value="Hardware">Hardware</option>
                               <option value="Cloud">Cloud</option>
+                              <option value="Long-Term Contracts">Long-Term Contracts</option>
+                              <option value="Subscriptions">Subscriptions</option>
                             </select>
                           </div>
                         </div>
@@ -919,9 +1014,7 @@ const VendorAgreements: React.FC = () => {
               document.body
             )}
         </>
-      )}
-    </div>
-  );
+    </div>  );
 };
 
 export default VendorAgreements;
