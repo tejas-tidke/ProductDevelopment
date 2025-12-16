@@ -952,6 +952,7 @@ public ResponseEntity<?> getCompletedContracts() {
 
             dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
             dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
+            dto.setTotalProfit(c.getTotalOptimizedCost());
 
             return dto;
         }).toList();

@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -152,20 +153,28 @@ public class ContractDetailsService {
         contract.setContractDuration(incoming.getContractDuration());
 
         contract.setDueDate(incoming.getDueDate());
-        
+    
+        // Set contract start date to current date when transitioning to completed
+        LocalDate contractStartDate = LocalDate.now();
+        contract.setContractStartDate(contractStartDate);
+    
         // Calculate renewal date based on completion date + contract duration for completed requests
         String contractDurationStr = incoming.getContractDuration();
+        LocalDate calculatedRenewalDate = null;
         if (contractDurationStr != null && !contractDurationStr.isEmpty()) {
             try {
                 // Parse contract duration
                 int contractDuration = Integer.parseInt(contractDurationStr);
                 
                 // Use current date as completion date for contracts marked as completed through UI
-                java.time.LocalDate completionDate = java.time.LocalDate.now();
+                LocalDate completionDate = contractStartDate;
                 
                 // Calculate renewal date = completion date + contract duration (in months)
-                java.time.LocalDate calculatedRenewalDate = completionDate.plusMonths(contractDuration);
+                calculatedRenewalDate = completionDate.plusMonths(contractDuration);
                 contract.setRenewalDate(calculatedRenewalDate);
+                
+                // Set contract end date to the same value as renewal date
+                contract.setContractEndDate(calculatedRenewalDate);
                 
                 logger.info("Calculated renewal date: {} based on completion date: {} and contract duration: {} months", 
                     calculatedRenewalDate, completionDate, contractDuration);
@@ -174,10 +183,14 @@ public class ContractDetailsService {
                 
                 // Fall back to the renewal date from incoming contract if calculation fails
                 contract.setRenewalDate(incoming.getRenewalDate());
+                // Also set contract end date to the same value as renewal date
+                contract.setContractEndDate(incoming.getRenewalDate());
             }
         } else {
             // If no contract duration, fall back to the renewal date from incoming contract
             contract.setRenewalDate(incoming.getRenewalDate());
+            // Also set contract end date to the same value as renewal date
+            contract.setContractEndDate(incoming.getRenewalDate());
         }
 
         contract.setAdditionalComment(incoming.getAdditionalComment());
@@ -247,19 +260,27 @@ public class ContractDetailsService {
 
         contract.setDueDate(incoming.getDueDate());
         
+        // Set contract start date to current date when transitioning to completed
+        LocalDate contractStartDate = LocalDate.now();
+        contract.setContractStartDate(contractStartDate);
+        
         // Calculate renewal date based on completion date + contract duration for completed requests
         String contractDurationStr = incoming.getContractDuration();
+        LocalDate calculatedRenewalDate = null;
         if (contractDurationStr != null && !contractDurationStr.isEmpty()) {
             try {
                 // Parse contract duration
                 int contractDuration = Integer.parseInt(contractDurationStr);
                 
                 // Use current date as completion date for contracts marked as completed through UI
-                java.time.LocalDate completionDate = java.time.LocalDate.now();
+                LocalDate completionDate = contractStartDate;
                 
                 // Calculate renewal date = completion date + contract duration (in months)
-                java.time.LocalDate calculatedRenewalDate = completionDate.plusMonths(contractDuration);
+                calculatedRenewalDate = completionDate.plusMonths(contractDuration);
                 contract.setRenewalDate(calculatedRenewalDate);
+                
+                // Set contract end date to the same value as renewal date
+                contract.setContractEndDate(calculatedRenewalDate);
                 
                 logger.info("Calculated renewal date: {} based on completion date: {} and contract duration: {} months", 
                     calculatedRenewalDate, completionDate, contractDuration);
@@ -268,14 +289,18 @@ public class ContractDetailsService {
                 
                 // Fall back to the renewal date from incoming contract if calculation fails
                 contract.setRenewalDate(incoming.getRenewalDate());
+                // Also set contract end date to the same value as renewal date
+                contract.setContractEndDate(incoming.getRenewalDate());
             }
         } else {
             // If no contract duration, fall back to the renewal date from incoming contract
             contract.setRenewalDate(incoming.getRenewalDate());
+            // Also set contract end date to the same value as renewal date
+            contract.setContractEndDate(incoming.getRenewalDate());
         }
 
         contract.setAdditionalComment(incoming.getAdditionalComment());
-        
+    
         // Set the total optimized cost if provided
         contract.setTotalOptimizedCost(incoming.getTotalOptimizedCost());
 

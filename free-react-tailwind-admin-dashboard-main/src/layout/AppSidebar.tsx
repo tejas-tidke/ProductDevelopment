@@ -253,13 +253,13 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
   }, [openSubmenu, recentProjects]);
 
  const navItems: NavItem[] = [
-    {
+  {
     // Search bar item - special handling in renderMenuItems
     name: "search-bar",
     icon: null,
     path: "#",
   },
- 
+
   {
     name: "Procurement Request",
     icon: <DocsIcon />,
@@ -298,12 +298,19 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
 
 const isPrivileged = isAdmin || isSuperAdmin;
 
+// Filter nav items based on user role
 const filteredNavItems = navItems.filter(item => {
+  // Hide Dashboard for non-privileged users
   if (item.name === "Dashboard" && !isPrivileged) return false;
+  
+  // Hide Procurement Request for non-admin/superadmin users
   if (item.name === "Procurement Request" && !(isSuperAdmin || isAdmin)) return false;
+  
+  // Hide Vendor Management for non-admin/superadmin users
+  if (item.name === "Vendor Management" && !(isSuperAdmin || isAdmin)) return false;
+  
   return true;
 });
-
 
 const othersItems: NavItem[] = [
   {

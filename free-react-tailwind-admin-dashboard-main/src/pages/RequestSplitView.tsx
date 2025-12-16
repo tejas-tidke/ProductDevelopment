@@ -3210,7 +3210,7 @@ const RequestSplitView: React.FC = () => {
               {previewProposal.final && proposals.length > 1 && (
                 <div className="p-4 mt-4 bg-yellow-100 dark:bg-yellow-700 rounded-md border border-yellow-400">
                   <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
-                    Profit Comparison
+                    Total Optimized Cost (Comparison):
                   </h4>
 
                   {(() => {
@@ -3242,7 +3242,7 @@ const RequestSplitView: React.FC = () => {
                         </p>
 
                         <p className="text-lg mt-2 font-bold text-blue-700 dark:text-blue-300">
-                          Profit: ₹ {profit.toLocaleString()}
+                          Total Optimized Cost: ₹ {profit.toLocaleString()}
                         </p>
                       </div>
                     );

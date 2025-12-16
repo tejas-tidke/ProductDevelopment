@@ -19,19 +19,35 @@ interface Column {
 const vendorDataCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Define vendor types similar to agreement statuses
+type VendorType = "All Vendors" | "Software" | "Hardware" | "Services" | "Cloud";
+
 const VendorList: React.FC = () => {
-  const { userOrganizationName, userDepartmentName } = useAuth(); // Add this to get user's org and dept
+  const { userOrganizationName, userDepartmentName, userData } = useAuth(); // Add userData to get user info
   // --- UI / filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | null>("vendorId");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   // --- Data state
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [vendorSuggestions, setVendorSuggestions] = useState<string[]>([]); // For autocomplete
   const [showVendorSuggestions, setShowVendorSuggestions] = useState(false); // For autocomplete
+
+  // Filter states
+  const [filterDepartment, setFilterDepartment] = useState("");
+
+  // Mock departments data - in a real app, this would come from an API
+  const departments = useMemo(() => {
+    // If user has department info, use that, otherwise provide default departments
+    if (userData?.department?.name) {
+      return [userData.department.name];
+    }
+    return ["IT Department", "Finance", "HR", "Marketing", "Operations", "Sales"];
+  }, [userData]);
 
   // column visibility + ordering
   const [allColumns, setAllColumns] = useState<Column[]>([
@@ -60,7 +76,6 @@ const VendorList: React.FC = () => {
 
   const [addSuccess, setAddSuccess] = useState(false);
   const [lastAddedProduct, setLastAddedProduct] = useState<ProductItem | null>(null);
-
 
   // Function to handle vendor name input with autocomplete
   const handleVendorNameChange = (value: string) => {
@@ -97,7 +112,6 @@ const VendorList: React.FC = () => {
   // Delete vendor success popup state
   const [deleteSuccess, setDeleteSuccess] = useState(false);
   const [lastDeletedProduct, setLastDeletedProduct] = useState<ProductItem | null>(null);
-
 
   const toggleActionMenu = (id: string | number) => {
     setOpenActionId(openActionId === id ? null : id);
@@ -433,16 +447,15 @@ const VendorList: React.FC = () => {
 
     fetchProducts();
   }, []);
+  
   // Filtering & Sorting with better performance
   const filteredProducts = useMemo(() => {
-    // Early return if no products
-    if (products.length === 0) return [];
-    
-    // Filter products
-    let res = products;
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      res = products.filter((p) => {
+    const term = searchTerm.toLowerCase().trim();
+
+    // Apply text search directly to all products since we removed tabs
+    let searched = products;
+    if (term) {
+      searched = products.filter((p) => {
         return (
           (p.vendorId || "").toLowerCase().includes(term) || 
           (p.vendorName || "").toLowerCase().includes(term) || 
@@ -453,9 +466,16 @@ const VendorList: React.FC = () => {
       });
     }
 
+    // Apply department filter
+    if (filterDepartment) {
+      searched = searched.filter(product => 
+        product.department?.toLowerCase() === filterDepartment.toLowerCase()
+      );
+    }
+
     // Sort products if needed
     if (sortField) {
-      res = [...res].sort((a, b) => {
+      searched = [...searched].sort((a, b) => {
         // Special handling for activeAgreementSpend sorting
         if (sortField === "activeAgreementSpend") {
           // Extract numeric value from formatted string like "$10,000"
@@ -472,8 +492,14 @@ const VendorList: React.FC = () => {
       });
     }
 
-    return res;
-  }, [products, searchTerm, sortField, sortDirection]);
+    return searched;
+  }, [products, searchTerm, sortField, sortDirection, filterDepartment]);
+
+  // Reset all filters
+  const resetFilters = () => {
+    setFilterDepartment("");
+    setSearchTerm("");
+  };
 
   // Draggable Header Component
   const DraggableHeader: React.FC<{
@@ -503,7 +529,7 @@ const VendorList: React.FC = () => {
     return (
       <th
         ref={ref}
-        className={`px-2 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 ${isDragging ? "opacity-50" : ""
+        className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-200 ${isDragging ? "opacity-50" : ""
           }`}
       >
         <div
@@ -555,7 +581,7 @@ const VendorList: React.FC = () => {
         return (
           <button
             onClick={() => openVendorDetailsModal(product.vendorName || "")}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs"
+            className="text-indigo-600 hover:text-indigo-800 font-medium"
           >
             {product.vendorName || "-"}
           </button>
@@ -565,7 +591,11 @@ const VendorList: React.FC = () => {
       case "department":
         return product.department || "N/A";
       case "activeAgreementSpend":
-        return product.activeAgreementSpend || "$0";
+        return (
+          <span className="font-medium">
+            {product.activeAgreementSpend || "$0"}
+          </span>
+        );
       case "actions":
         return (
           <div className="relative">
@@ -575,12 +605,11 @@ const VendorList: React.FC = () => {
                 e.stopPropagation();
                 toggleActionMenu(product.id);
               }}
-              className="p-0.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              className="p-1 text-gray-500 hover:text-gray-700"
             >
-
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-3.5 w-3.5"
+                className="h-5 w-5"
                 viewBox="0 0 20 20"
                 fill="currentColor"
               >
@@ -589,7 +618,7 @@ const VendorList: React.FC = () => {
             </button>
 
             {openActionId === product.id && (
-              <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-gray-800 rounded shadow z-50 border border-gray-200 dark:border-gray-700">
+              <div className="absolute right-0 mt-1 w-36 bg-white rounded shadow z-50 border border-gray-200">
                 <div className="py-1">
                   <button
                     aria-label={`Delete ${product.productName} from ${product.nameOfVendor}`}
@@ -597,11 +626,11 @@ const VendorList: React.FC = () => {
                       e.stopPropagation();
                       handleDelete(product);
                     }}
-                    className="flex items-center w-full px-2.5 py-1 text-xs text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-red-400"
+                    className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-gray-100"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      className="h-3 w-3 mr-1"
+                      className="h-4 w-4 mr-2"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -627,8 +656,8 @@ const VendorList: React.FC = () => {
   };
 
   // Function to export vendors to CSV
-  const handleExportCSV = () => {
-    if (products.length === 0) {
+  const handleExportCsv = () => {
+    if (filteredProducts.length === 0) {
       alert("No data to export.");
       return;
     }
@@ -646,7 +675,7 @@ const VendorList: React.FC = () => {
     ];
 
     // Map products to CSV rows
-    const rows = products.map(product => [
+    const rows = filteredProducts.map(product => [
       product.vendorId || "",
       product.vendorName || "",
       product.productName || "",
@@ -683,13 +712,13 @@ const VendorList: React.FC = () => {
     return (
       <>
         <PageMeta title="Vendor List" description="List of all vendor products" />
-        <div className="mx-auto max-w-7xl px-2 py-2">
-          <div className="bg-white dark:bg-gray-800 rounded shadow-sm p-2.5">
-            <h1 className="text-base font-bold mb-2.5 text-gray-900 dark:text-white">
-              Vendor List
+        <div className="p-6">
+          <div className="bg-white rounded shadow-sm p-6">
+            <h1 className="text-2xl font-semibold text-gray-900 mb-6">
+              Vendors
             </h1>
-            <div className="flex items-center justify-center h-20">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500" />
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
             </div>
           </div>
         </div>
@@ -701,12 +730,12 @@ const VendorList: React.FC = () => {
     return (
       <>
         <PageMeta title="Vendor List" description="List of all vendor products" />
-        <div className="mx-auto max-w-7xl px-2 py-2">
-          <div className="bg-white dark:bg-gray-800 rounded shadow-sm p-2.5">
-            <h1 className="text-base font-bold mb-2.5 text-gray-900 dark:text-white">
-              Vendor List
+        <div className="p-6">
+          <div className="bg-white rounded shadow-sm p-6">
+            <h1 className="text-2xl font-semibold text-gray-900 mb-6">
+              Vendors
             </h1>
-            <div className="bg-red-100 border border-red-400 text-red-700 px-2 py-1.5 rounded text-xs">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
               Error: {error}
             </div>
           </div>
@@ -718,121 +747,177 @@ const VendorList: React.FC = () => {
   return (
     <>
       <PageMeta title="Vendor List" description="List of all vendor products" />
-      <div className="mx-auto max-w-7xl px-2 py-2">
-        <div className="bg-white dark:bg-gray-800 rounded shadow-sm p-2.5">
-
+      <div className="p-6">
+        <div className="bg-white rounded shadow-sm p-6">
+          {/* Success Messages */}
           {deleteSuccess && lastDeletedProduct && (
-            <div className="mb-2 flex items-center justify-between rounded border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-200">
-              <span>
-                <span className="font-medium">
-                  {lastDeletedProduct.productName || "Product"}
-                </span>{" "}
-                from{" "}
-                <span className="font-medium">
-                  {lastDeletedProduct.nameOfVendor || "Vendor"}
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded">
+              <div className="flex items-center justify-between">
+                <span>
+                  <span className="font-medium">
+                    {lastDeletedProduct.productName || "Product"}
+                  </span>{" "}
+                  from{" "}
+                  <span className="font-medium">
+                    {lastDeletedProduct.nameOfVendor || "Vendor"}
+                  </span> has been deleted successfully.
                 </span>
-              </span>
-
-              <button
-                type="button"
-                onClick={() => setDeleteSuccess(false)}
-                className="ml-2 text-green-900 hover:text-green-700 dark:text-green-300 dark:hover:text-green-100 font-medium"
-              >
-                ×
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteSuccess(false)}
+                  className="text-green-900 hover:text-green-700 font-medium"
+                >
+                  ×
+                </button>
+              </div>
             </div>
           )}
 
           {addSuccess && lastAddedProduct && (
-            <div className="mb-2 flex items-center justify-between rounded border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs text-green-800 dark:border-green-700 dark:bg-green-900/30 dark:text-green-200">
-              <span>
-                <span className="font-medium">
-                  {lastAddedProduct.productName || "Product"}
-                </span>{" "}
-                added to{" "}
-                <span className="font-medium">
-                  {lastAddedProduct.nameOfVendor || "Vendor"}
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded">
+              <div className="flex items-center justify-between">
+                <span>
+                  <span className="font-medium">
+                    {lastAddedProduct.productName || "Product"}
+                  </span>{" "}
+                  added to{" "}
+                  <span className="font-medium">
+                    {lastAddedProduct.nameOfVendor || "Vendor"}
+                  </span> successfully.
                 </span>
-              </span>
-
-              <button
-                type="button"
-                onClick={() => setAddSuccess(false)}
-                className="ml-2 text-green-900 hover:text-green-700 dark:text-green-300 dark:hover:text-green-100 font-medium"
-              >
-                ×
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setAddSuccess(false)}
+                  className="text-green-900 hover:text-green-700 font-medium"
+                >
+                  ×
+                </button>
+              </div>
             </div>
           )}
 
+          {/* Header with Add Vendor Button */}
+          <div className="flex items-center justify-between mb-6">
+            <h1 className="text-2xl font-semibold text-gray-900">
+              Vendors
+            </h1>
+            <button
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              onClick={openAddVendorModal}
+            >
+              + Add Vendor
+            </button>
+          </div>
 
-          <div className="flex items-center justify-between mb-3">
-            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Vendor List</h1>
-            <div className="flex flex-col items-end space-y-2">
-              {/* Export CSV Button */}
-              <button
-                className="bg-green-600 text-white text-xs px-2.5 py-1 rounded-md hover:bg-green-700 transition flex items-center"
-                onClick={handleExportCSV}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-3.5 w-3.5 mr-1"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+          {/* Toolbar */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search vendors..."
+                  className="pl-10 pr-4 py-2 text-sm border rounded-md w-64 border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </span>
+              </div>
+
+              <div className="relative">
+                <button
+                  onClick={() => setShowFilters((v) => !v)}
+                  className={`inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md bg-white hover:bg-gray-50 border-gray-300 ${
+                    filterDepartment ? "text-indigo-600 border-indigo-600" : ""
+                  }`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  />
-                </svg>
+                  Filters
+                  {filterDepartment && (
+                    <>
+                      <span className="ml-2 w-2 h-2 bg-indigo-600 rounded-full" />
+                      <span className="ml-2 bg-indigo-100 text-indigo-800 text-xs font-medium px-1.5 py-0.5 rounded-full">
+                        1
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {/* Filters panel with department dropdown */}
+                {showFilters && (
+                  <div className="absolute left-0 mt-2 p-4 border rounded-md bg-white text-sm w-72 z-10 shadow-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-medium text-gray-900">
+                        Filters
+                      </h3>
+                      <div className="flex gap-2 ml-4">
+                        <button
+                          onClick={resetFilters}
+                          className="text-xs text-indigo-600 hover:text-indigo-800"
+                        >
+                          Reset
+                        </button>
+                        <button
+                          onClick={() => setShowFilters(false)}
+                          className="text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium mb-1 text-gray-600">
+                        Department
+                      </label>
+                      <select
+                        className="w-full border rounded px-2 py-1 text-xs border-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        value={filterDepartment}
+                        onChange={(e) => setFilterDepartment(e.target.value)}
+                      >
+                        <option value="">All Departments</option>
+                        {departments.map((dept) => (
+                          <option key={dept} value={dept}>
+                            {dept}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportCsv}
+                className="inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md bg-white hover:bg-gray-50 border-gray-300"
+              >
                 Export CSV
               </button>
-              
-              <div className="flex space-x-3">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search vendors..."
-                    className="pl-7 pr-2.5 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                  <div className="absolute inset-y-0 left-0 pl-1.5 flex items-center pointer-events-none">
-                    <svg
-                      className="h-3.5 w-3.5 text-gray-400"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Add Vendor Button */}
-                <button
-                  className="bg-blue-600 text-white text-sm px-3 py-1.5 rounded-md hover:bg-blue-700 transition"
-                  onClick={openAddVendorModal}
-                >
-                  Add Vendor
-                </button>
-              </div>
             </div>
           </div>
 
           {/* Table */}
           <DndProvider backend={HTML5Backend}>
-            <div className="border border-gray-200 dark:border-gray-700 rounded-sm overflow-hidden">
-              <div className="overflow-x-auto max-h-[calc(100vh-250px)]">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-100 dark:bg-gray-700/80">
-                    <tr>
+            <div className="overflow-hidden border border-gray-200 rounded-lg shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr className="border-b border-gray-200">
                       {visibleColumns.map((col, idx) => (
                         <DraggableHeader
                           key={col.key}
@@ -847,14 +932,14 @@ const VendorList: React.FC = () => {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="divide-y divide-gray-200">
                     {filteredProducts.length === 0 && (
                       <tr>
                         <td
                           colSpan={visibleColumns.length}
-                          className="px-4 py-4 text-center text-xs text-gray-500"
+                          className="px-6 py-8 text-center text-gray-500"
                         >
-                          No products found
+                          No vendors found for this view.
                         </td>
                       </tr>
                     )}
@@ -862,12 +947,12 @@ const VendorList: React.FC = () => {
                     {filteredProducts.map((product, idx) => (
                       <tr
                         key={product.id || idx}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                        className="hover:bg-gray-50"
                       >
                         {visibleColumns.map((col) => (
                           <td
                             key={`${product.id || idx}-${col.key}`}
-                            className="px-2 py-1.5 text-xs text-gray-900 dark:text-white align-top border-r border-gray-200 dark:border-gray-700"
+                            className="px-4 py-3 align-top border-r border-gray-200"
                           >
                             {getCellValue(product, col.key, idx)}
                           </td>
@@ -880,7 +965,7 @@ const VendorList: React.FC = () => {
             </div>
           </DndProvider>
 
-          <div className="mt-2 text-xs text-gray-500">
+          <div className="mt-4 text-sm text-gray-500">
             Showing {filteredProducts.length} of {products.length} vendors
           </div>
         </div>
@@ -890,24 +975,24 @@ const VendorList: React.FC = () => {
       <Modal
         isOpen={isAddVendorModalOpen}
         onClose={closeAddVendorModal}
-        className="max-w-[550px] p-3"
+        className="max-w-[550px] p-6"
       >
-        <div className="flex flex-col px-1 overflow-y-auto custom-scrollbar">
+        <div className="flex flex-col overflow-y-auto custom-scrollbar">
           <div>
-            <h5 className="mb-1.5 font-semibold text-gray-800 modal-title text-base dark:text-white/90">
+            <h5 className="mb-2 font-semibold text-gray-800 modal-title text-lg">
               Add Vendor
             </h5>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500">
               Add a new vendor and its associated product details.
             </p>
           </div>
 
-          <div className="mt-4">
+          <div className="mt-6">
             {/* Vendor Name */}
-            <div className="mt-3 relative">
+            <div className="mt-4 relative">
               <label
                 htmlFor="vendor-name"
-                className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-400"
+                className="mb-1 block text-sm font-medium text-gray-700"
               >
                 Vendor Name
               </label>
@@ -919,17 +1004,17 @@ const VendorList: React.FC = () => {
                 onFocus={() => vendorName.length > 0 && setShowVendorSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowVendorSuggestions(false), 200)} // Delay to allow click on suggestions
                 placeholder="Enter or select vendor name"
-                className="dark:bg-dark-900 h-9 w-full rounded border border-gray-300 bg-transparent px-3 py-1.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-1 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                className="h-10 w-full rounded border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-indigo-300 focus:outline-hidden focus:ring-1 focus:ring-indigo-500/10"
               />
               
               {/* Vendor Suggestions Dropdown */}
               {showVendorSuggestions && vendorSuggestions.length > 0 && (
-                <div className="absolute z-10 mt-0.5 w-full rounded border bg-white shadow dark:bg-gray-800 dark:border-gray-700">
-                  <ul className="max-h-40 overflow-auto rounded py-1 text-xs ring-1 ring-black ring-opacity-5 focus:outline-none dark:ring-gray-700">
+                <div className="absolute z-10 mt-1 w-full rounded border bg-white shadow">
+                  <ul className="max-h-40 overflow-auto rounded py-1 text-sm ring-1 ring-black ring-opacity-5 focus:outline-none">
                     {vendorSuggestions.map((suggestion) => (
                       <li
                         key={suggestion}
-                        className="relative cursor-default select-none py-1 pl-2.5 pr-8 text-gray-900 hover:bg-blue-600 hover:text-white dark:text-white"
+                        className="relative cursor-default select-none py-2 pl-3 pr-9 text-gray-900 hover:bg-indigo-600 hover:text-white"
                         onMouseDown={() => selectVendor(suggestion)} // Use onMouseDown to prevent blur before selection
                       >
                         <span className="block truncate">{suggestion}</span>
@@ -941,10 +1026,10 @@ const VendorList: React.FC = () => {
             </div>
 
             {/* Product Name */}
-            <div className="mt-3">
+            <div className="mt-4">
               <label
                 htmlFor="product-name"
-                className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-400"
+                className="mb-1 block text-sm font-medium text-gray-700"
               >
                 Product Name
               </label>
@@ -954,15 +1039,15 @@ const VendorList: React.FC = () => {
                 value={vendorProductName}
                 onChange={(e) => setVendorProductName(e.target.value)}
                 placeholder="Enter product name"
-                className="dark:bg-dark-900 h-9 w-full rounded border border-gray-300 bg-transparent px-3 py-1.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-1 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                className="h-10 w-full rounded border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-indigo-300 focus:outline-hidden focus:ring-1 focus:ring-indigo-500/10"
               />
             </div>
 
             {/* Product Link */}
-            <div className="mt-3">
+            <div className="mt-4">
               <label
                 htmlFor="product-link"
-                className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-400"
+                className="mb-1 block text-sm font-medium text-gray-700"
               >
                 Product Link
               </label>
@@ -972,15 +1057,15 @@ const VendorList: React.FC = () => {
                 value={vendorProductLink}
                 onChange={(e) => setVendorProductLink(e.target.value)}
                 placeholder="https://example.com/product"
-                className="dark:bg-dark-900 h-9 w-full rounded border border-gray-300 bg-transparent px-3 py-1.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-1 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                className="h-10 w-full rounded border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-indigo-300 focus:outline-hidden focus:ring-1 focus:ring-indigo-500/10"
               />
             </div>
 
             {/* Product Type */}
-            <div className="mt-3">
+            <div className="mt-4">
               <label
                 htmlFor="product-type"
-                className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-400"
+                className="mb-1 block text-sm font-medium text-gray-700"
               >
                 Product Type
               </label>
@@ -990,7 +1075,7 @@ const VendorList: React.FC = () => {
                 onChange={(e) =>
                   setVendorProductType(e.target.value as "License Based" | "Usage Based")
                 }
-                className="dark:bg-dark-900 h-9 w-full rounded border border-gray-300 bg-transparent px-3 py-1.5 text-sm text-gray-800 focus:border-brand-300 focus:outline-hidden focus:ring-1 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800"
+                className="h-10 w-full rounded border border-gray-300 bg-transparent px-3 py-2 text-sm text-gray-800 focus:border-indigo-300 focus:outline-hidden focus:ring-1 focus:ring-indigo-500/10"
               >
                 <option value="License Based">License Based</option>
                 <option value="Usage Based">Usage Based</option>
@@ -1000,18 +1085,18 @@ const VendorList: React.FC = () => {
             {/* Removed Owner and Department fields as they are now auto-populated from user's organization and department */}
           </div>
 
-          <div className="flex items-center gap-2 mt-4 modal-footer sm:justify-end">
+          <div className="flex items-center gap-3 mt-8 modal-footer sm:justify-end">
             <button
               onClick={closeAddVendorModal}
               type="button"
-              className="flex w-full justify-center rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto"
+              className="flex w-full justify-center rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
             >
-              Close
+              Cancel
             </button>
             <button
               onClick={handleSaveVendor}
               type="button"
-              className="flex w-full justify-center rounded bg-brand-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-600 sm:w-auto"
+              className="flex w-full justify-center rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 sm:w-auto"
             >
               Add Vendor
             </button>
@@ -1026,13 +1111,13 @@ const VendorList: React.FC = () => {
           setIsDeleteModalOpen(false);
           setProductToDelete(null);
         }}
-        className="max-w-[400px] p-4"
+        className="max-w-[400px] p-6"
       >
         <div className="flex flex-col">
-          <h5 className="mb-2 font-semibold text-gray-800 text-base dark:text-white/90">
+          <h5 className="mb-2 font-semibold text-gray-800 text-lg">
             Delete Vendor Product
           </h5>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500">
             Are you sure you want to delete{" "}
             <span className="font-medium">
               {productToDelete?.productName || "this product"}
@@ -1046,21 +1131,21 @@ const VendorList: React.FC = () => {
             This action cannot be undone.
           </p>
 
-          <div className="flex items-center gap-2 mt-4 sm:justify-end">
+          <div className="flex items-center gap-3 mt-6 sm:justify-end">
             <button
               onClick={() => {
                 setIsDeleteModalOpen(false);
                 setProductToDelete(null);
               }}
               type="button"
-              className="flex w-full justify-center rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto"
+              className="flex w-full justify-center rounded border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto"
             >
               Cancel
             </button>
             <button
               onClick={confirmDelete}
               type="button"
-              className="flex w-full justify-center rounded bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 sm:w-auto"
+              className="flex w-full justify-center rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 sm:w-auto"
             >
               Delete
             </button>
