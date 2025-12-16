@@ -359,8 +359,9 @@ const VendorAgreements: React.FC = () => {
       year: "numeric",
     });
   };
+const handleAddAgreement = async (e: React.FormEvent) => {
 
-  const handleAddAgreement = (e: React.FormEvent) => {
+  
     e.preventDefault();
 
     if (!formVendor || !formOwner || !formStartDate || !formTotalCost) {
@@ -465,6 +466,25 @@ const VendorAgreements: React.FC = () => {
     };
 
     setAgreements((prev) => [...prev, newAgreement]);
+    
+    // Also send to backend
+    await fetch("http://localhost:8080/api/jira/contracts/manual", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        nameOfVendor: formVendor,
+        productName: "",
+        requesterName: formOwner,
+        vendorContractType: formType,
+        contractDuration:
+          formCategory === "Long-Term Contracts" ? "12" : "1",
+        renewalDate: formStartDate,
+        renewalStatus: "completed",
+      }),
+    });
+
 
     // reset form
     setFormVendor("");
@@ -489,6 +509,7 @@ const VendorAgreements: React.FC = () => {
       "Agreement Type",
       "Agreement Category",
       "Start Date",
+      "End Date",
       "Total Cost (USD)",
       "Status",
     ];
@@ -499,7 +520,8 @@ const VendorAgreements: React.FC = () => {
       a.owner,
       a.type,
       a.category,
-      a.startDate,
+      formatDateHelper(a.startDate),
+      formatDateHelper(a.endDate),
       a.totalCost,
       a.status,
     ]);
@@ -709,7 +731,8 @@ const VendorAgreements: React.FC = () => {
           )}
 
           {/* Table */}
-          <div className="overflow-hidden border border-gray-200 rounded-lg bg-white shadow-sm">
+   <div className="border border-gray-200 rounded-lg bg-white shadow-sm h-[65vh] overflow-y-auto">
+
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50">
@@ -782,10 +805,10 @@ const VendorAgreements: React.FC = () => {
                         {agreement.category}
                       </td>
                       <td className="px-4 py-2 text-gray-900">
-                        {agreement.startDate}
+                        {formatDateHelper(agreement.startDate)}
                       </td>
                       <td className="px-4 py-2 text-gray-900">
-                        {agreement.endDate}
+                        {formatDateHelper(agreement.endDate)}
                       </td>
                       <td className="px-4 py-2 text-right text-gray-900 tabular-nums">
                         {agreement.totalCost}

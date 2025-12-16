@@ -1,6 +1,18 @@
 import React from "react";
 import type { AgreementFromContract as Agreement } from "./VendorAgreements";
 
+// Helper function to format dates in dd-mm-yyyy format
+const formatDate = (value: string): string => {
+  if (!value) return "N/A";
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "N/A";
+  // Format as dd-mm-yyyy (e.g., 16-12-2025)
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0'); // Months are zero-indexed
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 type VendorAgreementDetailsProps = {
   agreement: Agreement;
   onBack: () => void;
@@ -109,7 +121,7 @@ const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
                     Start Date
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
-                    {agreement.startDate}
+                    {formatDate(agreement.startDate)}
                   </td>
                 </tr>
 
