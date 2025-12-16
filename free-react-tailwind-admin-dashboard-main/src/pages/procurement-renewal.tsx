@@ -459,7 +459,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
                 <tr>  
                   {/* For Adding the Radio Button In the Procurement Renewal form */}
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700"></th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">#</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">ID</th>
                   {/* <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">EEID</th> */}
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Requester Name</th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Requester Email</th>

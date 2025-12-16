@@ -326,7 +326,7 @@ const othersItems: NavItem[] = [
 ];
  
 
-
+    
   const renderMenuItems = (items: NavItem[], menuType: "main" | "others") => (
     <ul className="flex flex-col gap-4">
       {items.map((nav, index) => (

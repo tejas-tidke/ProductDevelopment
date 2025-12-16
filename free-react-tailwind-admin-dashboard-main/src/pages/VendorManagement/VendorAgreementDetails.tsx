@@ -1,5 +1,5 @@
 import React from "react";
-import type { Agreement } from "./VendorAgreements";
+import type { AgreementFromContract as Agreement } from "./VendorAgreements";
 
 type VendorAgreementDetailsProps = {
   agreement: Agreement;
@@ -34,7 +34,7 @@ const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
             {agreement.vendor}
           </h1>
           <p className="text-sm text-gray-500">
-            Offerings: {agreement.category || "Software"}
+            Product: {agreement.productName || agreement.category || "Software"}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -72,6 +72,15 @@ const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
+                <tr>
+                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                    Agreement ID
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {agreement.id}
+                  </td>
+                </tr>
+                
                 <tr>
                   <td className="px-4 py-3 text-xs font-medium text-gray-500">
                     Agreement Owner
@@ -130,15 +139,33 @@ const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
                     {agreement.totalCost} USD
                   </td>
                 </tr>
+                
+                <tr>
+                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                    Jira Issue
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {agreement.jiraIssueKey || "N/A"}
+                  </td>
+                </tr>
+                
+                <tr>
+                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                    Renewal Status
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {agreement.renewalStatus || "N/A"}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Pricing & License Details */}
+        {/* Product & License Details */}
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-gray-700">
-            Pricing &amp; License Details
+            Product &amp; License Details
           </h2>
 
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -162,67 +189,91 @@ const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
               <tbody className="divide-y divide-gray-100 bg-white">
                 <tr>
                   <td className="px-4 py-3 text-xs font-medium text-gray-500">
-                    Line Item Type
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">License</td>
-                </tr>
-
-                <tr>
-                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
-                    Offering Name
+                    Product Name
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
-                    {agreement.vendor}
+                    {agreement.productName || "N/A"}
                   </td>
                 </tr>
-
+                
                 <tr>
                   <td className="px-4 py-3 text-xs font-medium text-gray-500">
-                    Pricing Model
+                    Billing Type
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
-                    User-based: Per Seat
+                    {agreement.billingType || "N/A"}
                   </td>
                 </tr>
-
+                
                 <tr>
                   <td className="px-4 py-3 text-xs font-medium text-gray-500">
-                    Plan
+                    Current License Count
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
-                    Growth Annual
+                    {agreement.currentLicenseCount !== null ? agreement.currentLicenseCount : "N/A"}
                   </td>
                 </tr>
-
+                
                 <tr>
                   <td className="px-4 py-3 text-xs font-medium text-gray-500">
-                    Quantity
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">10</td>
-                </tr>
-
-                <tr>
-                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
-                    Cost per Unit
+                    New License Count
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
-                    {agreement.totalCost} USD
+                    {agreement.newLicenseCount !== null ? agreement.newLicenseCount : "N/A"}
                   </td>
                 </tr>
-
+                
                 <tr>
                   <td className="px-4 py-3 text-xs font-medium text-gray-500">
-                    Unit of Measure
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">Per Seat</td>
-                </tr>
-
-                <tr>
-                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
-                    Duration
+                    Current Usage Count
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
-                    Per Service Period
+                    {agreement.currentUsageCount !== null ? agreement.currentUsageCount : "N/A"}
+                  </td>
+                </tr>
+                
+                <tr>
+                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                    New Usage Count
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {agreement.newUsageCount !== null ? agreement.newUsageCount : "N/A"}
+                  </td>
+                </tr>
+                
+                <tr>
+                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                    Current Units
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {agreement.currentUnits || "N/A"}
+                  </td>
+                </tr>
+                
+                <tr>
+                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                    New Units
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {agreement.newUnits || "N/A"}
+                  </td>
+                </tr>
+                
+                <tr>
+                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                    Due Date
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {agreement.dueDate || "N/A"}
+                  </td>
+                </tr>
+                
+                <tr>
+                  <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                    Renewal Date
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-900">
+                    {agreement.renewalDate || "N/A"}
                   </td>
                 </tr>
               </tbody>
@@ -230,6 +281,70 @@ const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
           </div>
         </div>
       </div>
+      
+      {/* Additional Information Section */}
+      {(agreement.contractDuration || agreement.licenseUpdateType || agreement.additionalComment) && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-gray-700">
+            Additional Information
+          </h2>
+          
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th
+                    scope="col"
+                    className="w-1/3 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                  >
+                    Field
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"
+                  >
+                    Value
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {agreement.contractDuration && (
+                  <tr>
+                    <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                      Contract Duration
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {agreement.contractDuration}
+                    </td>
+                  </tr>
+                )}
+                
+                {agreement.licenseUpdateType && (
+                  <tr>
+                    <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                      License Update Type
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {agreement.licenseUpdateType}
+                    </td>
+                  </tr>
+                )}
+                
+                {agreement.additionalComment && (
+                  <tr>
+                    <td className="px-4 py-3 text-xs font-medium text-gray-500">
+                      Additional Comment
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {agreement.additionalComment}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

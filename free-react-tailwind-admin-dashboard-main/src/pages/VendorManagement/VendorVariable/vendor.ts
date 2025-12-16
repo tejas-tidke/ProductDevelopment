@@ -1,4 +1,3 @@
-// src/pages/VendorManagement/VendorPage_variables/vendor.ts
 
 export interface Vendor {
   vendor_id: number;
