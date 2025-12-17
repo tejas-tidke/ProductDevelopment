@@ -427,14 +427,14 @@ const VendorListModal: React.FC<VendorListModalProps> = ({ vendorName, isOpen, o
               ${totalSpend.toLocaleString()}
             </div>
           </div>
-          {/* <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center">
             <div className="text-lg font-semibold text-gray-900 dark:text-white">
               {selectedProduct?.productName || "Product"} Total Optimized Cost:
             </div>
             <div className="text-2xl font-bold text-green-600 dark:text-green-400">
               ${totalOptimizedCost.toLocaleString()}
             </div>
-          </div> */}
+          </div>
         </div>
       </div>
     </Modal>

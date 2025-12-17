@@ -160,10 +160,7 @@ public class ContractDetails {
     @Column(name = "contract_duration")
     private String contractDuration;
     
-//    @Column(name = "total_profit")
-//    private Double totalOptimizedCost;
-    
-    @Column(name = "total_optimized_cost")
+    @Column(name = "total_profit")
     private Double totalOptimizedCost;
 
     
