@@ -160,8 +160,12 @@ public class ContractDetails {
     @Column(name = "contract_duration")
     private String contractDuration;
     
-    @Column(name = "total_profit")
+//    @Column(name = "total_profit")
+//    private Double totalOptimizedCost;
+    
+    @Column(name = "total_optimized_cost")
     private Double totalOptimizedCost;
+
     
     public Double getTotalOptimizedCost() {
         return totalOptimizedCost;
