@@ -175,11 +175,14 @@ public class ContractDetailsService {
         contract.setExistingContractId(incoming.getExistingContractId());
         contract.setBillingType(incoming.getBillingType());
         // Ensure contract duration is properly trimmed
-        String contractDuration = incoming.getContractDuration();
-        if (contractDuration != null) {
-            contractDuration = contractDuration.trim();
+        String contractDurationStr = incoming.getContractDuration();
+        if (contractDurationStr != null) {
+            contractDurationStr = contractDurationStr.trim();
+            logger.info("Received contract duration in saveContract: '{}'", contractDurationStr);
+        } else {
+            logger.info("Received null contract duration in saveContract");
         }
-        contract.setContractDuration(contractDuration);
+        contract.setContractDuration(contractDurationStr);
 
         contract.setDueDate(incoming.getDueDate());
     
@@ -188,7 +191,10 @@ public class ContractDetailsService {
         contract.setContractStartDate(contractStartDate);
     
         // Calculate renewal date based on completion date + contract duration for completed requests
-        String contractDurationStr = incoming.getContractDuration();
+        logger.info("[saveContract] Processing contract duration string: '{}' (null: {}, empty: {})", 
+                   contractDurationStr, 
+                   contractDurationStr == null, 
+                   contractDurationStr != null && contractDurationStr.isEmpty());
         LocalDate calculatedRenewalDate = null;
         if (contractDurationStr != null && !contractDurationStr.isEmpty()) {
             try {
@@ -286,11 +292,14 @@ public class ContractDetailsService {
         contract.setExistingContractId(incoming.getExistingContractId());
         contract.setBillingType(incoming.getBillingType());
         // Ensure contract duration is properly trimmed
-        String contractDuration = incoming.getContractDuration();
-        if (contractDuration != null) {
-            contractDuration = contractDuration.trim();
+        String contractDurationStr = incoming.getContractDuration();
+        if (contractDurationStr != null) {
+            contractDurationStr = contractDurationStr.trim();
+            logger.info("Received contract duration in saveCompletedContract: '{}'", contractDurationStr);
+        } else {
+            logger.info("Received null contract duration in saveCompletedContract");
         }
-        contract.setContractDuration(contractDuration);
+        contract.setContractDuration(contractDurationStr);
 
         contract.setDueDate(incoming.getDueDate());
         
@@ -299,7 +308,10 @@ public class ContractDetailsService {
         contract.setContractStartDate(contractStartDate);
         
         // Calculate renewal date based on completion date + contract duration for completed requests
-        String contractDurationStr = incoming.getContractDuration();
+        logger.info("[saveCompletedContract] Processing contract duration string: '{}' (null: {}, empty: {})", 
+                   contractDurationStr, 
+                   contractDurationStr == null, 
+                   contractDurationStr != null && contractDurationStr.isEmpty());
         LocalDate calculatedRenewalDate = null;
         if (contractDurationStr != null && !contractDurationStr.isEmpty()) {
             try {
@@ -399,14 +411,14 @@ public class ContractDetailsService {
         contract.setBillingType(incoming.getBillingType());
         
         // Ensure contract duration is properly trimmed
-        String contractDuration = incoming.getContractDuration();
-        if (contractDuration != null) {
-            contractDuration = contractDuration.trim();
-            logger.info("Received contract duration in saveManualAgreement: '{}'", contractDuration);
+        String contractDurationStr = incoming.getContractDuration();
+        if (contractDurationStr != null) {
+            contractDurationStr = contractDurationStr.trim();
+            logger.info("Received contract duration in saveManualAgreement: '{}'", contractDurationStr);
         } else {
             logger.info("Received null contract duration in saveManualAgreement");
         }
-        contract.setContractDuration(contractDuration);
+        contract.setContractDuration(contractDurationStr);
 
         contract.setDueDate(incoming.getDueDate());
         
@@ -415,7 +427,6 @@ public class ContractDetailsService {
         contract.setContractStartDate(contractStartDate);
         
         // Calculate renewal date based on completion date + contract duration for completed requests
-        String contractDurationStr = incoming.getContractDuration();
         logger.info("[saveManualAgreement] Processing contract duration string: '{}' (null: {}, empty: {})", 
                    contractDurationStr, 
                    contractDurationStr == null, 
