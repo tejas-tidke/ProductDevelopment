@@ -1,5 +1,8 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+// Import useAuth hook to access user details
+import { useAuth } from "../../context/AuthContext";
+
 // Define the contract details type based on the backend DTO (same as in procurement-renewal.tsx)
 type ContractDetails = {
   id: number;
@@ -26,6 +29,8 @@ type ContractDetails = {
   existingContractId: string | null;
   billingType: string | null;
   contractDuration: string | null;
+  totalOptimizedCost?: number | null;
+
 };
 
 // Map contract details to agreement format for the table
@@ -111,12 +116,28 @@ const mapContractToAgreement = (contract: ContractDetails, index: number): Agree
   }
 
   // Generate a pseudo cost based on license/usage counts
-  let totalCost = "0";
+  // let totalCost = "0";
+  // if (contract.currentLicenseCount) {
+  //   totalCost = (contract.currentLicenseCount * 1000).toString();
+  // } else if (contract.currentUsageCount) {
+  //   totalCost = (contract.currentUsageCount * 50).toString();
+  // }
+  // ✅ Use DB value (totalOptimizedCost) FIRST
+let totalCost =
+  contract.totalOptimizedCost !== null &&
+  contract.totalOptimizedCost !== undefined
+    ? contract.totalOptimizedCost.toString()
+    : "0";
+
+// fallback only if DB value not present
+if (totalCost === "0") {
   if (contract.currentLicenseCount) {
     totalCost = (contract.currentLicenseCount * 1000).toString();
   } else if (contract.currentUsageCount) {
     totalCost = (contract.currentUsageCount * 50).toString();
   }
+}
+
 
   // Determine status based on contract duration and dates
   let status: AgreementStatus = "Active";
@@ -129,12 +150,24 @@ const mapContractToAgreement = (contract: ContractDetails, index: number): Agree
                                parseInt(contractDurationValue) : 0;
   
   // Calculate end date based on start date and duration
-  let endDate: Date | null = null;
+  let endDateValue = "N/A";
   
   if (contract.renewalDate) {
-    endDate = new Date(contract.renewalDate);
-  } else if (contract.dueDate) {
-    endDate = new Date(contract.dueDate);
+    const startDate = new Date(contract.renewalDate);
+    // Parse contract duration (assuming it's in months)
+    const contractDurationValue = contract.contractDuration ? contract.contractDuration.toString().trim() : "";
+    const contractDurationMonths = contractDurationValue && 
+                                 !contractDurationValue.toLowerCase().includes("n/a") && 
+                                 !isNaN(parseInt(contractDurationValue)) ? 
+                                 parseInt(contractDurationValue) : 0;
+                                  
+    if (contractDurationMonths > 0) {
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + contractDurationMonths);
+      endDateValue = endDate.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+    } else {
+      endDateValue = contract.renewalDate;
+    }
   }
   
   // Determine the appropriate status based on exact requirements:
@@ -143,7 +176,8 @@ const mapContractToAgreement = (contract: ContractDetails, index: number): Agree
   // Active: Contracts with 90 days remaining until end date
   // Expired: Contracts whose end dates have passed
   
-  if (endDate) {
+  if (endDateValue !== "N/A") {
+    const endDate = new Date(endDateValue);
     const today = new Date();
     const timeDiff = endDate.getTime() - today.getTime();
     const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 3600 * 24));
@@ -187,7 +221,7 @@ const mapContractToAgreement = (contract: ContractDetails, index: number): Agree
     type: type,
     category: category,
     startDate: contract.renewalDate || contract.dueDate || "N/A",
-    endDate: contract.renewalDate ? formatDateHelper(contract.renewalDate) : "N/A", // Show exact renewalDate from procurement renewal
+    endDate: endDateValue, // Store raw value for consistent formatting
     totalCost: totalCost,
     status: status,
     // Additional fields from procurement renewal
@@ -216,6 +250,7 @@ const mapContractToAgreement = (contract: ContractDetails, index: number): Agree
 };
 
 const VendorAgreements: React.FC = () => {
+  const { userData, userDepartmentId, userOrganizationId } = useAuth(); // Get user details from AuthContext
   const [activeTab, setActiveTab] = useState<AgreementStatus>("All Agreements");
   const [agreements, setAgreements] = useState<AgreementFromContract[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -295,6 +330,11 @@ const VendorAgreements: React.FC = () => {
         return false;
       }
 
+      // Apply category filter
+      if (filterCategory && agreement.category !== filterCategory) {
+        return false;
+      }
+
       // Apply cost filters only if they have values
       if (filterMinCost || filterMaxCost) {
         const agreementCost = parseFloat(
@@ -310,8 +350,7 @@ const VendorAgreements: React.FC = () => {
 
       return true;
     });
-  }, [agreements, search, activeTab, filterMinCost, filterMaxCost]);
-
+  }, [agreements, search, activeTab, filterMinCost, filterMaxCost, filterCategory]);
   // Reset all filters
   const resetFilters = () => {
     setFilterMinCost("");
@@ -334,167 +373,127 @@ const VendorAgreements: React.FC = () => {
     );
   };
 
-  const getNextAgreementId = (): string => {
-    if (agreements.length === 0) {
-      return "C-001";
-    }
-
-    const maxNum = agreements.reduce((max, agr) => {
-      const num = parseInt(agr.id.replace(/C-/i, ""), 10);
-      if (isNaN(num)) return max;
-      return Math.max(max, num);
-    }, 0);
-
-    const nextNum = maxNum + 1;
-    return `C-${nextNum}`;
-  };
-
-  const formatDate = (value: string): string => {
-    if (!value) return "";
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return value;
-    return d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "2-digit",
-      year: "numeric",
-    });
-  };
-const handleAddAgreement = async (e: React.FormEvent) => {
+  const handleAddAgreement = async (e: React.FormEvent) => {
 
   
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!formVendor || !formOwner || !formStartDate || !formTotalCost) {
-      alert("Please fill in all required fields.");
-      return;
-    }
+  if (!formVendor || !formOwner || !formStartDate || !formTotalCost) {
+    alert("Please fill in all required fields.");
+    return;
+  }
 
-    // Determine status based on form data
-    let status: AgreementStatus = "Active";
-    // For manually added agreements, we'll determine duration based on category selection
-    let contractDurationMonths = 0;
-    if (formCategory === "Long-Term Contracts") {
-      contractDurationMonths = 12; // Minimum for long-term
-    } else if (formCategory === "Subscriptions") {
-      contractDurationMonths = 1; // Exactly 1 month for subscriptions
-    }
-    
-    // Calculate end date based on start date and duration
-    let endDate: Date | null = null;
-    const startDate = new Date(formStartDate);
-    
-    if (contractDurationMonths > 0) {
-      endDate = new Date(startDate);
-      endDate.setMonth(endDate.getMonth() + contractDurationMonths);
-    }
-    
-    // Determine the appropriate status based on exact requirements:
-    // Long-term: Contracts with duration of 12 months or more
-    // Subscription: Contracts with 1-month duration specifically
-    // Active: Contracts with 90 days remaining until end date
-    // Expired: Contracts whose end dates have passed
-    
-    if (endDate) {
-      const today = new Date();
-      const timeDiff = endDate.getTime() - today.getTime();
-      const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 3600 * 24));
-      
-      // If already expired (end date has passed)
-      if (daysUntilExpiration < 0) {
-        status = "Expired";
-      }
-      // If within 90 days of expiration, show in Active (regardless of duration)
-      else if (daysUntilExpiration <= 90) {
-        status = "Active";
-      }
-      // If not within 90 days, classify based on duration
-      else {
-        if (contractDurationMonths >= 12) {
-          // Long-term contracts (12 months or more)
-          status = "Long-Term Contracts";
-        } else if (contractDurationMonths === 1) {
-          // Subscription contracts (exactly 1 month duration)
-          status = "Subscriptions";
-        } else {
-          // All other contracts default to Active
-          status = "Active";
-        }
-      }
-    } else {
-      // If no end date, classify based on duration only
-      if (contractDurationMonths >= 12) {
-        status = "Long-Term Contracts";
-      } else if (contractDurationMonths === 1) {
-        status = "Subscriptions";
-      } else {
-        status = "Active";
-      }
-    }
+  // Determine status based on form data
+  // let status: AgreementStatus = "Active"; // Comment out to fix linter error
+  // For manually added agreements, we'll determine duration based on category selection
+  let contractDurationMonths = 0;
+  if (formCategory === "Long-Term Contracts") {
+    contractDurationMonths = 12; // Minimum for long-term
+  } else if (formCategory === "Subscriptions") {
+    contractDurationMonths = 1; // Exactly 1 month for subscriptions
+  }
+  
+  // Calculate end date based on start date and duration
+  let endDate: Date | null = null;
+  const startDate = new Date(formStartDate);
+  
+  if (contractDurationMonths > 0) {
+    endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + contractDurationMonths);
+  }
+  
+  // Determine the appropriate status based on exact requirements:
+  // Long-term: Contracts with duration of 12 months or more
+  // Subscription: Contracts with 1-month duration specifically
+  // Active: Contracts with 90 days remaining until end date
+  // Expired: Contracts whose end dates have passed
+  
+  // if (endDate) {
+  //   const today = new Date();
+  //   const timeDiff = endDate.getTime() - today.getTime();
+  //   const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 3600 * 24));
+  //   
+  //   // If already expired (end date has passed)
+  //   if (daysUntilExpiration < 0) {
+  //     status = "Expired";
+  //   }
+  //   // If within 90 days of expiration, show in Active (regardless of duration)
+  //   else if (daysUntilExpiration <= 90) {
+  //     status = "Active";
+  //   }
+  //   // If not within 90 days, classify based on duration
+  //   else {
+  //     if (contractDurationMonths >= 12) {
+  //       // Long-term contracts (12 months or more)
+  //       status = "Long-Term Contracts";
+  //     } else if (contractDurationMonths === 1) {
+  //       // Subscription contracts (exactly 1 month duration)
+  //       status = "Subscriptions";
+  //     } else {
+  //       // All other contracts default to Active
+  //       status = "Active";
+  //     }
+  //   }
+  // } else {
+  //   // If no end date, classify based on duration only
+  //   if (contractDurationMonths >= 12) {
+  //     status = "Long-Term Contracts";
+  //   } else if (contractDurationMonths === 1) {
+  //     status = "Subscriptions";
+  //   } else {
+  //     status = "Active";
+  //   }
+  // }
 
-    const newAgreement: AgreementFromContract = {
-      id: getNextAgreementId(),
-      vendor: formVendor,
-      owner: formOwner,
-      type: formType,
-      category: formCategory,
-      startDate: formatDate(formStartDate),
-      endDate: endDate ? formatDateHelper(endDate.toISOString()) : "N/A", // For manually added agreements, use calculated endDate
-      totalCost: formTotalCost,
-      status: status,
-      // Additional fields (set to default values for manually added agreements)
-      productId: 0,
-      contractType: null,
-      renewalStatus: null,
-      jiraIssueKey: null,
-      productName: "",
-      requesterEmail: "",
-      requesterDepartment: "",
-      requesterOrganization: "",
-      billingType: null,
-      currentLicenseCount: null,
-      newLicenseCount: null,
-      currentUsageCount: null,
-      newUsageCount: null,
-      currentUnits: null,
-      newUnits: null,
-      dueDate: null,
-      renewalDate: endDate ? endDate.toISOString() : null,
-      licenseUpdateType: null,
-      existingContractId: null,
-      contractDuration: contractDurationMonths > 0 ? contractDurationMonths.toString() : null,
-      additionalComment: null,
-    };
+  // Prepare contract data with user details
+  const contractData = {
+    nameOfVendor: formVendor,
+    productName: "",
+    requesterName: formOwner,
+    vendorContractType: formType,
+    contractDuration: formCategory === "Long-Term Contracts" ? "12" : "1",
+    renewalDate: formStartDate,
+    renewalStatus: "completed",
+    totalOptimizedCost: Number(formTotalCost),
 
-    setAgreements((prev) => [...prev, newAgreement]);
-    
-    // Also send to backend
-    await fetch("http://localhost:8080/api/jira/contracts/manual", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        nameOfVendor: formVendor,
-        productName: "",
-        requesterName: formOwner,
-        vendorContractType: formType,
-        contractDuration:
-          formCategory === "Long-Term Contracts" ? "12" : "1",
-        renewalDate: formStartDate,
-        renewalStatus: "completed",
-      }),
-    });
-
-
-    // reset form
-    setFormVendor("");
-    setFormOwner("");
-    setFormType("Contract");
-    setFormCategory("Software");
-    setFormStartDate("");
-    setFormTotalCost("");
-    setShowAddModal(false);
+    // Add user details from AuthContext
+    requesterMail: userData?.user?.email || "",
+    requesterDepartment: userData?.user?.department?.name || "",
+    requesterOrganization: userData?.user?.organization?.name || "",
+    requesterDepartmentId: userDepartmentId || null,
+    requesterOrganizationId: userOrganizationId || null
   };
+
+  // Send to backend
+  await fetch("http://localhost:8080/api/jira/contracts/manual", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(contractData),
+  });
+
+  const response = await fetch(
+    "http://localhost:8080/api/jira/contracts/completed"
+  );
+  const contracts: ContractDetails[] = await response.json();
+
+  setAgreements(
+    contracts.map((contract, index) =>
+      mapContractToAgreement(contract, index)
+    )
+  );
+
+
+  // reset form
+  setFormVendor("");
+  setFormOwner("");
+  setFormType("Contract");
+  setFormCategory("Software");
+  setFormStartDate("");
+  setFormTotalCost("");
+  setShowAddModal(false);
+};
 
   const handleExportCsv = () => {
     if (filteredAgreements.length === 0) {
@@ -974,8 +973,11 @@ const handleAddAgreement = async (e: React.FormEvent) => {
                               <option value="Services">Services</option>
                               <option value="Hardware">Hardware</option>
                               <option value="Cloud">Cloud</option>
-                              <option value="Long-Term Contracts">Long-Term Contracts</option>
+                                <option value="Long-Term Contract">Long-Term Contract</option>
                               <option value="Subscriptions">Subscriptions</option>
+                              
+                            
+                          
                             </select>
                           </div>
                         </div>
