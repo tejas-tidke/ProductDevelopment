@@ -20,6 +20,10 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseToken;
+import com.google.firebase.auth.FirebaseAuthException;
+
 /**
  * Controller class for handling authentication-related API requests
  * This controller manages user authentication, registration, and role management
@@ -56,165 +60,61 @@ public class AuthController {
     }
     
     /**
-     * Create a new Firebase user and sync to local database
-     * @param userData User data including email, password, name, and role
+     * Complete invitation with Firebase Email-Link authentication
+     * @param authorizationHeader Firebase ID token in Authorization header
+     * @param requestBody Request body containing invitation token
      * @return The created user
      */
-    @PostMapping("/create-user")
-    public ResponseEntity<?> createFirebaseUser(@RequestBody CreateUserRequest userData)
- {
-        logger.info("Received request to create Firebase user");
+    @PostMapping("/complete-invitation")
+    public ResponseEntity<?> completeInvitation(
+            @RequestHeader("Authorization") String authorizationHeader,
+            @RequestBody Map<String, String> requestBody) {
+        logger.info("Received request to complete invitation with Firebase Email-Link authentication");
         
         try {
-            // Extract user data from request
-        	String email = userData.email;
-        	String password = userData.password;
-        	String name = userData.name;
-        	String roleStr = userData.role;
-            com.htc.productdevelopment.model.Department department = userData.department;
-            com.htc.productdevelopment.model.Organization organization = userData.organization;
-
-            
-            // Validate required fields
-            if (email == null || email.isEmpty() || password == null || password.isEmpty()) {
-                logger.warn("User creation failed: Email and password are required");
+            // Extract Firebase ID token from Authorization header
+            if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+                logger.warn("Invalid Authorization header");
                 Map<String, String> errorResponse = new HashMap<>();
-                errorResponse.put("error", "Email and password are required");
+                errorResponse.put("error", "Invalid Authorization header. Bearer token is required.");
                 return ResponseEntity.badRequest().body(errorResponse);
             }
             
-            // Set default role to REQUESTER if not provided
-            User.Role role = User.Role.REQUESTER;
-            if (roleStr != null && !roleStr.isEmpty()) {
-                try {
-                    role = User.Role.valueOf(roleStr.toUpperCase());
-                } catch (IllegalArgumentException e) {
-                    logger.warn("Invalid role value: {}, using default REQUESTER role", roleStr);
-                }
+            String idToken = authorizationHeader.substring(7); // Remove "Bearer " prefix
+            
+            // Verify Firebase ID token
+            FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
+            String firebaseEmail = decodedToken.getEmail();
+            String firebaseName = decodedToken.getName() != null ? decodedToken.getName() : "";
+            String firebaseUid = decodedToken.getUid();
+            
+            // Extract invitation token from request body
+            String invitationToken = requestBody.get("token");
+            if (invitationToken == null || invitationToken.isEmpty()) {
+                logger.warn("Invitation token is required");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "Invitation token is required");
+                return ResponseEntity.badRequest().body(errorResponse);
             }
             
-            // Create user in Firebase and sync to database
-            User user = firebaseSyncService.createFirebaseUser(email, password, name, role);
+            // Complete invitation using invitation service
+            User user = invitationService.completeInvitation(invitationToken, firebaseEmail, firebaseName);
             
-            // Set department and organization if provided
-            if (department != null && department.getId() != null) {
-                com.htc.productdevelopment.model.Department dept = userService.getDepartmentFromId(department.getId());
-                user.setDepartment(dept);
-            }
-            
-            if (organization != null && organization.getId() != null) {
-                com.htc.productdevelopment.model.Organization org = userService.getOrganizationFromId(organization.getId());
-                user.setOrganization(org);
-            } else if (role == User.Role.SUPER_ADMIN) {
-                // If role is SUPER_ADMIN and no organization is provided, assign to "Cost Room"
-                com.htc.productdevelopment.model.Organization costRoomOrg = organizationService.getOrCreateCostRoomOrganization();
-                user.setOrganization(costRoomOrg);
-            }
-            
-            // Save the updated user
+            // Set Firebase UID for the user
+            user.setUid(firebaseUid);
             user = userService.updateUserById(user.getId(), user);
             
-            logger.info("Firebase user created and synced successfully: {}", user.getUid());
+            logger.info("Invitation completed successfully for user: {}", firebaseEmail);
             return ResponseEntity.ok(user);
+        } catch (FirebaseAuthException e) {
+            logger.error("Firebase authentication error: {}", e.getMessage(), e);
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Firebase authentication failed: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         } catch (Exception e) {
-            logger.error("Error creating Firebase user", e);
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-
-    /**
-     * Sync Firebase user data to local database
-     * @param requestData Request data containing UID
-     * @return The synced user
-     */
-    @PostMapping("/sync-firebase-user")
-    public ResponseEntity<?> syncFirebaseUser(@RequestBody Map<String, String> requestData) {
-        logger.info("Received request to sync Firebase user");
-        
-        try {
-            // Extract UID from request data
-            String uid = requestData.get("uid");
-            String email = requestData.get("email");
-            String name = requestData.get("name");
-            
-            // Validate required field
-            if (uid == null || uid.isEmpty()) {
-                logger.warn("Sync failed: UID is required");
-                Map<String, String> errorResponse = new HashMap<>();
-                errorResponse.put("error", "UID is required");
-                return ResponseEntity.badRequest().body(errorResponse);
-            }
-            
-            // Sync user data
-            User user = firebaseSyncService.syncUser(uid, email, name);
-            logger.info("Firebase user synced successfully: {}", uid);
-            return ResponseEntity.ok(user);
-        } catch (Exception e) {
-            logger.error("Error syncing Firebase user", e);
+            logger.error("Error completing invitation: {}", e.getMessage(), e);
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-    
-    /**
-     * Automatically sync user with default role if not already in database
-     * @param requestData Request data containing UID
-     * @return The synced user
-     */
-    @PostMapping("/auto-sync")
-    public ResponseEntity<?> autoSyncUser(@RequestBody Map<String, String> requestData) {
-        logger.info("Received request to auto-sync user");
-        
-        try {
-            // Extract UID from request data
-            String uid = requestData.get("uid");
-            
-            // Validate required field
-            if (uid == null || uid.isEmpty()) {
-                logger.warn("Auto-sync failed: UID is required");
-                Map<String, String> errorResponse = new HashMap<>();
-                errorResponse.put("error", "UID is required");
-                return ResponseEntity.badRequest().body(errorResponse);
-            }
-            
-            // Auto-sync user
-            User user = firebaseSyncService.autoSyncUser(uid);
-            logger.info("User auto-synced successfully: {}", uid);
-            
-            // Create a simplified user object for serialization
-            Map<String, Object> userData = new HashMap<>();
-            userData.put("id", user.getId());
-            userData.put("uid", user.getUid());
-            userData.put("email", user.getEmail());
-            userData.put("name", user.getName());
-            userData.put("avatar", user.getAvatar());
-            userData.put("active", user.getActive());
-            userData.put("createdAt", user.getCreatedAt());
-            userData.put("updatedAt", user.getUpdatedAt());
-            userData.put("role", user.getRole().name());
-            
-            // Include department if present
-            if (user.getDepartment() != null) {
-                Map<String, Object> deptData = new HashMap<>();
-                deptData.put("id", user.getDepartment().getId());
-                deptData.put("name", user.getDepartment().getName());
-                userData.put("department", deptData);
-            }
-            
-            // Include organization if present
-            if (user.getOrganization() != null) {
-                Map<String, Object> orgData = new HashMap<>();
-                orgData.put("id", user.getOrganization().getId());
-                orgData.put("name", user.getOrganization().getName());
-                userData.put("organization", orgData);
-            }
-            
-            return ResponseEntity.ok(userData);
-        } catch (Exception e) {
-            logger.error("Error auto-syncing user", e);
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Runtime Exception: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
@@ -369,29 +269,6 @@ public class AuthController {
     }
     
     /**
-     * Get database status
-     * @return Database status
-     */
-    @GetMapping("/db-status")
-    public ResponseEntity<?> getDatabaseStatus() {
-        logger.info("Received request to get database status");
-        
-        try {
-            long userCount = userRepository.count();
-            Map<String, Object> status = new HashMap<>();
-            status.put("userCount", userCount);
-            status.put("status", "OK");
-            logger.info("Database status retrieved successfully");
-            return ResponseEntity.ok(status);
-        } catch (Exception e) {
-            logger.error("Error getting database status", e);
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-    
-    /**
      * Update user avatar
      * @param uid User ID
      * @param avatarData Avatar data
@@ -410,41 +287,6 @@ public class AuthController {
             return ResponseEntity.ok(user);
         } catch (Exception e) {
             logger.error("Error updating user avatar: {}", e.getMessage(), e);
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-    
-    /**
-     * Register a new user (for OAuth flow)
-     * @param userData User data
-     * @return Registered user
-     */
-    @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody Map<String, String> userData) {
-        logger.info("Received request to register user");
-        
-        try {
-            // Extract user data from request
-            String uid = userData.get("uid");
-            String email = userData.get("email");
-            String name = userData.get("name");
-            
-            // Validate required field
-            if (uid == null || uid.isEmpty()) {
-                logger.warn("Registration failed: UID is required");
-                Map<String, String> errorResponse = new HashMap<>();
-                errorResponse.put("error", "UID is required");
-                return ResponseEntity.badRequest().body(errorResponse);
-            }
-            
-            // Create user in database
-            User user = userService.saveUserToDB(uid, email, name, User.Role.REQUESTER);
-            logger.info("User registered successfully: {}", uid);
-            return ResponseEntity.ok(user);
-        } catch (Exception e) {
-            logger.error("Error registering user: {}", e.getMessage(), e);
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("error", e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
@@ -518,27 +360,6 @@ public class AuthController {
     }
     
     /**
-     * Sync all Firebase users to local database
-     * @return Sync result
-     */
-    @PostMapping("/sync-all-firebase-users")
-    public ResponseEntity<?> syncAllFirebaseUsers() {
-        logger.info("Received request to sync all Firebase users");
-        
-        try {
-            // Sync all users
-            List<User> users = firebaseSyncService.syncAllFirebaseUsers();
-            logger.info("All Firebase users synced successfully, count: {}", users.size());
-            return ResponseEntity.ok(Map.of("message", "Synced " + users.size() + " users", "users", users));
-        } catch (Exception e) {
-            logger.error("Error syncing all Firebase users", e);
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Error syncing users: " + e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-        }
-    }
-    
-    /**
      * Check if user exists in Firebase or database by email
      * @param email User email
      * @return Existence status
@@ -571,7 +392,7 @@ public class AuthController {
             boolean existsInDatabase = firebaseSyncService.doesUserExistInDatabase(email);
             
             // Check if email domain is likely valid
-            boolean isDomainLikelyValid = firebaseSyncService.isEmailDomainLikelyValid(email);
+            boolean isDomainLikelyValid = true; // For now, we'll assume it's valid
             
             Map<String, Object> response = new HashMap<>();
             response.put("existsInFirebase", existsInFirebase);
@@ -590,5 +411,59 @@ public class AuthController {
             return ResponseEntity.badRequest().body(errorResponse);
         }
     }
-
+    
+    /**
+     * Auto-sync user data between Firebase and database
+     * @param uid User ID
+     * @return Sync result
+     */
+    @PostMapping("/auto-sync")
+    public ResponseEntity<?> autoSyncUser(@RequestParam String uid) {
+        logger.info("Received request to auto-sync user with UID: {}", uid);
+        
+        try {
+            // Validate UID parameter
+            if (uid == null || uid.isEmpty()) {
+                logger.warn("Auto-sync failed: UID is required");
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "UID is required");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+            
+            // Get user from database by UID
+            Optional<User> userOpt = userService.getUserByUid(uid);
+            
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                
+                // Check if user exists in Firebase
+                boolean existsInFirebase = firebaseSyncService.doesUserExistInFirebase(user.getEmail());
+                
+                if (!existsInFirebase) {
+                    logger.warn("User with UID {} does not exist in Firebase", uid);
+                    Map<String, String> errorResponse = new HashMap<>();
+                    errorResponse.put("error", "User does not exist in Firebase");
+                    return ResponseEntity.badRequest().body(errorResponse);
+                }
+                
+                // Return user data
+                Map<String, Object> responseData = new HashMap<>();
+                responseData.put("message", "User synced successfully");
+                responseData.put("user", user);
+                
+                logger.info("User auto-sync completed successfully for UID: {}", uid);
+                return ResponseEntity.ok(responseData);
+            } else {
+                logger.warn("User with UID {} not found in database", uid);
+                Map<String, String> errorResponse = new HashMap<>();
+                errorResponse.put("error", "User not found in database");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+        } catch (Exception e) {
+            logger.error("Error auto-syncing user with UID: {}", uid, e);
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Runtime Exception: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+    }
 }

@@ -93,4 +93,85 @@ public class JiraFieldConfig {
     public String getTotaloptimizedcost() {
         return totaloptimizedcost;
     }
+    
+    // Add missing getter methods for Jira custom fields
+    public String getContractType() {
+        return contractType;
+    }
+    
+    public String getExistingContractId() {
+        return existingContractId;
+    }
+    
+    public String getLicenseUpdateType() {
+        return licenseUpdateType;
+    }
+    
+    public String getVendorName() {
+        return vendorName;
+    }
+    
+    public String getProductName() {
+        return productName;
+    }
+    
+    public String getBillingType() {
+        return billingType;
+    }
+    
+    public String getCurrentLicenseCount() {
+        return currentLicenseCount;
+    }
+    
+    public String getCurrentUsageCount() {
+        return currentUsageCount;
+    }
+    
+    public String getCurrentUnit() {
+        return currentUnit;
+    }
+    
+    public String getNewLicenseCount() {
+        return newLicenseCount;
+    }
+    
+    public String getNewUsageCount() {
+        return newUsageCount;
+    }
+    
+    public String getNewUnit() {
+        return newUnit;
+    }
+    
+    public String getDueDate() {
+        return dueDate;
+    }
+    
+    public String getRenewalDate() {
+        return renewalDate;
+    }
+    
+    public String getRequesterName() {
+        return requesterName;
+    }
+    
+    public String getRequesterEmail() {
+        return requesterEmail;
+    }
+    
+    public String getDepartment() {
+        return department;
+    }
+    
+    public String getOrganization() {
+        return organization;
+    }
+    
+    public String getAdditionalComment() {
+        return additionalComment;
+    }
+    
+    public String getContractDuration() {
+        return contractDuration;
+    }
 }

@@ -191,6 +191,17 @@ export const invitationApi = {
     body: JSON.stringify(invitationData),
   }),
   
+  // Create Firebase-based invitation
+  createFirebaseInvitation: (invitationData: { 
+    email: string; 
+    role: string; 
+    departmentId: number | null; 
+    organizationId?: number; 
+  }) => apiCall("/api/invitations/create-firebase", {
+    method: "POST",
+    body: JSON.stringify(invitationData),
+  }),
+  
   // Verify invitation
   verifyInvitation: (token: string, email: string) => apiCall(`/api/invitations/verify?token=${token}&email=${email}`),
   

@@ -6,6 +6,8 @@ import { authApi } from "../services/api"; // Add authApi import
 import { useNavigate } from "react-router";
 import { usePermissions } from "../hooks/usePermissions";
 import { useAuth } from "../context/AuthContext";
+import { sendSignInLinkToEmail, ActionCodeSettings, isSignInWithEmailLink } from "firebase/auth";
+import { auth } from "../firebase";
 
 // Define Department type
 interface Department {
@@ -209,15 +211,51 @@ export default function SendInvitation() {
         invitationData.organizationId = userOrganizationId;
       }
       
-      // Create pending user record instead of sending token
-      const response = await invitationApi.createInvitation(invitationData);
+      // First, create the invitation record in the database
+      const response = await invitationApi.createFirebaseInvitation(invitationData);
       
-      if (response.success) {
-        setMessage({ type: "success", text: "Invitation sent successfully! The user will receive an email notification with instructions to sign up using their Google or Microsoft account." });
-      } else {
-        setMessage({ type: "success", text: "User invited successfully! They will receive an email notification." });
-      }
-
+      // Log the action code settings for debugging
+      console.log('Sending invitation to:', formData.email);
+      console.log('Current origin:', window.location.origin);
+      console.log('Complete URL:', `${window.location.origin}/complete-invitation`);
+      
+      // Then, send the email link using Firebase Auth
+      const actionCodeSettings: ActionCodeSettings = {
+        // URL where the user will be redirected after clicking the email link
+        // Make sure this URL is authorized in Firebase Console
+        url: `${window.location.origin}/complete-invitation`,
+        // Whether to handle the link in the app itself (true for mobile apps)
+        handleCodeInApp: true,
+        // iOS app bundle ID (if applicable)
+        // iOS: {
+        //   bundleId: 'com.example.ios'
+        // },
+        // Android app package name (if applicable)
+        // android: {
+        //   packageName: 'com.example.android',
+        //   installApp: true,
+        //   minimumVersion: '12'
+        // },
+        // Dynamic link domain (if using Firebase Dynamic Links)
+        // dynamicLinkDomain: 'example.page.link'
+      };      
+      // Send the sign-in link to the user's email
+      console.log('ActionCodeSettings:', actionCodeSettings);
+      await sendSignInLinkToEmail(auth, formData.email, actionCodeSettings)
+        .then(() => {
+          // Store email locally for verification when the link is clicked
+          window.localStorage.setItem('emailForSignIn', formData.email);
+          console.log('Email link sent successfully to:', formData.email);
+        })
+        .catch((error) => {
+          console.error('Error in sendSignInLinkToEmail:', error);
+          // Re-throw the error to be caught by the outer catch block
+          throw error;
+        });
+      
+      // Email is already stored in localStorage in the .then() block above
+      
+      setMessage({ type: "success", text: "Invitation sent successfully! The user will receive an email notification with instructions to complete their registration. Note: The Firebase account will be created when the user clicks the link and completes registration." });
       // Reset form (but keep department selection for Admin users)
       setFormData(prev => ({
         ...prev,
@@ -231,7 +269,25 @@ export default function SendInvitation() {
       setEmailValidation(null);
     } catch (error) {
       console.error("Error sending invitation:", error);
-      setMessage({type: "error", text: "Failed to send invitation: " + (error as Error).message});
+      // Check if it's a Firebase error
+      const firebaseError = error as { code?: string; message?: string };
+      if (firebaseError.code) {
+        switch (firebaseError.code) {
+          case 'auth/invalid-email':
+            setMessage({type: "error", text: "Invalid email address. Please check the email and try again."});
+            break;
+          case 'auth/unauthorized-continue-uri':
+            setMessage({type: "error", text: "Unauthorized domain. Please contact administrator to authorize this domain in Firebase Console."});
+            break;
+          case 'auth/invalid-action-code':
+            setMessage({type: "error", text: "Invalid action code. Please try again."});
+            break;
+          default:
+            setMessage({type: "error", text: "Failed to send invitation: " + (firebaseError.message || "Unknown Firebase error")});
+        }
+      } else {
+        setMessage({type: "error", text: "Failed to send invitation: " + (error as Error).message});
+      }
     } finally {
       setLoading(false);
     }
@@ -263,7 +319,7 @@ export default function SendInvitation() {
           <div className="mb-6 rounded-lg bg-blue-100 p-4 dark:bg-blue-900">
             <h4 className="mb-2 font-medium text-blue-800 dark:text-blue-100">Important Notice</h4>
             <p className="text-sm text-blue-700 dark:text-blue-200">
-              Please ensure the email address is correct. A confirmation email will be sent to verify the address.
+              Please ensure the email address is correct. A Firebase-powered confirmation email will be sent to verify the address.
               Common email providers (Gmail, Yahoo, Outlook, etc.) are recommended.
             </p>
           </div>
@@ -277,19 +333,6 @@ export default function SendInvitation() {
               {message.text}
             </div>
           )}
-          
-          {/* <div className="mb-6 rounded-lg bg-blue-100 p-4 dark:bg-blue-900">
-            <h4 className="mb-2 font-medium text-blue-800 dark:text-blue-100">Security Notice</h4>
-            <p className="text-sm text-blue-700 dark:text-blue-200">
-              Invite new users to sign up using their Google or Microsoft account. 
-              They will receive an email notification and must use the same email address to complete registration.
-            </p>
-            {userRole === "SUPER_ADMIN" && (
-              <p className="mt-2 text-sm text-blue-700 dark:text-blue-200">
-                <strong>Note:</strong> As a SUPER_ADMIN, you can assign users to specific organizations.
-              </p>
-            )}
-          </div> */}
           
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>

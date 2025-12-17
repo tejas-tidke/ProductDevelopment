@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import PageMeta from "../components/common/PageMeta";
 import { invitationApi } from "../services/api";
 import { useNavigate, useLocation } from "react-router";
-import { signInWithPopup, GoogleAuthProvider, OAuthProvider, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider, OAuthProvider, createUserWithEmailAndPassword, updateProfile, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
 import { auth } from "../firebase";
 
 // Define interface for invitation data
@@ -19,7 +19,107 @@ export default function CompleteInvitation() {
   
   // Extract email from URL query parameters (no more token)
   const queryParams = new URLSearchParams(location.search);
-  const email = queryParams.get("email") || "";
+  let email = queryParams.get("email") || "";
+  
+  // If email is not in URL params, try to get it from localStorage
+  if (!email) {
+    email = window.localStorage.getItem('emailForSignIn') || "";
+  }
+  
+  // Debug logging
+  console.log('Initial email from URL params:', queryParams.get("email"));
+  console.log('Initial email from localStorage:', window.localStorage.getItem('emailForSignIn'));
+  console.log('Final email value:', email);
+  
+  // State for email
+  const [emailState, setEmailState] = useState(email);
+  
+  // Check if this is an email link sign-in
+  useEffect(() => {
+    console.log('Checking if this is an email link sign-in...');
+    console.log('Current URL:', window.location.href);
+    
+    // Confirm the link is a sign-in with email link
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      console.log('This is an email link sign-in');
+      
+      // Get email from localStorage if available
+      let emailFromStorage = window.localStorage.getItem('emailForSignIn');
+      console.log('Email from localStorage:', emailFromStorage);
+      
+      if (!emailFromStorage) {
+        // User opened the link on a different device
+        // Set error message and stop processing
+        setMessage({
+          type: "error", 
+          text: "Email verification failed. Please open the invitation link on the same device where you received the email, or request a new invitation."
+        });
+        setVerificationLoading(false);
+        return;
+      }
+      
+      if (emailFromStorage) {
+        console.log('Verifying invitation for email:', emailFromStorage);
+        
+        // First, verify the invitation before showing sign-up options
+        invitationApi.verifyInvitationByEmail(emailFromStorage)
+          .then((response) => {
+            if (response.valid) {
+              // Invitation is valid, store email in state but don't sign in yet
+              // The user will choose how to sign up (Google, Microsoft, or custom)
+              console.log('Invitation verified successfully');
+              // Update the email state
+              setEmailState(emailFromStorage);
+              // Clear email from storage
+              window.localStorage.removeItem('emailForSignIn');
+            } else {
+              // Invitation is not valid
+              setMessage({
+                type: "error", 
+                text: "Invalid invitation. Please request a new invitation."
+              });
+            }
+          })
+          .catch((error) => {
+            console.error("Error verifying invitation:", error);
+            setMessage({
+              type: "error", 
+              text: "Failed to verify invitation. Please request a new invitation."
+            });
+          });
+      }
+    } else {
+      console.log('This is not an email link sign-in');
+      // If it's not an email link sign-in but we have an email from URL params, verify the invitation
+      if (email) {
+        console.log('Verifying invitation for email from URL params:', email);
+        
+        // Verify the invitation
+        invitationApi.verifyInvitationByEmail(email)
+          .then((response) => {
+            if (response.valid) {
+              // Invitation is valid
+              console.log('Invitation verified successfully');
+              // Update the email state
+              setEmailState(email);
+            } else {
+              // Invitation is not valid
+              setMessage({
+                type: "error", 
+                text: "Invalid invitation. Please request a new invitation."
+              });
+            }
+          })
+          .catch((error) => {
+            console.error("Error verifying invitation:", error);
+            setMessage({
+              type: "error", 
+              text: "Failed to verify invitation. Please request a new invitation."
+            });
+          });
+      }
+    }
+  }, []);
   
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: string, text: string} | null>(null);
@@ -34,15 +134,23 @@ export default function CompleteInvitation() {
   // Verify the invitation when component mounts
   useEffect(() => {
     const verifyInvitation = async () => {
-      if (!email) {
-        setMessage({type: "error", text: "Invalid invitation. Email is required."});
+      // Debug logging
+      console.log('Email state value:', emailState);
+      console.log('Email state length:', emailState ? emailState.length : 'null');
+      
+      // If no email, we can't proceed
+      if (!emailState || emailState.trim() === '') {
+        setMessage({
+          type: "error", 
+          text: "Invalid invitation. Email is required. Please ensure you're opening this link on the same device where you received the invitation email."
+        });
         setVerificationLoading(false);
         return;
       }
 
       try {
         // Verify invitation by email only (for OAuth flow)
-        const response = await invitationApi.verifyInvitationByEmail(email);
+        const response = await invitationApi.verifyInvitationByEmail(emailState);
         
         if (response.valid) {
           setInvitationData({
@@ -64,7 +172,7 @@ export default function CompleteInvitation() {
     };
 
     verifyInvitation();
-  }, [email]);
+  }, [emailState]);
 
   // Handle Google sign-in
   const handleGoogleSignIn = async () => {
@@ -76,10 +184,34 @@ export default function CompleteInvitation() {
       const result = await signInWithPopup(auth, provider);
       
       // After successful sign-in, complete the invitation
-      await completeInvitation(result.user.displayName || result.user.email || "");
+      // Use the email from invitation data if available, otherwise fallback to Firebase user email
+      const fullName = result.user.displayName || (invitationData ? invitationData.email : "") || result.user.email || "";
+      await completeInvitation(fullName);
     } catch (error) {
       console.error("Error signing in with Google:", error);
-      setMessage({type: "error", text: "Failed to sign in with Google: " + (error as Error).message});
+      
+      // Check if it's an email-already-in-use error
+      const firebaseError = error as { code?: string; message?: string };
+      if (firebaseError.code === 'auth/email-already-in-use') {
+        // User already exists in Firebase, try to complete invitation anyway
+        console.log('User already exists in Firebase, proceeding with invitation completion');
+        try {
+          // Get the email from the invitation data
+          if (invitationData && invitationData.email) {
+            await completeInvitation(invitationData.email);
+          } else {
+            throw new Error('Invitation data not available');
+          }
+        } catch (completionError) {
+          console.error('Error completing invitation:', completionError);
+          setMessage({
+            type: "error", 
+            text: "Failed to complete invitation: " + (completionError as Error).message
+          });
+        }
+      } else {
+        setMessage({type: "error", text: "Failed to sign in with Google: " + (error as Error).message});
+      }
       setLoading(false);
     }
   };
@@ -94,10 +226,34 @@ export default function CompleteInvitation() {
       const result = await signInWithPopup(auth, provider);
       
       // After successful sign-in, complete the invitation
-      await completeInvitation(result.user.displayName || result.user.email || "");
+      // Use the email from invitation data if available, otherwise fallback to Firebase user email
+      const fullName = result.user.displayName || (invitationData ? invitationData.email : "") || result.user.email || "";
+      await completeInvitation(fullName);
     } catch (error) {
       console.error("Error signing in with Microsoft:", error);
-      setMessage({type: "error", text: "Failed to sign in with Microsoft: " + (error as Error).message});
+      
+      // Check if it's an email-already-in-use error
+      const firebaseError = error as { code?: string; message?: string };
+      if (firebaseError.code === 'auth/email-already-in-use') {
+        // User already exists in Firebase, try to complete invitation anyway
+        console.log('User already exists in Firebase, proceeding with invitation completion');
+        try {
+          // Get the email from the invitation data
+          if (invitationData && invitationData.email) {
+            await completeInvitation(invitationData.email);
+          } else {
+            throw new Error('Invitation data not available');
+          }
+        } catch (completionError) {
+          console.error('Error completing invitation:', completionError);
+          setMessage({
+            type: "error", 
+            text: "Failed to complete invitation: " + (completionError as Error).message
+          });
+        }
+      } else {
+        setMessage({type: "error", text: "Failed to sign in with Microsoft: " + (error as Error).message});
+      }
       setLoading(false);
     }
   };
@@ -140,10 +296,17 @@ export default function CompleteInvitation() {
       // Handle specific Firebase errors
       const firebaseError = error as { code?: string; message?: string };
       if (firebaseError.code === 'auth/email-already-in-use') {
-        setMessage({
-          type: "error", 
-          text: "An account with this email already exists. Please try signing in with Google or Microsoft, or use a different email."
-        });
+        // User already exists in Firebase, try to complete invitation anyway
+        console.log('User already exists in Firebase, proceeding with invitation completion');
+        try {
+          await completeInvitation(customFormData.fullName);
+        } catch (completionError) {
+          console.error('Error completing invitation:', completionError);
+          setMessage({
+            type: "error", 
+            text: "Failed to complete invitation: " + (completionError as Error).message
+          });
+        }
       } else if (firebaseError.code === 'auth/invalid-email') {
         setMessage({
           type: "error", 
@@ -208,6 +371,11 @@ export default function CompleteInvitation() {
       
       // Handle specific backend errors
       if (errorMessage.includes("User already exists in Firebase")) {
+        setMessage({
+          type: "error", 
+          text: "An account with this email already exists. Please sign in instead of creating a new account."
+        });
+      } else if (errorMessage.includes("User already exists in database")) {
         setMessage({
           type: "error", 
           text: "An account with this email already exists. Please sign in instead of creating a new account."

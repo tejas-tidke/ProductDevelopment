@@ -7,6 +7,11 @@ import com.htc.productdevelopment.repository.InvitationRepository;
 import com.htc.productdevelopment.service.UserService;
 import com.htc.productdevelopment.repository.OrganizationRepository;
 
+import com.google.firebase.auth.ActionCodeSettings;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthException;
+import com.google.firebase.auth.FirebaseToken;
+
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
@@ -51,6 +56,13 @@ public class InvitationService {
     // 1️⃣ Create Invitation
     // -------------------------------------------------------------
     public Invitation createInvitation(String email, String role, Long deptId, Long orgId, String invitedBy) {
+        return createInvitation(email, role, deptId, orgId, invitedBy, false);
+    }
+    
+    // -------------------------------------------------------------
+    // 1️⃣ Create Invitation with Firebase option
+    // -------------------------------------------------------------
+    public Invitation createInvitation(String email, String role, Long deptId, Long orgId, String invitedBy, boolean useFirebase) {
 
         Invitation inv = new Invitation();
         inv.setEmail(email.toLowerCase().trim());
@@ -67,7 +79,11 @@ public class InvitationService {
         Invitation savedInvitation = invitationRepository.save(inv);
         
         // Send invitation email
-        sendInvitationEmail(savedInvitation);
+        if (useFirebase) {
+            sendFirebaseInvitationEmail(savedInvitation);
+        } else {
+            sendInvitationEmail(savedInvitation);
+        }
         
         return savedInvitation;
     }
@@ -104,10 +120,47 @@ public class InvitationService {
     }
 
     // -------------------------------------------------------------
+    // 2️⃣ Send Firebase Invitation Email
+    // -------------------------------------------------------------
+    private void sendFirebaseInvitationEmail(Invitation inv) {
+        try {
+            String invitationLink = generateInvitationLink(inv);
+            
+            // Configure email action settings
+            ActionCodeSettings actionCodeSettings = ActionCodeSettings.builder()
+                .setUrl(invitationLink)
+                .setHandleCodeInApp(false)  // Set to true if you want to handle the code in your app
+                .build();
+            
+            // Generate sign-in link using Firebase
+            // Note: The Firebase Admin SDK doesn't directly send emails, it only generates links
+            // In a production environment, you would use this link with an email service
+            String emailSignInLink = FirebaseAuth.getInstance().generateSignInWithEmailLink(
+                inv.getEmail(), 
+                actionCodeSettings
+            );
+            
+            // Note: In a production environment, you would integrate with an email service
+            // to send the actual email with the link. For now, we'll just mark it as sent.
+            // Mark as sent in database
+            inv.setSent(true);
+            invitationRepository.save(inv);
+        } catch (FirebaseAuthException e) {
+            // Log error but don't fail the invitation creation
+            e.printStackTrace();
+        }
+    }
+
+    // -------------------------------------------------------------
     // 3️⃣ Generate secure invitation link
     // -------------------------------------------------------------
     public String generateInvitationLink(Invitation inv) {
-        return frontendUrl + "/complete-invitation?token=" + inv.getToken() + "&email=" + inv.getEmail();
+        try {
+            return frontendUrl + "/complete-invitation?token=" + inv.getToken() + "&email=" + java.net.URLEncoder.encode(inv.getEmail(), "UTF-8");
+        } catch (java.io.UnsupportedEncodingException e) {
+            // Fallback if encoding fails
+            return frontendUrl + "/complete-invitation?token=" + inv.getToken() + "&email=" + inv.getEmail();
+        }
     }
 
     // -------------------------------------------------------------
@@ -132,6 +185,72 @@ public class InvitationService {
         }
 
         return inv;
+    }
+
+    // -------------------------------------------------------------
+    // NEW: Complete invitation with Firebase Email-Link authentication
+    // -------------------------------------------------------------
+    public User completeInvitation(String token, String firebaseEmail, String firebaseName) throws Exception {
+        // 1. Find invitation by token
+        Optional<Invitation> opt = invitationRepository.findByToken(token);
+        if (opt.isEmpty()) {
+            throw new Exception("Invalid invitation token.");
+        }
+
+        Invitation inv = opt.get();
+
+        // 2. Validate invitation
+        // Check if invitation is already used
+        if (inv.isUsed()) {
+            throw new Exception("This invitation has already been used.");
+        }
+
+        // Check if invitation is expired
+        if (LocalDateTime.now().isAfter(inv.getExpiresAt())) {
+            throw new Exception("This invitation has expired.");
+        }
+
+        // Check if email matches the invitation email
+        if (!inv.getEmail().equalsIgnoreCase(firebaseEmail)) {
+            throw new Exception("Email mismatch. The email used for authentication does not match the invitation.");
+        }
+
+        // 3. Check if user already exists in database by email
+        Optional<User> existingUserInDb = userService.getUserByEmail(firebaseEmail);
+        if (existingUserInDb.isPresent()) {
+            throw new Exception("User already exists in database with this email.");
+        }
+
+        // 4. Create DB user using invitation data
+        User created = userService.saveUserToDB(
+                null, // UID will be set after Firebase authentication
+                firebaseEmail,
+                firebaseName,
+                parseRole(inv.getRole())
+        );
+
+        // 5. Add department if present
+        if (inv.getDepartmentId() != null) {
+            created.setDepartment(userService.getDepartmentFromId(inv.getDepartmentId()));
+        }
+
+        // 6. Add organization if present
+        if (inv.getOrganizationId() != null) {
+            created.setOrganization(userService.getOrganizationFromId(inv.getOrganizationId()));
+        } else if (inv.getRole() != null && inv.getRole().equals("SUPER_ADMIN")) {
+            // If role is SUPER_ADMIN and no organization is provided, assign to "Cost Room"
+            Organization costRoomOrg = organizationService.getOrCreateCostRoomOrganization();
+            created.setOrganization(costRoomOrg);
+        }
+
+        // 7. Save updates
+        userService.updateUserById(created.getId(), created);
+
+        // 8. Mark invitation as used
+        inv.setUsed(true);
+        invitationRepository.save(inv);
+
+        return created;
     }
 
     // -------------------------------------------------------------

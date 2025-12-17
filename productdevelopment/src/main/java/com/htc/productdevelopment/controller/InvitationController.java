@@ -73,7 +73,50 @@ public class InvitationController {
     }
 
     // -------------------------------------------------------------------------
-    // 2️⃣ Validate invitation link before showing Google/Microsoft login
+    // 1️⃣ Create Firebase-based invitation (Admin / Super Admin)
+    // -------------------------------------------------------------------------
+    @PostMapping("/create-firebase")
+    public ResponseEntity<?> createFirebaseInvitation(@RequestBody Map<String, Object> body) {
+        try {
+            String email = (String) body.get("email");
+            String role = (String) body.get("role");
+            Long departmentId = body.get("departmentId") != null
+                    ? Long.parseLong(body.get("departmentId").toString()) : null;
+
+            // Only Super Admin provides organization
+            Long organizationId = body.get("organizationId") != null
+                    ? Long.parseLong(body.get("organizationId").toString()) : null;
+            
+            // For now, we'll use a placeholder for invitedBy
+            // In a real implementation, you would get this from the authenticated user
+            String invitedBy = "system"; // Placeholder - should be replaced with actual user ID
+
+            // Create invitation with Firebase email sending
+            Invitation inv = invitationService.createInvitation(
+                    email,
+                    role,
+                    departmentId,
+                    organizationId,
+                    invitedBy,
+                    true // Use Firebase for email sending
+            );
+
+            String invitationLink = invitationService.generateInvitationLink(inv);
+
+            return ResponseEntity.ok(Map.of(
+                    "message", "Firebase invitation created successfully",
+                    "invitationLink", invitationLink
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // 3️⃣ Validate invitation link before showing Google/Microsoft login
     // -------------------------------------------------------------------------
     @GetMapping("/verify")
     public ResponseEntity<?> verifyToken(
@@ -100,7 +143,7 @@ public class InvitationController {
     }
 
     // -------------------------------------------------------------------------
-    // 3️⃣ Complete invitation (after Google/Microsoft login & setting password)
+    // 4️⃣ Complete invitation (after Google/Microsoft login & setting password)
     // -------------------------------------------------------------------------
     @PostMapping("/complete")
     public ResponseEntity<?> completeInvitation(@RequestBody Map<String, Object> body) {
@@ -133,7 +176,7 @@ public class InvitationController {
     }
     
     // -------------------------------------------------------------------------
-    // 4️⃣ Verify invitation by email only (for OAuth flow)
+    // 5️⃣ Verify invitation by email only (for OAuth flow)
     // -------------------------------------------------------------------------
     @GetMapping("/verify-email")
     public ResponseEntity<?> verifyByEmail(@RequestParam String email) {

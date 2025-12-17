@@ -32,12 +32,10 @@ export const userService = {
  
   // Automatically sync user with default role if not already in database
   autoSyncUser: async (uid: string) => {
-    return await apiCall("/api/auth/auto-sync", {
+    return await apiCall(`/api/auth/auto-sync?uid=${encodeURIComponent(uid)}`, {
       method: "POST",
-      body: JSON.stringify({ uid }),
     });
-  },
- 
+  }, 
   // Get database status
   getDatabaseStatus: async () => {
     return await apiCall("/api/auth/db-status");
