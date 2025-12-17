@@ -1254,9 +1254,9 @@ window.dispatchEvent(new CustomEvent('requestCreated', { detail: { issueKey } })
                       </div>
                     </div>
 
-                    {productType && vendorContractType && productType !== vendorContractType && (
+                    {/* {productType && vendorContractType && productType !== vendorContractType && (
                       <div className="mt-2 text-sm text-yellow-600">Note: The selected product is typically {productType}-based, but you've selected {vendorContractType} billing.</div>
-                    )}
+                    )} */}
 
                     {vendorContractType === 'usage' && (
                       <>
@@ -1694,16 +1694,73 @@ window.dispatchEvent(new CustomEvent('requestCreated', { detail: { issueKey } })
                   </div>
 
                   <div className="mt-6">
-                    <label htmlFor="attachments" className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Attachments</label>
-                    <input id="attachments" type="file" multiple onChange={(e) => setAttachments(Array.from(e.target.files || []))} className={inputClass} />
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">Attachments</label>
+                    <div 
+                      className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors duration-200"
+                      onClick={() => document.getElementById('attachments-input')?.click()}
+                    >
+                      <div className="flex flex-col items-center justify-center">
+                        <svg className="h-10 w-10 text-gray-400 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <p className="text-sm font-medium text-gray-700 mb-1">Click to upload files</p>
+                        <p className="text-xs text-gray-500">or drag and drop files here</p>
+                        <p className="text-xs text-gray-400 mt-1">Supports all file types</p>
+                      </div>
+                      <input 
+                        id="attachments-input" 
+                        type="file" 
+                        multiple 
+                        onChange={(e) => setAttachments(Array.from(e.target.files || []))} 
+                        className="hidden" 
+                      />
+                    </div>
                     {attachments.length > 0 && (
-                      <div className="mt-2">
-                        <p className="text-sm text-gray-600">Selected files:</p>
-                        <ul className="list-disc list-inside text-sm text-gray-500">
+                      <div className="mt-4">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Selected files ({attachments.length}):</p>
+                        <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                           {attachments.map((file, index) => (
-                            <li key={index}>{file.name} ({(file.size / 1024).toFixed(2)} KB)</li>
+                            <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3 border border-gray-200">
+                              <div className="flex items-center truncate flex-1 min-w-0">
+                                <svg className="flex-shrink-0 h-5 w-5 text-gray-400 mr-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                                </svg>
+                                <div className="truncate">
+                                  <p className="truncate text-sm font-medium text-gray-700">{file.name}</p>
+                                  <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(2)} KB</p>
+                                </div>
+                              </div>
+                              <div className="flex space-x-1 ml-2 flex-shrink-0">
+                                <button 
+                                  onClick={() => {
+                                    // Preview functionality - open file in new tab
+                                    const url = URL.createObjectURL(file);
+                                    window.open(url, '_blank');
+                                  }}
+                                  className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-100"
+                                  title="Preview"
+                                >
+                                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    // Remove file from attachments
+                                    setAttachments(attachments.filter((_, i) => i !== index));
+                                  }}
+                                  className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-100"
+                                  title="Remove"
+                                >
+                                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
                           ))}
-                        </ul>
+                        </div>
                       </div>
                     )}
                   </div>

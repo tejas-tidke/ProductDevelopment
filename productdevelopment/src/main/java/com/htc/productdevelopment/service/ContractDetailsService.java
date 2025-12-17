@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 
 @Service
 public class ContractDetailsService {
@@ -61,6 +62,29 @@ public class ContractDetailsService {
     public List<ContractDetails> getCompletedContractsByVendorAndProduct(String vendorName, String productName) {
         logger.info("Fetching completed contracts for vendor: {} and product: {}", vendorName, productName);
         return contractDetailsRepository.findByRenewalStatusAndNameOfVendorAndProductNameAllIgnoreCase("completed", vendorName, productName);
+    }
+    
+    /**
+     * Get subscription contracts (1-month duration) that are completed
+     * @return List of subscription contracts
+     */
+    public List<ContractDetails> getSubscriptionContracts() {
+        logger.info("Fetching subscription contracts (1-month duration)");
+        List<ContractDetails> allCompleted = contractDetailsRepository.findByRenewalStatusIgnoreCase("completed");
+        
+        // Filter for contracts with 1-month duration
+        List<ContractDetails> subscriptions = allCompleted.stream()
+                .filter(contract -> {
+                    if (contract.getContractDuration() == null) return false;
+                    String duration = contract.getContractDuration().trim();
+                    return "1".equals(duration);
+                })
+                .collect(Collectors.toList());
+                
+        logger.info("Found {} subscription contracts out of {} completed contracts", 
+                   subscriptions.size(), allCompleted.size());
+        
+        return subscriptions;
     }
 
     // ⭐ DTO Conversion based on renewalStatus
@@ -150,7 +174,12 @@ public class ContractDetailsService {
         contract.setLicenseUpdateType(incoming.getLicenseUpdateType());
         contract.setExistingContractId(incoming.getExistingContractId());
         contract.setBillingType(incoming.getBillingType());
-        contract.setContractDuration(incoming.getContractDuration());
+        // Ensure contract duration is properly trimmed
+        String contractDuration = incoming.getContractDuration();
+        if (contractDuration != null) {
+            contractDuration = contractDuration.trim();
+        }
+        contract.setContractDuration(contractDuration);
 
         contract.setDueDate(incoming.getDueDate());
     
@@ -256,7 +285,12 @@ public class ContractDetailsService {
         contract.setLicenseUpdateType(incoming.getLicenseUpdateType());
         contract.setExistingContractId(incoming.getExistingContractId());
         contract.setBillingType(incoming.getBillingType());
-        contract.setContractDuration(incoming.getContractDuration());
+        // Ensure contract duration is properly trimmed
+        String contractDuration = incoming.getContractDuration();
+        if (contractDuration != null) {
+            contractDuration = contractDuration.trim();
+        }
+        contract.setContractDuration(contractDuration);
 
         contract.setDueDate(incoming.getDueDate());
         
@@ -308,6 +342,136 @@ public class ContractDetailsService {
         ContractDetails saved = contractDetailsRepository.save(contract);
 
         logger.info("✅ Contract saved successfully with ID={} issueKey={}", saved.getId(), saved.getJiraIssueKey());
+
+        return saved;
+    }
+
+    public ContractDetails saveManualAgreement(ContractDetails incoming) {
+        logger.info("📌 Saving manual agreement for vendor={}", incoming.getNameOfVendor());
+
+        // Create a new contract without requiring a Jira issue key
+        ContractDetails contract = new ContractDetails();
+        
+        logger.info("Incoming contract data - Vendor: {}, Product: {}, Duration: {}", 
+                   incoming.getNameOfVendor(), incoming.getProductName(), incoming.getContractDuration());
+        
+        // Log contract duration for debugging
+        if (incoming.getContractDuration() != null) {
+            logger.info("[DEBUG] Contract duration value: '{}' length: {}", 
+                       incoming.getContractDuration(), incoming.getContractDuration().length());
+        }
+        
+        // Generate a unique identifier for internal tracking
+        String uniqueKey = "AGREEMENT-" + System.currentTimeMillis() % 1000000;
+        contract.setJiraIssueKey(uniqueKey);
+
+        // Required fields validation
+        if (incoming.getNameOfVendor() == null || incoming.getNameOfVendor().trim().isEmpty()) {
+            throw new RuntimeException("Vendor name cannot be null");
+        }
+        if (incoming.getProductName() == null || incoming.getProductName().trim().isEmpty()) {
+            throw new RuntimeException("Product name cannot be null");
+        }
+
+        // Copy all fields
+        contract.setRenewalStatus("completed");
+        contract.setContractType("existing");
+
+        contract.setNameOfVendor(incoming.getNameOfVendor());
+        contract.setProductName(incoming.getProductName());
+
+        contract.setRequesterName(incoming.getRequesterName());
+        contract.setRequesterMail(incoming.getRequesterMail());
+        contract.setRequesterDepartment(incoming.getRequesterDepartment());
+        contract.setRequesterOrganization(incoming.getRequesterOrganization());
+
+        contract.setCurrentLicenseCount(incoming.getCurrentLicenseCount());
+        contract.setCurrentUsageCount(incoming.getCurrentUsageCount());
+        contract.setCurrentUnits(incoming.getCurrentUnits());
+
+        contract.setNewLicenseCount(incoming.getNewLicenseCount());
+        contract.setNewUsageCount(incoming.getNewUsageCount());
+        contract.setNewUnits(incoming.getNewUnits());
+
+        contract.setVendorContractType(incoming.getVendorContractType());
+        contract.setLicenseUpdateType(incoming.getLicenseUpdateType());
+        contract.setExistingContractId(incoming.getExistingContractId());
+        contract.setBillingType(incoming.getBillingType());
+        
+        // Ensure contract duration is properly trimmed
+        String contractDuration = incoming.getContractDuration();
+        if (contractDuration != null) {
+            contractDuration = contractDuration.trim();
+            logger.info("Received contract duration in saveManualAgreement: '{}'", contractDuration);
+        } else {
+            logger.info("Received null contract duration in saveManualAgreement");
+        }
+        contract.setContractDuration(contractDuration);
+
+        contract.setDueDate(incoming.getDueDate());
+        
+        // Set contract start date to current date when transitioning to completed
+        LocalDate contractStartDate = LocalDate.now();
+        contract.setContractStartDate(contractStartDate);
+        
+        // Calculate renewal date based on completion date + contract duration for completed requests
+        String contractDurationStr = incoming.getContractDuration();
+        logger.info("[saveManualAgreement] Processing contract duration string: '{}' (null: {}, empty: {})", 
+                   contractDurationStr, 
+                   contractDurationStr == null, 
+                   contractDurationStr != null && contractDurationStr.isEmpty());
+        LocalDate calculatedRenewalDate = null;
+        
+        // Special handling for subscription contracts (1 month duration)
+        boolean isSubscription = false;
+        
+        if (contractDurationStr != null && !contractDurationStr.isEmpty()) {
+            try {
+                // Parse contract duration
+                int contractDuration = Integer.parseInt(contractDurationStr);
+                
+                // Check if this is a subscription (1 month contract)
+                isSubscription = contractDuration == 1;
+                
+                // Use current date as completion date for contracts marked as completed through UI
+                LocalDate completionDate = contractStartDate;
+                
+                // Calculate renewal date = completion date + contract duration (in months)
+                calculatedRenewalDate = completionDate.plusMonths(contractDuration);
+                contract.setRenewalDate(calculatedRenewalDate);
+                
+                // Set contract end date to the same value as renewal date
+                contract.setContractEndDate(calculatedRenewalDate);
+                
+                logger.info("[saveManualAgreement] Calculated renewal date: {} based on completion date: {} and contract duration: {} months. Is subscription: {}", 
+                    calculatedRenewalDate, completionDate, contractDuration, isSubscription);
+            } catch (Exception e) {
+                logger.warn("[saveManualAgreement] Failed to calculate renewal date based on contract duration: {}", contractDurationStr, e);
+                
+                // Fall back to the renewal date from incoming contract if calculation fails
+                contract.setRenewalDate(incoming.getRenewalDate());
+                // Also set contract end date to the same value as renewal date
+                contract.setContractEndDate(incoming.getRenewalDate());
+            }
+        } else {
+            // If no contract duration, fall back to the renewal date from incoming contract
+            contract.setRenewalDate(incoming.getRenewalDate());
+            // Also set contract end date to the same value as renewal date
+            contract.setContractEndDate(incoming.getRenewalDate());
+            logger.info("[saveManualAgreement] Using fallback renewal date: {}", incoming.getRenewalDate());
+        }
+
+        contract.setAdditionalComment(incoming.getAdditionalComment());
+    
+        // Set the total optimized cost if provided
+        contract.setTotalOptimizedCost(incoming.getTotalOptimizedCost());
+
+        // Save and return
+        ContractDetails saved = contractDetailsRepository.save(contract);
+
+        logger.info("✅ Manual agreement saved successfully with ID={} trackingKey={} Duration='{}' IsSubscription={}", 
+                   saved.getId(), saved.getJiraIssueKey(), saved.getContractDuration(), 
+                   saved.getContractDuration() != null && saved.getContractDuration().equals("1"));
 
         return saved;
     }

@@ -533,7 +533,7 @@ const Renewal_vendor: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-8">
+    <div className="p-6">
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
         <div className="px-6 pt-6 pb-4">
           <div className="flex items-center justify-between mb-4">
@@ -607,11 +607,11 @@ const Renewal_vendor: React.FC = () => {
         </div>
 
         {/* TABLE */}
-        <div className="border-t border-gray-200">
-          <div className="overflow-x-auto max-h-[calc(100vh-260px)]">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-blue-50/60">
-                <tr>
+        <div className="border border-gray-200 rounded-lg bg-white shadow-sm" style={{ height: '65vh' }}>
+          <div className="overflow-y-auto" style={{ height: '100%' }}>
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0 z-10 shadow">
+                <tr className="border-b border-gray-200">
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Renewal ID</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor Name</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Product(s)</th>
@@ -622,7 +622,7 @@ const Renewal_vendor: React.FC = () => {
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Value (USD)</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-100">
                 {loading && (
                   <tr>
                     <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500">
@@ -649,16 +649,16 @@ const Renewal_vendor: React.FC = () => {
                 )}
 
                 {!loading && !error && filteredRenewals.map((r) => (
-                  <tr key={r.id} className="hover:bg-blue-50/40 transition-colors">
-                    <td className="px-4 py-3 text-sm text-black-600 font-medium">{r.id}</td>
-                    <td className="px-4 py-3 text-sm text-black-600 hover:underline cursor-pointer">{r.vendorName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-800">{r.product}</td>
-                    <td className="px-4 py-3 text-sm text-gray-800">{r.renewalDeadline}</td>
-                    <td className={`px-4 py-3 text-sm ${r.daysUntilRenewal !== null && r.daysUntilRenewal <= 30 ? "text-red-600 font-semibold" : "text-gray-800"}`}>
+                  <tr key={r.id} className="hover:bg-indigo-50/40 transition-colors">
+                    <td className="px-4 py-3 text-sm text-indigo-600 font-medium">{r.id}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900 hover:underline cursor-pointer">{r.vendorName}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{r.product}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{r.renewalDeadline}</td>
+                    <td className={`px-4 py-3 text-sm ${r.daysUntilRenewal !== null && r.daysUntilRenewal <= 30 ? "text-red-600 font-semibold" : "text-gray-900"}`}>
                       {r.daysUntilRenewal !== null ? r.daysUntilRenewal : "N/A"}
                     </td>
                     <td className="px-4 py-3 text-sm">{renderStageBadge(r.renewalStage)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-800">{r.owner}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{r.owner}</td>
                     <td className="px-4 py-3 text-sm text-gray-900 font-semibold text-right">{r.totalValue}</td>
                   </tr>
                 ))}

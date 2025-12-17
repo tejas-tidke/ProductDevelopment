@@ -1029,6 +1029,66 @@ public ResponseEntity<?> getCompletedContractsByVendorAndProduct(
     }
 }
 
+/**
+ * Get subscription contracts (1-month duration) that are completed
+ * @return List of subscription contract details
+ */
+@GetMapping("/contracts/subscriptions")
+public ResponseEntity<?> getSubscriptionContracts() {
+    try {
+        logger.info("Fetching SUBSCRIPTION contracts (1-month duration)");
+
+        List<ContractDetails> subscriptions = 
+                contractDetailsService.getSubscriptionContracts();
+
+        List<ContractDTO> dtoList = subscriptions.stream().map(c -> {
+            ContractDTO dto = new ContractDTO();
+
+            dto.setId(c.getId());
+            dto.setContractType(c.getContractType());
+            dto.setJiraIssueKey(c.getJiraIssueKey());
+            dto.setRenewalStatus(c.getRenewalStatus());
+
+            dto.setNameOfVendor(c.getNameOfVendor());
+            dto.setProductName(c.getProductName());
+            dto.setRequesterName(c.getRequesterName());
+            dto.setRequesterEmail(c.getRequesterMail());
+            dto.setRequesterDepartment(c.getRequesterDepartment());
+            dto.setRequesterOrganization(c.getRequesterOrganization());
+
+            dto.setVendorContractType(c.getVendorContractType());
+            dto.setAdditionalComment(c.getAdditionalComment());
+            dto.setBillingType(c.getBillingType());
+            dto.setLicenseUpdateType(c.getLicenseUpdateType());
+            dto.setExistingContractId(c.getExistingContractId());
+            dto.setContractDuration(c.getContractDuration());
+
+            dto.setCurrentLicenseCount(c.getCurrentLicenseCount());
+            dto.setCurrentUsageCount(c.getCurrentUsageCount());
+            dto.setCurrentUnits(c.getCurrentUnits());
+
+            dto.setNewLicenseCount(c.getNewLicenseCount());
+            dto.setNewUsageCount(c.getNewUsageCount());
+            dto.setNewUnits(c.getNewUnits());
+
+            dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
+            dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
+            dto.setTotalProfit(c.getTotalOptimizedCost());
+            dto.setTotalOptimizedCost(c.getTotalOptimizedCost());
+
+            return dto;
+        }).toList();
+
+        logger.info("Returning {} subscription contracts", dtoList.size());
+        return ResponseEntity.ok(dtoList);
+
+    } catch (Exception e) {
+        logger.error("Error fetching subscription contracts", e);
+        return ResponseEntity.status(500)
+                .body(Map.of("message", e.getMessage()));
+    }
+}
+
 
 //@GetMapping("/contracts/test")
 //public ResponseEntity<?> testContractData() {
@@ -1674,11 +1734,7 @@ public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
     public ResponseEntity<?> saveManualContract(
             @RequestBody ContractDetails contract) {
 
-        // mark as completed so it appears in existing completed API
-        contract.setRenewalStatus("completed");
-
-        ContractDetails saved =
-                contractDetailsRepository.save(contract);
+        ContractDetails saved = contractDetailsService.saveManualAgreement(contract);
 
         return ResponseEntity.ok(saved);
     }

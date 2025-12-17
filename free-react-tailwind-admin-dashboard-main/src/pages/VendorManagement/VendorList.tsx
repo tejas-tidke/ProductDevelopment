@@ -529,7 +529,7 @@ const VendorList: React.FC = () => {
     return (
       <th
         ref={ref}
-        className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-200 ${isDragging ? "opacity-50" : ""
+        className={`px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-200 ${isDragging ? "opacity-50" : ""
           }`}
       >
         <div
@@ -913,10 +913,10 @@ const VendorList: React.FC = () => {
 
           {/* Table */}
           <DndProvider backend={HTML5Backend}>
-            <div className="overflow-hidden border border-gray-200 rounded-lg shadow-sm">
-              <div className="overflow-x-auto">
+            <div className="border border-gray-200 rounded-lg bg-white shadow-sm" style={{ height: '65vh' }}>
+              <div className="overflow-y-auto" style={{ height: '100%' }}>
                 <table className="min-w-full text-sm">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 sticky top-0 z-10 shadow">
                     <tr className="border-b border-gray-200">
                       {visibleColumns.map((col, idx) => (
                         <DraggableHeader
@@ -932,7 +932,7 @@ const VendorList: React.FC = () => {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-gray-100">
                     {filteredProducts.length === 0 && (
                       <tr>
                         <td
@@ -947,12 +947,12 @@ const VendorList: React.FC = () => {
                     {filteredProducts.map((product, idx) => (
                       <tr
                         key={product.id || idx}
-                        className="hover:bg-gray-50"
+                        className="hover:bg-indigo-50/40 transition-colors"
                       >
                         {visibleColumns.map((col) => (
                           <td
                             key={`${product.id || idx}-${col.key}`}
-                            className="px-4 py-3 align-top border-r border-gray-200"
+                            className="px-4 py-3 align-top text-gray-900 text-center"
                           >
                             {getCellValue(product, col.key, idx)}
                           </td>

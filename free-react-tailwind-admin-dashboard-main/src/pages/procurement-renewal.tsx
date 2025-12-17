@@ -442,60 +442,49 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
       <div className="p-8 max-w-8xl mx-auto">
         <h1 className="text-3xl font-extrabold mb-6">Procurement — Renewals (Spreadsheet style)</h1>
 
-        <div className="bg-white shadow-xl rounded-2xl overflow-hidden">
-          <div className="p-4 border-b bg-gray-50">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-500">Showing</div>
-                <div className="text-lg font-medium">{rows.length} Contracts</div>
-              </div>
-              <div className="text-sm text-gray-500">Styled spreadsheet-like view — click a row to select.</div>
-            </div>
-          </div>
-
-          <div className="overflow-auto">
-            <table className="min-w-[1800px] w-full table-auto border-separate border-spacing-0">
-              <thead className="bg-green-50 sticky top-0 z-10">
-                <tr>  
+        <div className="border border-gray-200 rounded-lg bg-white shadow-sm" style={{ height: '65vh' }}>
+          <div className="overflow-y-auto" style={{ height: '100%' }}>
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0 z-10 shadow">
+                <tr className="border-b border-gray-200">
                   {/* For Adding the Radio Button In the Procurement Renewal form */}
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700"></th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">ID</th>
-                  {/* <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">EEID</th> */}
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Requester Name</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Requester Email</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Department</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Organization</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Vendor</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Product</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Contract Type</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Renewal Status</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Jira Issue</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Billing Type</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Current License Count</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">New License Count</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Current Usage Count</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">New Usage Count</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Current Units</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">New Units</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Due Date</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Renewal Date</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Contract Duration</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">License Update Type</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Existing Contract ID</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-green-700">Additional Comment</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 w-10"></th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">ID</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Requester Name</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Requester Email</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Department</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Organization</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Vendor</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Product</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Contract Type</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Renewal Status</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Jira Issue</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Billing Type</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Current License Count</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">New License Count</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Current Usage Count</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">New Usage Count</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Current Units</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">New Units</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Due Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Renewal Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Contract Duration</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">License Update Type</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Existing Contract ID</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Additional Comment</th>
                 </tr>
               </thead>
 
-              <tbody className="bg-white">
+              <tbody className="divide-y divide-gray-100">
                 {rows.length > 0 ? (
                   rows.map((r, idx) => (
                     <React.Fragment key={r.id}>
                       <tr
   onClick={() => selectRow(r.id)}
-  className={`cursor-pointer ${expandedRowId === r.id ? "bg-indigo-50" : idx % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
+  className={`cursor-pointer hover:bg-indigo-50/40 transition-colors ${expandedRowId === r.id ? "bg-indigo-50" : idx % 2 === 0 ? "bg-white" : "bg-gray-50"}`}
 >
    {/* Radio Button Function on Renewal button */}
-  <td className="px-3 py-2 text-center border-b border-r border-gray-200">
+  <td className="px-4 py-2">
     <input
       type="radio"
       name="renewalRowSelect"
@@ -505,46 +494,45 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
       aria-label={`Select ${r.vendorName} — ${r.productName}`}
     />
   </td>
-  <td className="px-3 py-2 text-sm text-gray-600 border-b border-r border-gray-200">{idx + 1}</td>
-  {/* <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.id}</td> */}
+  <td className="px-4 py-2 text-gray-900 font-medium">{idx + 1}</td>
 
-  <td className="px-3 py-2 text-sm text-gray-900 border-b border-r border-gray-200">{r.requesterName}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.requesterEmail}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.requesterDepartment}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.requesterOrganization}</td>
+  <td className="px-4 py-2 text-gray-900">{r.requesterName}</td>
+  <td className="px-4 py-2 text-gray-900">{r.requesterEmail}</td>
+  <td className="px-4 py-2 text-gray-900">{r.requesterDepartment}</td>
+  <td className="px-4 py-2 text-gray-900">{r.requesterOrganization}</td>
 
-  <td className="px-3 py-2 text-sm font-semibold text-indigo-700 border-b border-r border-gray-200">{r.vendorName}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.productName}</td>
+  <td className="px-4 py-2 text-gray-900 font-medium text-indigo-600">{r.vendorName}</td>
+  <td className="px-4 py-2 text-gray-900">{r.productName}</td>
 
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.contractType}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.renewalStatus}</td>
+  <td className="px-4 py-2 text-gray-900">{r.contractType}</td>
+  <td className="px-4 py-2 text-gray-900">{r.renewalStatus}</td>
 
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.jiraIssueKey}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.billingType}</td>
+  <td className="px-4 py-2 text-gray-900">{r.jiraIssueKey}</td>
+  <td className="px-4 py-2 text-gray-900">{r.billingType}</td>
 
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.currentLicenseCount ?? "N/A"}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.newLicenseCount ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.currentLicenseCount ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.newLicenseCount ?? "N/A"}</td>
 
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.currentUsageCount ?? "N/A"}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.newUsageCount ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.currentUsageCount ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.newUsageCount ?? "N/A"}</td>
 
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.currentUnits ?? "N/A"}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.newUnits ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.currentUnits ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.newUnits ?? "N/A"}</td>
 
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.dueDate ?? "N/A"}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.renewalDate ?? "N/A"}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.contractDuration ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.dueDate ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.renewalDate ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.contractDuration ?? "N/A"}</td>
 
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.licenseUpdateType ?? "N/A"}</td>
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.existingContractId ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.licenseUpdateType ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.existingContractId ?? "N/A"}</td>
 
-  <td className="px-3 py-2 text-sm text-gray-700 border-b border-r border-gray-200">{r.additionalComment ?? "N/A"}</td>
+  <td className="px-4 py-2 text-gray-900">{r.additionalComment ?? "N/A"}</td>
 </tr>
  </React.Fragment>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={24} className="px-3 py-4 text-center text-gray-500">
+                    <td colSpan={24} className="px-4 py-6 text-center text-gray-500">
                       {loading ? "Loading..." : "No completed contracts found"}
                     </td>
                   </tr>
@@ -552,6 +540,7 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
               </tbody>
             </table>
           </div>
+        </div>
 
           {/* Global options panel below the list */}
           {false && selectedRow && (
@@ -812,22 +801,74 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
                       {/* Attachments */}
                       <div className="mt-4">
                         <label className="flex flex-col">
-                          <span className="text-xs text-gray-500">Attachments</span>
-                          <input
-                            type="file"
-                            multiple
-                            onChange={(e) => setFormValues({...formValues, attachments: Array.from(e.target.files || [])})}
-                            className="mt-1 p-3 border rounded-lg bg-white"
-                            aria-label="Attachments"
-                          />
+                          <span className="text-xs text-gray-500 mb-1.5">Attachments</span>
+                          <div 
+                            className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors duration-200"
+                            onClick={() => document.getElementById('attachments-input')?.click()}
+                          >
+                            <div className="flex flex-col items-center justify-center">
+                              <svg className="h-10 w-10 text-gray-400 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                              </svg>
+                              <p className="text-sm font-medium text-gray-700 mb-1">Click to upload files</p>
+                              <p className="text-xs text-gray-500">or drag and drop files here</p>
+                              <p className="text-xs text-gray-400 mt-1">Supports all file types</p>
+                            </div>
+                            <input 
+                              id="attachments-input" 
+                              type="file" 
+                              multiple 
+                              onChange={(e) => setFormValues({...formValues, attachments: Array.from(e.target.files || [])})}
+                              className="hidden" 
+                              aria-label="Attachments"
+                            />
+                          </div>
                           {formValues.attachments.length > 0 && (
-                            <div className="mt-2">
-                              <p className="text-sm text-gray-600">Selected files:</p>
-                              <ul className="list-disc list-inside text-sm text-gray-500">
+                            <div className="mt-4">
+                              <p className="text-sm font-medium text-gray-700 mb-2">Selected files ({formValues.attachments.length}):</p>
+                              <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                                 {formValues.attachments.map((file, index) => (
-                                  <li key={index}>{file.name} ({(file.size / 1024).toFixed(2)} KB)</li>
+                                  <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                    <div className="flex items-center truncate flex-1 min-w-0">
+                                      <svg className="flex-shrink-0 h-5 w-5 text-gray-400 mr-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                                      </svg>
+                                      <div className="truncate">
+                                        <p className="truncate text-sm font-medium text-gray-700">{file.name}</p>
+                                        <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(2)} KB</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex space-x-1 ml-2 flex-shrink-0">
+                                      <button 
+                                        onClick={() => {
+                                          // Preview functionality - open file in new tab
+                                          const url = URL.createObjectURL(file);
+                                          window.open(url, '_blank');
+                                        }}
+                                        className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-100"
+                                        title="Preview"
+                                      >
+                                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                          <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                        </svg>
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          // Remove file from attachments
+                                          setFormValues({...formValues, attachments: formValues.attachments.filter((_, i) => i !== index)});
+                                        }}
+                                        className="p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-100"
+                                        title="Remove"
+                                      >
+                                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
                                 ))}
-                              </ul>
+                              </div>
                             </div>
                           )}
                         </label>
@@ -894,6 +935,5 @@ function normalizeVendorType(type: string | null): "usage" | "license" | "" {
             </button>
           </div>
         </div>
-      </div>
     );
   }

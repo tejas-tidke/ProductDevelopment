@@ -1,5 +1,7 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 // Import useAuth hook to access user details
 import { useAuth } from "../../context/AuthContext";
 
@@ -149,6 +151,12 @@ if (totalCost === "0") {
                                !isNaN(parseInt(contractDurationValue)) ? 
                                parseInt(contractDurationValue) : 0;
   
+  console.log("Contract duration raw value:", contract.contractDuration);
+  console.log("Contract duration value:", contractDurationValue);
+  console.log("Contract duration months:", contractDurationMonths);
+  console.log("Is NaN check:", isNaN(parseInt(contractDurationValue)));
+  console.log("Is 1 month contract:", contractDurationMonths === 1);
+  
   // Calculate end date based on start date and duration
   let endDateValue = "N/A";
   
@@ -160,6 +168,9 @@ if (totalCost === "0") {
                                  !contractDurationValue.toLowerCase().includes("n/a") && 
                                  !isNaN(parseInt(contractDurationValue)) ? 
                                  parseInt(contractDurationValue) : 0;
+                                  
+    console.log("Second parsing - Contract duration value:", contractDurationValue);
+    console.log("Second parsing - Contract duration months:", contractDurationMonths);
                                   
     if (contractDurationMonths > 0) {
       const endDate = new Date(startDate);
@@ -176,11 +187,18 @@ if (totalCost === "0") {
   // Active: Contracts with 90 days remaining until end date
   // Expired: Contracts whose end dates have passed
   
+  // Special handling for manual agreements (which have "AGREEMENT-" prefix in jiraIssueKey)
+  const isManualAgreement = contract.jiraIssueKey && contract.jiraIssueKey.startsWith("AGREEMENT-");
+  
   if (endDateValue !== "N/A") {
     const endDate = new Date(endDateValue);
     const today = new Date();
     const timeDiff = endDate.getTime() - today.getTime();
     const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 3600 * 24));
+    
+    console.log("End date:", endDate);
+    console.log("Today:", today);
+    console.log("Days until expiration:", daysUntilExpiration);
     
     // If already expired (end date has passed)
     if (daysUntilExpiration < 0) {
@@ -195,24 +213,46 @@ if (totalCost === "0") {
       if (contractDurationMonths >= 12) {
         // Long-term contracts (12 months or more)
         status = "Long-Term Contracts";
+        console.log("Setting status to Long-Term Contracts based on duration:", contractDurationMonths);
       } else if (contractDurationMonths === 1) {
         // Subscription contracts (exactly 1 month duration)
         status = "Subscriptions";
+        console.log("Setting status to Subscriptions based on duration:", contractDurationMonths);
       } else {
         // All other contracts default to Active
         status = "Active";
+        console.log("Setting status to Active based on duration:", contractDurationMonths);
       }
     }
   } else {
     // If no end date, classify based on duration only
+    console.log("No end date, classifying based on duration only");
     if (contractDurationMonths >= 12) {
       status = "Long-Term Contracts";
+      console.log("Setting status to Long-Term Contracts (no end date) based on duration:", contractDurationMonths);
     } else if (contractDurationMonths === 1) {
       status = "Subscriptions";
+      console.log("Setting status to Subscriptions (no end date) based on duration:", contractDurationMonths);
+    } else {
+      status = "Active";
+      console.log("Setting status to Active (no end date) based on duration:", contractDurationMonths);
+    }
+  }
+  
+  // Override status for manual agreements to ensure proper categorization
+  if (isManualAgreement) {
+    console.log("Manual agreement detected. Duration months:", contractDurationMonths);
+    if (contractDurationMonths === 1) {
+      status = "Subscriptions";
+    } else if (contractDurationMonths >= 12) {
+      status = "Long-Term Contracts";
     } else {
       status = "Active";
     }
+    console.log("Manual agreement detected. Overriding status to:", status);
   }
+  
+  console.log("Determined status:", status);
 
   return {
     id: `C-${index + 1}`, // Use index-based numbering to match procurement renewal
@@ -267,10 +307,14 @@ const VendorAgreements: React.FC = () => {
 
   const [formVendor, setFormVendor] = useState("");
   const [formOwner, setFormOwner] = useState("");
+  const [formProductName, setFormProductName] = useState("");
   const [formType, setFormType] = useState("Contract");
   const [formCategory, setFormCategory] = useState("Software");
   const [formStartDate, setFormStartDate] = useState("");
   const [formTotalCost, setFormTotalCost] = useState("");
+  const [formContractDuration, setFormContractDuration] = useState("1"); // Default to 1 month
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   // Fetch contract details from backend (same as in procurement-renewal.tsx)
   useEffect(() => {
@@ -378,126 +422,127 @@ const VendorAgreements: React.FC = () => {
   
   e.preventDefault();
 
-  if (!formVendor || !formOwner || !formStartDate || !formTotalCost) {
-    alert("Please fill in all required fields.");
+  if (!formVendor || !formProductName || !formOwner || !formStartDate || !formTotalCost) {
+    setErrorMessage("Please fill in all required fields.");
+    setTimeout(() => setErrorMessage(""), 5000); // Hide after 5 seconds
     return;
   }
 
-  // Determine status based on form data
-  // let status: AgreementStatus = "Active"; // Comment out to fix linter error
-  // For manually added agreements, we'll determine duration based on category selection
-  let contractDurationMonths = 0;
-  if (formCategory === "Long-Term Contracts") {
-    contractDurationMonths = 12; // Minimum for long-term
-  } else if (formCategory === "Subscriptions") {
-    contractDurationMonths = 1; // Exactly 1 month for subscriptions
+  try {
+    
+    // Determine the appropriate status based on exact requirements:
+    // Long-term: Contracts with duration of 12 months or more
+    // Subscription: Contracts with 1-month duration specifically
+    // Active: Contracts with 90 days remaining until end date
+    // Expired: Contracts whose end dates have passed
+    
+    // if (endDate) {
+    //   const today = new Date();
+    //   const timeDiff = endDate.getTime() - today.getTime();
+    //   const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 3600 * 24));
+    //   
+    //   // If already expired (end date has passed)
+    //   if (daysUntilExpiration < 0) {
+    //     status = "Expired";
+    //   }
+    //   // If within 90 days of expiration, show in Active (regardless of duration)
+    //   else if (daysUntilExpiration <= 90) {
+    //     status = "Active";
+    //   }
+    //   // If not within 90 days, classify based on duration
+    //   else {
+    //     if (contractDurationMonths >= 12) {
+    //       // Long-term contracts (12 months or more)
+    //       status = "Long-Term Contracts";
+    //     } else if (contractDurationMonths === 1) {
+    //       // Subscription contracts (exactly 1 month duration)
+    //       status = "Subscriptions";
+    //     } else {
+    //       // All other contracts default to Active
+    //       status = "Active";
+    //     }
+    //   }
+    // } else {
+    //   // If no end date, classify based on duration only
+    //   if (contractDurationMonths >= 12) {
+    //     status = "Long-Term Contracts";
+    //   } else if (contractDurationMonths === 1) {
+    //     status = "Subscriptions";
+    //   } else {
+    //     status = "Active";
+    //   }
+    // }
+
+    // Prepare contract data with user details
+    const contractData = {
+      nameOfVendor: formVendor,
+      productName: formProductName,
+      requesterName: formOwner,
+      vendorContractType: formType,
+      contractDuration: formContractDuration,
+      renewalDate: formStartDate,
+      renewalStatus: "completed",
+      totalOptimizedCost: Number(formTotalCost),
+
+      // Add user details from AuthContext
+      requesterMail: userData?.user?.email || "",
+      requesterDepartment: userData?.user?.department?.name || "",
+      requesterOrganization: userData?.user?.organization?.name || "",
+      requesterDepartmentId: userDepartmentId || null,
+      requesterOrganizationId: userOrganizationId || null
+    };
+    
+    console.log("Sending contract data:", contractData);
+
+    // Send to backend
+    const response = await fetch("http://localhost:8080/api/jira/contracts/manual", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(contractData),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create agreement: ${response.status} ${response.statusText}`);
+    }
+
+    const updatedResponse = await fetch(
+      "http://localhost:8080/api/jira/contracts/completed"
+    );
+    const contracts: ContractDetails[] = await updatedResponse.json();
+
+    setAgreements(
+      contracts.map((contract, index) =>
+        mapContractToAgreement(contract, index)
+      )
+    );
+
+    // Show success message
+    setSuccessMessage(`Agreement for ${formVendor} created successfully!`);
+    setTimeout(() => setSuccessMessage(""), 5000); // Hide after 5 seconds
+
+    // reset form
+    setFormVendor("");
+    setFormProductName("");
+    setFormOwner("");
+    setFormType("Contract");
+    setFormCategory("Software");
+    setFormStartDate("");
+    setFormTotalCost("");
+    setFormContractDuration("1"); // Reset to default 1 month
+    setShowAddModal(false);
+  } catch (error) {
+    console.error("Error creating agreement:", error);
+    setErrorMessage("Failed to create agreement. Please try again.");
+    setTimeout(() => setErrorMessage(""), 5000); // Hide after 5 seconds
   }
-  
-  // Calculate end date based on start date and duration
-  let endDate: Date | null = null;
-  const startDate = new Date(formStartDate);
-  
-  if (contractDurationMonths > 0) {
-    endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + contractDurationMonths);
-  }
-  
-  // Determine the appropriate status based on exact requirements:
-  // Long-term: Contracts with duration of 12 months or more
-  // Subscription: Contracts with 1-month duration specifically
-  // Active: Contracts with 90 days remaining until end date
-  // Expired: Contracts whose end dates have passed
-  
-  // if (endDate) {
-  //   const today = new Date();
-  //   const timeDiff = endDate.getTime() - today.getTime();
-  //   const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 3600 * 24));
-  //   
-  //   // If already expired (end date has passed)
-  //   if (daysUntilExpiration < 0) {
-  //     status = "Expired";
-  //   }
-  //   // If within 90 days of expiration, show in Active (regardless of duration)
-  //   else if (daysUntilExpiration <= 90) {
-  //     status = "Active";
-  //   }
-  //   // If not within 90 days, classify based on duration
-  //   else {
-  //     if (contractDurationMonths >= 12) {
-  //       // Long-term contracts (12 months or more)
-  //       status = "Long-Term Contracts";
-  //     } else if (contractDurationMonths === 1) {
-  //       // Subscription contracts (exactly 1 month duration)
-  //       status = "Subscriptions";
-  //     } else {
-  //       // All other contracts default to Active
-  //       status = "Active";
-  //     }
-  //   }
-  // } else {
-  //   // If no end date, classify based on duration only
-  //   if (contractDurationMonths >= 12) {
-  //     status = "Long-Term Contracts";
-  //   } else if (contractDurationMonths === 1) {
-  //     status = "Subscriptions";
-  //   } else {
-  //     status = "Active";
-  //   }
-  // }
-
-  // Prepare contract data with user details
-  const contractData = {
-    nameOfVendor: formVendor,
-    productName: "",
-    requesterName: formOwner,
-    vendorContractType: formType,
-    contractDuration: formCategory === "Long-Term Contracts" ? "12" : "1",
-    renewalDate: formStartDate,
-    renewalStatus: "completed",
-    totalOptimizedCost: Number(formTotalCost),
-
-    // Add user details from AuthContext
-    requesterMail: userData?.user?.email || "",
-    requesterDepartment: userData?.user?.department?.name || "",
-    requesterOrganization: userData?.user?.organization?.name || "",
-    requesterDepartmentId: userDepartmentId || null,
-    requesterOrganizationId: userOrganizationId || null
-  };
-
-  // Send to backend
-  await fetch("http://localhost:8080/api/jira/contracts/manual", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(contractData),
-  });
-
-  const response = await fetch(
-    "http://localhost:8080/api/jira/contracts/completed"
-  );
-  const contracts: ContractDetails[] = await response.json();
-
-  setAgreements(
-    contracts.map((contract, index) =>
-      mapContractToAgreement(contract, index)
-    )
-  );
-
-
-  // reset form
-  setFormVendor("");
-  setFormOwner("");
-  setFormType("Contract");
-  setFormCategory("Software");
-  setFormStartDate("");
-  setFormTotalCost("");
-  setShowAddModal(false);
 };
 
   const handleExportCsv = () => {
     if (filteredAgreements.length === 0) {
-      alert("No data to export.");
+      setErrorMessage("No data to export.");
+      setTimeout(() => setErrorMessage(""), 5000); // Hide after 5 seconds
       return;
     }
 
@@ -634,7 +679,7 @@ const VendorAgreements: React.FC = () => {
 
                 {/* Simple filters panel */}
                 {showFilters && (
-                  <div className="absolute left-0 mt-2 p-3 border rounded-md bg-white text-sm w-72 z-10 shadow-lg">
+                  <div className="absolute left-0 mt-2 p-3 border rounded-md bg-white text-sm w-72 z-20 shadow-lg">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-sm font-medium text-gray-900">
                         Filters
@@ -730,11 +775,11 @@ const VendorAgreements: React.FC = () => {
           )}
 
           {/* Table */}
-   <div className="border border-gray-200 rounded-lg bg-white shadow-sm h-[65vh] overflow-y-auto">
+   <div className="border border-gray-200 rounded-lg bg-white shadow-sm" style={{ height: '65vh' }}>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-y-auto" style={{ height: '100%' }}>
               <table className="min-w-full text-sm">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 sticky top-0 z-10 shadow">
                   <tr className="border-b border-gray-200">
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 w-10">
                       <input
@@ -901,6 +946,26 @@ const VendorAgreements: React.FC = () => {
                           </svg>
                         </button>
                       </div>
+                      {successMessage && (
+                        <div className="mb-4 p-3 bg-green-50 text-green-800 rounded-md border border-green-200">
+                          <div className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <span>{successMessage}</span>
+                          </div>
+                        </div>
+                      )}
+                      {errorMessage && (
+                        <div className="mb-4 p-3 bg-red-50 text-red-800 rounded-md border border-red-200">
+                          <div className="flex items-center">
+                            <svg className="h-5 w-5 text-red-500 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                            <span>{errorMessage}</span>
+                          </div>
+                        </div>
+                      )}
 
                       <form onSubmit={handleAddAgreement} className="space-y-5">
                         <div>
@@ -915,6 +980,23 @@ const VendorAgreements: React.FC = () => {
                             id="vendor"
                             value={formVendor}
                             onChange={(e) => setFormVendor(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="productName"
+                            className="block text-sm font-medium text-gray-700 mb-1"
+                          >
+                            Product Name *
+                          </label>
+                          <input
+                            type="text"
+                            id="productName"
+                            value={formProductName}
+                            onChange={(e) => setFormProductName(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             required
                           />
@@ -975,11 +1057,29 @@ const VendorAgreements: React.FC = () => {
                               <option value="Cloud">Cloud</option>
                                 <option value="Long-Term Contract">Long-Term Contract</option>
                               <option value="Subscriptions">Subscriptions</option>
-                              
-                            
-                          
                             </select>
                           </div>
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor="contractDuration"
+                            className="block text-sm font-medium text-gray-700 mb-1"
+                          >
+                            Contract Duration (months)
+                          </label>
+                          <select
+                            id="contractDuration"
+                            value={formContractDuration}
+                            onChange={(e) => setFormContractDuration(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                          >
+                            <option value="1">Monthly (1 month)</option>
+                            <option value="12">Annual (12 months)</option>
+                            <option value="24">2 Years (24 months)</option>
+                            <option value="36">3 Years (36 months)</option>
+                            <option value="60">5 Years (60 months)</option>
+                          </select>
                         </div>
 
                         <div>
@@ -989,14 +1089,29 @@ const VendorAgreements: React.FC = () => {
                           >
                             Start Date *
                           </label>
-                          <input
-                            type="date"
-                            id="startDate"
-                            value={formStartDate}
-                            onChange={(e) => setFormStartDate(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                            required
-                          />
+                          <div className="relative">
+                            <DatePicker
+                              id="startDate"
+                              selected={formStartDate ? new Date(formStartDate) : null}
+                              onChange={(date: Date | null) => {
+                                if (date) {
+                                  // keep the same yyyy-MM-dd format you already use everywhere
+                                  const iso = date.toISOString().split('T')[0];
+                                  setFormStartDate(iso);
+                                } else {
+                                  setFormStartDate('');
+                                }
+                              }}
+                              dateFormat="yyyy-MM-dd"
+                              className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholderText="Select start date"
+                            />
+                            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          </div>
                         </div>
 
                         <div>

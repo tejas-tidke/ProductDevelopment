@@ -217,10 +217,11 @@ const AllOpen: React.FC = () => {
           console.warn("Failed fetch projects", err);
         }
 
-        // issue types
+        // issue types - filter to show only Procurement Request
         try {
           const types = await jiraService.getIssueTypes();
-          setIssueTypes(types || []);
+          const procurementTypes = types?.filter(type => type.name === "Procurement Request") || [];
+          setIssueTypes(procurementTypes);
         } catch (err) {
           console.warn("Failed fetch issue types", err);
         }
@@ -254,7 +255,16 @@ const AllOpen: React.FC = () => {
 
           // derive statuses & assignees
           const uniqueStatuses = Array.from(new Set(filtered.map(i => i.fields?.status?.name).filter(Boolean))).map(s => ({ id: s!, name: s! }));
-          setStatuses(uniqueStatuses);
+          
+          // Add "Pre Approval" status if not already present and sort
+          const allStatuses = uniqueStatuses.some(s => s.name === "Pre Approval") 
+            ? uniqueStatuses 
+            : [...uniqueStatuses, { id: "Pre Approval", name: "Pre Approval" }];
+          
+          // Sort statuses alphabetically
+          allStatuses.sort((a, b) => a.name.localeCompare(b.name));
+          
+          setStatuses(allStatuses);
 
         } catch (err) {
           console.error("Failed fetch issues", err);
@@ -419,7 +429,7 @@ const AllOpen: React.FC = () => {
     });
     drag(drop(ref));
     return (
-      <th ref={ref} className={`px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 ${isDragging ? 'opacity-50' : ''}`}>
+      <th ref={ref} className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider border-r border-gray-200 ${isDragging ? 'opacity-50' : ''}`}>
         <div onClick={() => column.isSortable && onSort(column.key)} style={{ cursor: column.isSortable ? 'pointer' : 'default' }}>
           {column.title}
           {sortConfig && sortConfig.key === column.key && <span className="ml-1">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>}
@@ -551,7 +561,7 @@ const AllOpen: React.FC = () => {
   return (
     <>
       <PageMeta title="All Requests" description="All open requests (Request Management)" />
-      <div className="mx-auto max-w-7xl px-4 py-8">
+      <div className="p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">All Requests</h1>
@@ -578,7 +588,7 @@ const AllOpen: React.FC = () => {
                   value={selectedIssueType}
                   onChange={(e) => setSelectedIssueType(e.target.value)}
                 >
-                  <option value="">All Types</option>
+                  <option value="">All Procurement Requests</option>
                   {issueTypes.map(type => (
                     <option key={type.id} value={type.name}>{type.name}</option>
                   ))}
@@ -604,17 +614,17 @@ const AllOpen: React.FC = () => {
 
           {/* Table */}
           <DndProvider backend={HTML5Backend}>
-            <div className="border border-gray-200 dark:border-gray-700 rounded overflow-hidden">
-              <div className="overflow-x-auto max-h-[calc(100vh-300px)]">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
-                    <tr>
+            <div className="border border-gray-200 rounded-lg bg-white shadow-sm" style={{ height: '65vh' }}>
+              <div className="overflow-y-auto" style={{ height: '100%' }}>
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0 z-10 shadow">
+                    <tr className="border-b border-gray-200">
                       {visibleColumns.map((col, idx) => (
                         <DraggableHeader key={col.key} column={col} index={idx} onSort={handleSort} sortConfig={sortField ? { key: sortField, direction: sortDirection } : null} onMove={handleColumnMove} />
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="divide-y divide-gray-100">
                     {filteredIssues.length === 0 && (
                       <tr>
                         <td colSpan={visibleColumns.length} className="px-6 py-8 text-center text-sm text-gray-500">No requests found</td>
@@ -622,9 +632,9 @@ const AllOpen: React.FC = () => {
                     )}
 
                     {filteredIssues.map(issue => (
-                      <tr key={issue.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <tr key={issue.id} className="hover:bg-indigo-50/40 transition-colors">
                         {visibleColumns.map(col => (
-                          <td key={`${issue.id}-${col.key}`} className="px-4 py-3 text-sm text-gray-900 dark:text-white align-top border-r border-gray-200 dark:border-gray-700">
+                          <td key={`${issue.id}-${col.key}`} className="px-4 py-3 text-sm text-gray-900 align-top">
                             {getCellValue(issue, col.key)}
                           </td>
                         ))}
@@ -642,24 +652,6 @@ const AllOpen: React.FC = () => {
           {selectedIssue && <EditIssueModal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setSelectedIssue(null); }} onSubmit={async (key, data) => { await jiraService.updateIssue(key, data); /* Refresh simplified */ }} issue ={selectedIssue} />}
 
         </div>
-        </div>
-{/* Toast container - moved lower so it doesn't overlap header icons */}
-<div className="fixed right-5 z-[9999] flex flex-col gap-2 top-16 lg:top-20">
-  {toasts.map(t => (
-    <div
-      key={t.id}
-      role="status"
-      aria-live="polite"
-      className={`px-4 py-2 rounded shadow-md max-w-xs border pointer-events-auto ${
-        t.type === 'success' ? 'bg-green-600 text-white' :
-        t.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'
-      }`}
-    >
-      {t.message}
-    </div>
-  ))}
-</div>
-
 
         {/* Confirm Dialog */}
         {confirmState.open && (
@@ -694,6 +686,23 @@ const AllOpen: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
+      {/* Toast container - moved lower so it doesn't overlap header icons */}
+      <div className="fixed right-5 z-[9999] flex flex-col gap-2 top-16 lg:top-20">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            role="status"
+            aria-live="polite"
+            className={`px-4 py-2 rounded shadow-md max-w-xs border pointer-events-auto ${
+              t.type === 'success' ? 'bg-green-600 text-white' :
+              t.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'
+            }`}
+          >
+            {t.message}
+          </div>
+        ))}
+      </div>
     </>
   );
 };
