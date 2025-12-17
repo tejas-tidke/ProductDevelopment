@@ -40,4 +40,5 @@ public class ContractDTO {
     private String billingType;
     private String contractDuration;
     private Double totalProfit;
+    private Double totalOptimizedCost;
 }

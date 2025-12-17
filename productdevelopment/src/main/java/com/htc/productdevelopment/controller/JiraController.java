@@ -953,6 +953,7 @@ public ResponseEntity<?> getCompletedContracts() {
             dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
             dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
             dto.setTotalProfit(c.getTotalOptimizedCost());
+            dto.setTotalOptimizedCost(c.getTotalOptimizedCost());
 
             return dto;
         }).toList();
@@ -1014,6 +1015,7 @@ public ResponseEntity<?> getCompletedContractsByVendorAndProduct(
             dto.setDueDate(c.getDueDate() != null ? c.getDueDate().toString() : null);
             dto.setRenewalDate(c.getRenewalDate() != null ? c.getRenewalDate().toString() : null);
             dto.setTotalProfit(c.getTotalOptimizedCost());
+            dto.setTotalOptimizedCost(c.getTotalOptimizedCost());
 
             return dto;
         }).toList();
@@ -1668,4 +1670,17 @@ public ResponseEntity<?> getProposalById(@PathVariable Long proposalId) {
             ));
         }
     }
+    @PostMapping("/contracts/manual")
+    public ResponseEntity<?> saveManualContract(
+            @RequestBody ContractDetails contract) {
+
+        // mark as completed so it appears in existing completed API
+        contract.setRenewalStatus("completed");
+
+        ContractDetails saved =
+                contractDetailsRepository.save(contract);
+
+        return ResponseEntity.ok(saved);
+    }
+
 }
