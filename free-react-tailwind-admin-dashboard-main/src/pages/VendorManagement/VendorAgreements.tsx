@@ -4,6 +4,17 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 // Import useAuth hook to access user details
 import { useAuth } from "../../context/AuthContext";
+import { jiraService } from '../../services/jiraService';
+
+// Define the vendor profile response interface
+interface VendorProfileResponse {
+  vendorId?: number;
+  vendorName?: string;
+  vendorOwner?: string;
+  department?: string;
+  productName?: string;
+  productType?: string;
+}
 
 // Define the contract details type based on the backend DTO (same as in procurement-renewal.tsx)
 type ContractDetails = {
@@ -316,6 +327,79 @@ const VendorAgreements: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Vendor and product dropdown states
+  const [vendors, setVendors] = useState<string[]>([]);
+  const [products, setProducts] = useState<{ id: string; productName: string; productType?: 'license' | 'usage' }[]>([]);
+  const [loadingVendors, setLoadingVendors] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const vendorDropdownRef = useRef<HTMLDivElement | null>(null);
+  const productDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Load vendors when the add modal is opened
+  useEffect(() => {
+    const loadVendors = async () => {
+      if (!showAddModal) return;
+      try {
+        setLoadingVendors(true);
+        console.log('Fetching vendors from VendorProfile system');
+        const list: string[] = await jiraService.getVendorProfilesVendors();
+        console.log('Received vendors:', list);
+        if (Array.isArray(list)) setVendors(list);
+      } catch (err) {
+        console.error('Error loading vendors', err);
+      } finally {
+        setLoadingVendors(false);
+      }
+    };
+    loadVendors();
+  }, [showAddModal]);
+
+  // Load products when vendor is selected
+  useEffect(() => {
+    const loadProducts = async () => {
+      if (!formVendor || !showAddModal) return;
+
+      try {
+        setLoadingProducts(true);
+        console.log('Fetching products for vendor:', formVendor);
+        const vendorProfiles: VendorProfileResponse[] = await jiraService.getVendorProfileDTOsByName(formVendor);
+        console.log('Received vendor profiles:', vendorProfiles);
+        if (Array.isArray(vendorProfiles)) {
+          // Convert vendor profiles to product items
+          const productList = vendorProfiles.map(profile => ({
+            id: profile.vendorId?.toString() || '',
+            productName: profile.productName || '',
+            productType: (profile.productType as 'license' | 'usage') || undefined
+          }));
+          console.log('Converted product list:', productList);
+          setProducts(productList);
+        }
+      } catch (err) {
+        console.error('Error loading products', err);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+    loadProducts();
+  }, [formVendor, showAddModal]);
+
+  // Handle click outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (vendorDropdownRef.current && !vendorDropdownRef.current.contains(e.target as Node)) {
+        setShowVendorDropdown(false);
+      }
+      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
+        setShowProductDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Fetch contract details from backend (same as in procurement-renewal.tsx)
   useEffect(() => {
     const fetchContractDetails = async () => {
@@ -415,6 +499,24 @@ const VendorAgreements: React.FC = () => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
+  };
+
+  const resetForm = () => {
+    // Reset form fields
+    setFormVendor("");
+    setFormProductName("");
+    setFormOwner("");
+    setFormType("Contract");
+    setFormCategory("Software");
+    setFormStartDate("");
+    setFormTotalCost("");
+    setFormContractDuration("1"); // Reset to default 1 month
+    
+    // Reset dropdown states
+    setShowVendorDropdown(false);
+    setShowProductDropdown(false);
+    setVendors([]);
+    setProducts([]);
   };
 
   const handleAddAgreement = async (e: React.FormEvent) => {
@@ -522,15 +624,8 @@ const VendorAgreements: React.FC = () => {
     setSuccessMessage(`Agreement for ${formVendor} created successfully!`);
     setTimeout(() => setSuccessMessage(""), 5000); // Hide after 5 seconds
 
-    // reset form
-    setFormVendor("");
-    setFormProductName("");
-    setFormOwner("");
-    setFormType("Contract");
-    setFormCategory("Software");
-    setFormStartDate("");
-    setFormTotalCost("");
-    setFormContractDuration("1"); // Reset to default 1 month
+    // reset form and dropdown states
+    resetForm();
     setShowAddModal(false);
   } catch (error) {
     console.error("Error creating agreement:", error);
@@ -927,7 +1022,10 @@ const VendorAgreements: React.FC = () => {
                         <button
                           type="button"
                           className="text-gray-400 hover:text-gray-500"
-                          onClick={() => setShowAddModal(false)}
+                          onClick={() => {
+                            resetForm();
+                            setShowAddModal(false);
+                          }}
                         >
                           <span className="sr-only">Close</span>
                           <svg
@@ -975,14 +1073,56 @@ const VendorAgreements: React.FC = () => {
                           >
                             Vendor *
                           </label>
-                          <input
-                            type="text"
-                            id="vendor"
-                            value={formVendor}
-                            onChange={(e) => setFormVendor(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                            required
-                          />
+                          <div className="relative" ref={vendorDropdownRef}>
+                            <input
+                              id="vendor"
+                              value={formVendor}
+                              onChange={(e) => {
+                                setFormVendor(e.target.value);
+                                setShowVendorDropdown(true);
+                              }}
+                              onFocus={() => setShowVendorDropdown(true)}
+                              placeholder={loadingVendors ? 'Loading vendors...' : 'Start typing or click to see all vendors'}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              autoComplete="off"
+                              required
+                            />
+                            {showVendorDropdown && (
+                              <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                                {(formVendor
+                                  ? vendors.filter((v) =>
+                                    v.toLowerCase().startsWith(formVendor.toLowerCase())
+                                  )
+                                  : vendors
+                                ).map((v) => (
+                                  <button
+                                    type="button"
+                                    key={v}
+                                    onClick={() => {
+                                      setFormVendor(v);
+                                      setShowVendorDropdown(false);
+                                      // Clear previous products when vendor changes
+                                      setProducts([]);
+                                      setFormProductName('');
+                                    }}
+                                    className="block w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+                                  >
+                                    {v}
+                                  </button>
+                                ))}
+                                {(formVendor
+                                  ? vendors.filter((v) =>
+                                    v.toLowerCase().startsWith(formVendor.toLowerCase())
+                                  )
+                                  : vendors
+                                ).length === 0 && (
+                                    <div className="px-3 py-2 text-xs text-gray-400">
+                                      No vendors found
+                                    </div>
+                                  )}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div>
@@ -992,14 +1132,60 @@ const VendorAgreements: React.FC = () => {
                           >
                             Product Name *
                           </label>
-                          <input
-                            type="text"
-                            id="productName"
-                            value={formProductName}
-                            onChange={(e) => setFormProductName(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                            required
-                          />
+                          <div className="relative" ref={productDropdownRef}>
+                            <input
+                              id="productName"
+                              value={formProductName}
+                              onChange={(e) => {
+                                setFormProductName(e.target.value);
+                                setShowProductDropdown(true);
+                              }}
+                              onFocus={() => setShowProductDropdown(true)}
+                              placeholder={
+                                loadingProducts
+                                  ? 'Loading products...'
+                                  : formVendor
+                                    ? 'Start typing or click to see all products'
+                                    : 'Select vendor first'
+                              }
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              autoComplete="off"
+                              disabled={!formVendor}
+                              required
+                            />
+                            {showProductDropdown && !!formVendor && (
+                              <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                                {(formProductName
+                                  ? products.filter((p) =>
+                                    p.productName.toLowerCase().startsWith(formProductName.toLowerCase())
+                                  )
+                                  : products
+                                ).map((p) => (
+                                  <button
+                                    type="button"
+                                    key={p.id}
+                                    onClick={() => {
+                                      setFormProductName(p.productName);
+                                      setShowProductDropdown(false);
+                                    }}
+                                    className="block w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+                                  >
+                                    {p.productName}
+                                  </button>
+                                ))}
+                                {(formProductName
+                                  ? products.filter((p) =>
+                                    p.productName.toLowerCase().startsWith(formProductName.toLowerCase())
+                                  )
+                                  : products
+                                ).length === 0 && (
+                                    <div className="px-3 py-2 text-xs text-gray-400">
+                                      No products found
+                                    </div>
+                                  )}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div>

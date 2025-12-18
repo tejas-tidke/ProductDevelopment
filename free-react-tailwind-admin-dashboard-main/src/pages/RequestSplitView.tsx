@@ -392,6 +392,9 @@ const RequestSplitView: React.FC = () => {
 
   // quote upload state
   const [isUploadQuoteModalOpen, setIsUploadQuoteModalOpen] = useState(false);
+
+  // workflow diagram modal
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
   const [isTransitionDropdownOpen, setIsTransitionDropdownOpen] =
     useState(false);
 
@@ -1805,12 +1808,6 @@ const RequestSplitView: React.FC = () => {
       setQuoteAttachments([]);
       setCurrentProposal("first");
       setIsUploadQuoteModalOpen(false);
-
-      addNotification({
-        title: "Proposal saved",
-        message: `Proposal for ${issueKey} saved successfully.`,
-        issueKey: issueKey,
-      });
     } catch (error) {
       console.error("Error submitting quote:", error);
       alert("Failed to submit proposal. Please try again.");
@@ -1876,12 +1873,6 @@ const RequestSplitView: React.FC = () => {
       
       // Close the modal
       setIsUploadQuoteModalOpen(false);
-
-      addNotification({
-        title: "Final submission completed",
-        message: `Final submission for ${issueKey} completed successfully.`,
-        issueKey: issueKey,
-      });
     } catch (error) {
       console.error("Error in final submission:", error);
       console.log('🔧 Error in final submission, not setting hasSubmittedFinalQuote to true');
@@ -2032,12 +2023,6 @@ const RequestSplitView: React.FC = () => {
           }
         );
       }
-
-      addNotification({
-        title: "Request status updated",
-        message: `Request ${issueKey} moved successfully.`,
-        issueKey: issueKey,
-      });
     } catch (err) {
       console.error("Transition error:", err);
       alert("Failed to update issue status.");
@@ -2465,7 +2450,7 @@ const RequestSplitView: React.FC = () => {
                       Comment
                     </button>
 
-                    {/* Transition Dropdown */}
+                    {/* Transition Dropdown with Approve/Decline Buttons */}
                     <div className="flex items-center gap-2">
                       <div className="relative inline-block text-left">
                         <button
@@ -2519,41 +2504,53 @@ const RequestSplitView: React.FC = () => {
                           <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
                             <div className="py-1 max-h-60 overflow-auto">
                               {customTransitions.length > 0 ? (
-                                customTransitions.map(
-                                  (transition: IssueTransition) => (
-                                    <button
-                                      key={transition.id}
-                                      onClick={() => {
-                                        setSelectedTransition(transition.id);
-                                        setIsTransitionDropdownOpen(false);
-                                        handleCustomTransition(transition.id);
-                                      }}
-                                      className={`flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all ${
-                                        selectedTransition === transition.id
-                                          ? "bg-blue-100 dark:bg-blue-900"
-                                          : ""
-                                      }`}
-                                    >
-                                      <span
-                                        className="w-2.5 h-2.5 rounded-full mr-2"
-                                        style={{
-                                          // Prefer target status name for richer palette,
-                                          // fall back to category color if needed
-                                          backgroundColor: getStatusColor(
-                                            transition.to?.name ||
-                                              transition.to?.statusCategory
-                                                ?.colorName
-                                          ),
+                                <>
+                                  {customTransitions
+                                    .filter(transition => transition.name !== "Decline")
+                                    .map((transition: IssueTransition) => (
+                                      <button
+                                        key={transition.id}
+                                        onClick={() => {
+                                          // Just display the status name without changing the transition
+                                          console.log("Status selected: ", transition.to?.name || transition.name);
+                                          setIsTransitionDropdownOpen(false);
+                                          // Don't call handleCustomTransition to prevent actual status change
                                         }}
-                                      ></span>
-                                      {transition.name}
-                                    </button>
-                                  )
-                                )
+                                        className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                                      >
+                                        <span className="mr-2"></span>
+                                        {transition.to?.name || transition.name}
+                                      </button>
+                                    ))}
+                                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                                  <button
+                                    onClick={() => {
+                                      setIsTransitionDropdownOpen(false);
+                                      setIsWorkflowModalOpen(true);
+                                    }}
+                                    className="flex items-center w-full px-3 py-2 tex t-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                                  >
+                                    <span className="mr-2"></span>
+                                    View workflow
+                                  </button>
+                                </>
                               ) : (
-                                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
-                                  No transitions available
-                                </div>
+                                <>
+                                  <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                    No transitions available
+                                  </div>
+                                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                                  <button
+                                    onClick={() => {
+                                      setIsTransitionDropdownOpen(false);
+                                      setIsWorkflowModalOpen(true);
+                                    }}
+                                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                                  >
+                                    <span className="mr-2"></span>
+                                    View workflow
+                                  </button>
+                                </>
                               )}
                             </div>
                           </div>
@@ -2561,22 +2558,56 @@ const RequestSplitView: React.FC = () => {
                       </div>
                     </div>
 
+
+
                     {userRole === "SUPER_ADMIN" &&
                       selectedIssue?.fields?.status?.name ===
                         "Negotiation Stage" && (
-                        <button
-                          onClick={() => {
-                            console.log('📤 Upload Quote button clicked, hasSubmittedFinalQuote:', hasSubmittedFinalQuote);
-                            setIsUploadQuoteModalOpen(true);
-                          }}
-                          disabled={hasSubmittedFinalQuote}
-                          className={`inline-flex items-center px-3 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${hasSubmittedFinalQuote ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
-                        >
-                          {(() => {
-                            console.log('📤 Upload Quote button render check, hasSubmittedFinalQuote:', hasSubmittedFinalQuote);
-                            return hasSubmittedFinalQuote ? "Quote Submitted" : "Upload Quote";
-                          })()}
-                        </button>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => {
+                              console.log('📤 Upload Quote button clicked, hasSubmittedFinalQuote:', hasSubmittedFinalQuote);
+                              setIsUploadQuoteModalOpen(true);
+                            }}
+                            disabled={hasSubmittedFinalQuote}
+                            className={`inline-flex items-center px-3 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${hasSubmittedFinalQuote ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
+                          >
+                            {(() => {
+                              console.log('📤 Upload Quote button render check, hasSubmittedFinalQuote:', hasSubmittedFinalQuote);
+                              return hasSubmittedFinalQuote ? "Quote Submitted" : "Upload Quote";
+                            })()}
+                          </button>
+                          
+                          {/* Show Approve/Decline buttons when final proposal is submitted */}
+                          {hasSubmittedFinalQuote && customTransitions.length > 0 && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  const approveTransition = customTransitions.find(t => t.name === "Approve");
+                                  if (approveTransition) {
+                                    setSelectedTransition(approveTransition.id);
+                                    handleCustomTransition(approveTransition.id);
+                                  }
+                                }}
+                                className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const declineTransition = customTransitions.find(t => t.name === "Decline");
+                                  if (declineTransition) {
+                                    setSelectedTransition(declineTransition.id);
+                                    handleCustomTransition(declineTransition.id);
+                                  }
+                                }}
+                                className="inline-flex items-center px-3 py-2 text-sm font-medium rounded-md shadow-sm text-white bg-gray-600 hover:bg-gray-700 focus:outline-none"
+                              >
+                                Decline
+                              </button>
+                            </>
+                          )}
+                        </div>
                       )}
                   </div>
                 </div>
@@ -3636,7 +3667,150 @@ const RequestSplitView: React.FC = () => {
           onClose={() => setShowAttachmentPreview(false)}
         />
       )}
+
+      {/* Workflow Diagram Modal */}
+      {isWorkflowModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div 
+                className="absolute inset-0 bg-gray-500 opacity-75" 
+                onClick={() => setIsWorkflowModalOpen(false)}
+              ></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">
+                        Workflow Diagram
+                      </h3>
+                      <button
+                        type="button"
+                        className="text-gray-400 hover:text-gray-500"
+                        onClick={() => setIsWorkflowModalOpen(false)}
+                      >
+                        <span className="sr-only">Close</span>
+                        <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="mt-2">
+                      <WorkflowDiagram currentStatus={selectedIssue?.fields?.status?.name || ""} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
+  );
+};
+
+// Workflow Diagram Component
+const WorkflowDiagram: React.FC<{ currentStatus: string }> = ({ currentStatus }) => {
+  // Define the workflow statuses in order
+  const workflowStatuses = [
+    "Request Created",
+    "Pre Approval",
+    "Request Review",
+    "Negotiation Stage",
+    "Post Approval",
+    "Completed"
+  ];
+
+  // Define the transitions between statuses
+  const transitions = [
+    { from: "Request Created", to: "Pre Approval" },
+    { from: "Pre Approval", to: "Request Review" },
+    { from: "Request Review", to: "Negotiation Stage" },
+    { from: "Negotiation Stage", to: "Post Approval" },
+    { from: "Post Approval", to: "Completed" }
+  ];
+
+  // Function to get the next status
+  const getNextStatus = (current: string) => {
+    // Handle variations in status naming
+    let normalizedCurrent = current;
+    if (current === "Request Review Stage") {
+      normalizedCurrent = "Request Review";
+    }
+    
+    const transition = transitions.find(t => t.from === normalizedCurrent);
+    return transition ? transition.to : null;
+  };
+
+  const nextStatus = getNextStatus(currentStatus);
+
+  return (
+    <div className="overflow-x-auto py-4">
+      <div className="min-w-full inline-block align-middle">
+        <div className="flex items-center justify-center space-x-4">
+          {workflowStatuses.map((status, index) => (
+            <React.Fragment key={status}>
+              <div className={`flex flex-col items-center ${index === workflowStatuses.length - 1 ? '' : 'mr-8'}`}>
+                <div className={`rounded-full w-10 h-10 flex items-center justify-center mb-2 
+                  ${(currentStatus === status || (status === "Request Review" && currentStatus === "Request Review Stage"))
+                    ? 'bg-green-600 text-white border-2 border-green-700' 
+                    : nextStatus === status
+                      ? 'bg-yellow-500 text-white border-2 border-yellow-600'
+                      : (workflowStatuses.indexOf(status) < workflowStatuses.indexOf("Request Review") && currentStatus === "Request Review Stage")
+                        ? 'bg-green-500 text-white' 
+                        : workflowStatuses.indexOf(currentStatus) > index 
+                          ? 'bg-green-500 text-white' 
+                          : 'bg-gray-200 text-gray-700'}`}
+                >
+                  {workflowStatuses.indexOf(currentStatus) > index ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                  ) : (
+                    <span>{index + 1}</span>
+                  )}
+                </div>
+                <div className={`text-sm font-medium text-center px-2 py-1 rounded 
+                  ${(currentStatus === status || (status === "Request Review" && currentStatus === "Request Review Stage"))
+                    ? 'bg-green-100 text-green-800' 
+                    : nextStatus === status
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : (workflowStatuses.indexOf(status) < workflowStatuses.indexOf("Request Review") && currentStatus === "Request Review Stage")
+                        ? 'bg-green-100 text-green-800' 
+                        : workflowStatuses.indexOf(currentStatus) > index 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-gray-100 text-gray-800'}`}
+                >
+                  {status}
+                </div>
+              </div>
+              {index < workflowStatuses.length - 1 && (
+                <div className="flex items-center">
+                  <div className={`h-1 w-16 ${workflowStatuses.indexOf(currentStatus) > index ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                  <svg className="w-4 h-4 text-gray-400 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+        <div className="mt-8 text-sm text-gray-600">
+          <p className="mb-2"><span className="font-medium">Current Status:</span> <span className="text-green-600 font-medium">{currentStatus === "Request Review Stage" ? "Request Review" : currentStatus}</span></p>
+          <p><span className="font-medium">Next Status:</span> 
+            {currentStatus === "Request Created" && "Pre Approval"}
+            {currentStatus === "Pre Approval" && "Request Review"}
+            {(currentStatus === "Request Review" || currentStatus === "Request Review Stage") && "Negotiation Stage"}
+            {currentStatus === "Negotiation Stage" && "Post Approval"}
+            {currentStatus === "Post Approval" && "Completed"}
+            {currentStatus === "Completed" && "None (Workflow Completed)"}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 };
 

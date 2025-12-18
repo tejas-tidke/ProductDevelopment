@@ -5,10 +5,8 @@ import { AppNotification } from "../../../context/NotificationContext";
 const NotificationDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { notifications, markAsRead, markAllAsRead, clearAll } =
+  const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll } =
     useNotifications();
-
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -31,17 +29,17 @@ const NotificationDropdown: React.FC = () => {
     setIsOpen(!isOpen);
   };
 
-  const handleMarkAllAsRead = () => {
-    markAllAsRead();
+  const handleMarkAllAsRead = async () => {
+    await markAllAsRead();
   };
 
-  const handleClearAll = () => {
-    clearAll();
+  const handleClearAll = async () => {
+    await clearAll();
   };
 
-  const handleNotificationClick = (notification: AppNotification) => {
+  const handleNotificationClick = async (notification: AppNotification) => {
     if (!notification.isRead) {
-      markAsRead(notification.id);
+      await markAsRead(notification.id);
     }
     setIsOpen(false);
   };
@@ -119,6 +117,11 @@ const NotificationDropdown: React.FC = () => {
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         {notification.message}
                       </p>
+                      {notification.fromStatus && notification.toStatus && (
+                        <p className="text-xs text-gray-500 dark:text-gray-500">
+                          Status: {notification.fromStatus} → {notification.toStatus}
+                        </p>
+                      )}
                       <p className="text-xs text-gray-500 dark:text-gray-500">
                         {new Date(notification.createdAt).toLocaleDateString()}
                       </p>

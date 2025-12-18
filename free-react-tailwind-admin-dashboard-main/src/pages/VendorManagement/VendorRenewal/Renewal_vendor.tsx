@@ -22,7 +22,7 @@ type ContractDetails = {
   [key: string]: any;
 };
 
-/** UI Row */
+/* UI Row */
 interface RenewalItem {
   id: string;
   vendorName: string;
@@ -32,6 +32,7 @@ interface RenewalItem {
   renewalStage: "Active" | "Expired";
   owner: string;
   totalValue: string;
+  originalContract: ContractDetails; // Store original contract data for renewal
 }
 
 /* Helpers */
@@ -91,6 +92,7 @@ const mapContractToRenewalItem = (c: ContractDetails): RenewalItem => {
     renewalStage,
     owner,
     totalValue: totalValueFallback,
+    originalContract: c, // Store original contract for renewal
   };
 };
 
@@ -158,6 +160,9 @@ const Renewal_vendor: React.FC = () => {
   /** New filter state */
   const [stageFilter, setStageFilter] = useState<"All" | "Active" | "Expired">("All");
   const [showFilterMenu, setShowFilterMenu] = useState<boolean>(false);
+
+  /** Renewal state */
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
 
   /* Helper to enforce the <= 90 rule */
   const keepWithin90Days = (item: RenewalItem) => {
@@ -543,6 +548,30 @@ const Renewal_vendor: React.FC = () => {
             </div>
 
             <div className="flex items-center space-x-3">
+              <button
+                onClick={() => {
+                  if (selectedContractId) {
+                    const contract = rows.find(r => r.id === selectedContractId);
+                    if (contract) {
+                      // Dispatch event to open CreateIssueModal with existing contract
+                      const contractId = contract.originalContract.id || 
+                                        contract.originalContract.existingContractId || 
+                                        contract.id.replace('C-', '');
+                      window.dispatchEvent(new CustomEvent('openCreateModal', { 
+                        detail: { existingContractId: contractId } 
+                      }));
+                    }
+                  }
+                }}
+                disabled={!selectedContractId}
+                className={`inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium ${{
+                  true: 'bg-indigo-600 text-white hover:bg-indigo-700',
+                  false: 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }[!!selectedContractId]}`}
+              >
+                Renewal
+              </button>
+
               <div className="relative">
                 <button
                   onClick={() => setShowFilterMenu((p) => !p)}
@@ -612,6 +641,7 @@ const Renewal_vendor: React.FC = () => {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 sticky top-0 z-10 shadow">
                 <tr className="border-b border-gray-200">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Select</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Renewal ID</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor Name</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Product(s)</th>
@@ -625,7 +655,7 @@ const Renewal_vendor: React.FC = () => {
               <tbody className="divide-y divide-gray-100">
                 {loading && (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={9} className="px-6 py-8 text-center text-sm text-gray-500">
                       Loading...
                       {error && <div className="text-red-600 mt-2">{error}</div>}
                     </td>
@@ -634,7 +664,7 @@ const Renewal_vendor: React.FC = () => {
 
                 {!loading && error && (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-sm text-red-600">
+                    <td colSpan={9} className="px-6 py-8 text-center text-sm text-red-600">
                       {error}
                     </td>
                   </tr>
@@ -642,7 +672,7 @@ const Renewal_vendor: React.FC = () => {
 
                 {!loading && !error && filteredRenewals.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={9} className="px-6 py-8 text-center text-sm text-gray-500">
                       No renewals found
                     </td>
                   </tr>
@@ -650,6 +680,15 @@ const Renewal_vendor: React.FC = () => {
 
                 {!loading && !error && filteredRenewals.map((r) => (
                   <tr key={r.id} className="hover:bg-indigo-50/40 transition-colors">
+                    <td className="px-4 py-3 text-sm">
+                      <input
+                        type="radio"
+                        name="selectedContract"
+                        checked={selectedContractId === r.id}
+                        onChange={() => setSelectedContractId(r.id)}
+                        className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                      />
+                    </td>
                     <td className="px-4 py-3 text-sm text-indigo-600 font-medium">{r.id}</td>
                     <td className="px-4 py-3 text-sm text-gray-900 hover:underline cursor-pointer">{r.vendorName}</td>
                     <td className="px-4 py-3 text-sm text-gray-900">{r.product}</td>

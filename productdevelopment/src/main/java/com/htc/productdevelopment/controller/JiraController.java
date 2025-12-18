@@ -26,6 +26,9 @@ import com.htc.productdevelopment.service.VendorDetailsService;
 import com.htc.productdevelopment.service.ProposalService;
 import com.htc.productdevelopment.service.ContractAttachmentService;
 import com.htc.productdevelopment.service.ContractProposalService;
+import com.htc.productdevelopment.service.NotificationService;
+
+import java.security.Principal;
 
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
@@ -72,6 +75,9 @@ public class JiraController {
     private final VendorDetailsService vendorDetailsService;
     private final ContractProposalService contractProposalService;
     private final JiraFieldConfig jiraFieldConfig;
+    
+    @Autowired
+    private final NotificationService notificationService;
 
     @Autowired
     private ContractDetailsRepository contractDetailsRepository;
@@ -92,12 +98,13 @@ public class JiraController {
                           ContractDetailsService contractDetailsService,
                           VendorDetailsService vendorDetailsService,
                           ContractProposalService contractProposalService,
-                          JiraFieldConfig jiraFieldConfig) {
+                          JiraFieldConfig jiraFieldConfig, NotificationService notificationService) {
         this.jiraService = jiraService;
         this.contractDetailsService = contractDetailsService;
         this.vendorDetailsService = vendorDetailsService;
         this.contractProposalService = contractProposalService;
         this.jiraFieldConfig = jiraFieldConfig;
+        this.notificationService = notificationService;
     }
 
 
@@ -614,7 +621,8 @@ public class JiraController {
     @PostMapping("/issues/{issueIdOrKey}/transitions")
     public ResponseEntity<?> transitionIssue(
             @PathVariable String issueIdOrKey,
-            @RequestBody Map<String, Object> transitionData
+            @RequestBody Map<String, Object> transitionData,
+            Principal principal
     ) {
         try {
             logger.info("Received request to transition Jira issue: {} with data: {}", issueIdOrKey, transitionData);
@@ -638,8 +646,42 @@ public class JiraController {
                 return ResponseEntity.badRequest().body(Map.of("message", "Transition ID is required"));
             }
 
+            // Get current issue status before transition
+            String fromStatus = jiraService.getIssueStatus(issueIdOrKey);
+            
             jiraService.transitionIssue(issueIdOrKey, transitionId);
             logger.info("Issue transitioned successfully: {} -> {}", issueIdOrKey, transitionId);
+            
+            // Get new issue status after transition
+            String toStatus = jiraService.getIssueStatus(issueIdOrKey);
+            
+            // Create notification for status transition
+            try {
+                // Get current user information
+                if (principal != null) {
+                    JsonNode currentUser = jiraService.getCurrentUser();
+                    String requesterName = currentUser.has("displayName") ? currentUser.get("displayName").asText() : "Unknown User";
+                    
+                    // Get contract details to get requester info
+                    ContractDetails contract = contractDetailsService.findByJiraIssueKey(issueIdOrKey);
+                    if (contract != null) {
+                        Long requesterId = contract.getRequester() != null ? contract.getRequester().getId() : null;
+                        Long requesterDepartmentId = contract.getRequesterDepartmentId();
+                        Long requesterOrganizationId = contract.getRequesterOrganizationId();
+                        
+                        notificationService.createStatusTransitionNotification(
+                            issueIdOrKey, fromStatus, toStatus, requesterId, requesterName, 
+                            requesterDepartmentId, requesterOrganizationId);
+                    } else {
+                        // Create notification with minimal info
+                        notificationService.createStatusTransitionNotification(
+                            issueIdOrKey, fromStatus, toStatus, null, requesterName, 
+                            null, null);
+                    }
+                }
+            } catch (Exception notificationEx) {
+                logger.warn("Failed to create notification for status transition: {}", notificationEx.getMessage());
+            }
 
             // Mirror Jira's 204 No Content for success
             return ResponseEntity.noContent().build();
@@ -1251,7 +1293,7 @@ public ResponseEntity<?> debugVendorProductContracts(
 //⭐ NEW API — Save contract as COMPLETED
 //----------------------------------------------------------
 @PostMapping("/contracts/mark-completed")
-public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedRequest request) {
+public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedRequest request, Principal principal) {
     try {
         logger.info("Received request to mark contract as completed: {}", request);
 
@@ -1317,6 +1359,26 @@ public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedReq
 
         ContractDetails saved = contractDetailsService.saveCompletedContract(contract);
         logger.info("Completed contract saved with ID: {}", saved.getId());
+        
+        // Create notification for status transition
+        try {
+            // Get current user information
+            String requesterName = request.getRequesterName();
+            if (principal != null) {
+                JsonNode currentUser = jiraService.getCurrentUser();
+                requesterName = currentUser.has("displayName") ? currentUser.get("displayName").asText() : requesterName;
+            }
+            
+            Long requesterId = contract.getRequester() != null ? contract.getRequester().getId() : null;
+            Long requesterDepartmentId = contract.getRequesterDepartmentId();
+            Long requesterOrganizationId = contract.getRequesterOrganizationId();
+            
+            notificationService.createStatusTransitionNotification(
+                request.getIssueKey(), currentStatus, "Completed", requesterId, requesterName, 
+                requesterDepartmentId, requesterOrganizationId);
+        } catch (Exception notificationEx) {
+            logger.warn("Failed to create notification for status transition: {}", notificationEx.getMessage());
+        }
 
         return ResponseEntity.ok(Map.of("message", "Contract saved successfully!"));
 

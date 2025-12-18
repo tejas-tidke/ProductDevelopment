@@ -220,10 +220,34 @@ export const invitationApi = {
   }),
 };
 
+// Notification API functions
+export const notificationApi = {
+  // Get all notifications for the current user
+  getNotifications: () => apiCall("/api/notifications"),
+  
+  // Get unread notifications count for the current user
+  getUnreadCount: () => apiCall("/api/notifications/unread-count"),
+  
+  // Mark a notification as read
+  markAsRead: (id: number) => apiCall(`/api/notifications/${id}/mark-as-read`, {
+    method: "PUT"
+  }),
+  
+  // Mark all notifications as read
+  markAllAsRead: () => apiCall("/api/notifications/mark-all-as-read", {
+    method: "PUT"
+  }),
+  
+  // Delete a notification
+  deleteNotification: (id: number) => apiCall(`/api/notifications/${id}`, {
+    method: "DELETE"
+  })
+};
+
 // Auth API functions
 export const authApi = {
   // Check if user exists in Firebase or database by email
   checkUserExists: (email: string) => apiCall(`/api/auth/check-user-exists?email=${encodeURIComponent(email)}`),
 };
 
-export default { userApi, departmentApi, organizationApi, invitationApi };
+export default { userApi, departmentApi, organizationApi, invitationApi, notificationApi };
