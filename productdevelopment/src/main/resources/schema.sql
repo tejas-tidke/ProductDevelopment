@@ -122,3 +122,29 @@ ALTER TABLE vendor_profiles ALTER COLUMN department TYPE VARCHAR(500);
 -- Ensure products table columns have adequate size
 ALTER TABLE products ALTER COLUMN product_name TYPE VARCHAR(500);
 ALTER TABLE products ALTER COLUMN product_type TYPE VARCHAR(500);
+
+-- Create notifications table for notification functionality
+CREATE TABLE IF NOT EXISTS notifications (
+    id BIGSERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    issue_key VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_read BOOLEAN DEFAULT FALSE,
+    recipient_user_id BIGINT,
+    recipient_role VARCHAR(50),
+    recipient_department_id BIGINT,
+    recipient_organization_id BIGINT,
+    sender_user_id BIGINT,
+    sender_name VARCHAR(255),
+    from_status VARCHAR(50),
+    to_status VARCHAR(50)
+);
+
+-- Add indexes for better query performance on notifications table
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_user_id ON notifications(recipient_user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_role ON notifications(recipient_role);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_department_id ON notifications(recipient_department_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient_organization_id ON notifications(recipient_organization_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);

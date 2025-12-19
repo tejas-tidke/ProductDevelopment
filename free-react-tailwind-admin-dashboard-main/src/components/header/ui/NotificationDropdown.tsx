@@ -7,6 +7,9 @@ const NotificationDropdown: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll } =
     useNotifications();
+    
+  console.log("NotificationDropdown - notifications:", notifications);
+  console.log("NotificationDropdown - unreadCount:", unreadCount);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -38,6 +41,7 @@ const NotificationDropdown: React.FC = () => {
   };
 
   const handleNotificationClick = async (notification: AppNotification) => {
+    console.log("Notification clicked:", notification);
     if (!notification.isRead) {
       await markAsRead(notification.id);
     }

@@ -1,6 +1,7 @@
 package com.htc.productdevelopment.controller;
 
 import com.htc.productdevelopment.model.Notification;
+import com.htc.productdevelopment.repository.NotificationRepository;
 import com.htc.productdevelopment.service.NotificationService;
 import com.htc.productdevelopment.service.UserService;
 import com.htc.productdevelopment.model.User;
@@ -56,56 +57,41 @@ public class NotificationController {
     @Autowired
     private UserService userService;
     
+    @Autowired
+    private NotificationRepository notificationRepository;
+    
     /**
-     * Get all notifications for the current user
+     * Get all notifications (visible to everyone)
      */
     @GetMapping
     public ResponseEntity<?> getNotifications() {
         try {
-            User currentUser = getCurrentUserFromToken();
-            if (currentUser == null) {
-                return ResponseEntity.badRequest().body(Map.of("message", "User not authenticated"));
-            }
-            
-            Long userId = currentUser.getId();
-            String role = currentUser.getRole().name();
-            Long departmentId = currentUser.getDepartmentId();
-            Long organizationId = currentUser.getOrganizationId();
-            
-            List<Notification> notifications = notificationService.getNotificationsForUser(
-                userId, role, departmentId, organizationId);
+            List<Notification> notifications = notificationService.getAllNotifications();
             
             return ResponseEntity.ok(notifications);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("message", "Error fetching notifications: " + e.getMessage()));
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error fetching notifications: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
     
     /**
-     * Get unread notifications count for the current user
+     * Get unread notifications count (visible to everyone)
      */
     @GetMapping("/unread-count")
     public ResponseEntity<?> getUnreadNotificationsCount() {
         try {
-            User currentUser = getCurrentUserFromToken();
-            if (currentUser == null) {
-                return ResponseEntity.badRequest().body(Map.of("message", "User not authenticated"));
-            }
-            
-            Long userId = currentUser.getId();
-            String role = currentUser.getRole().name();
-            Long departmentId = currentUser.getDepartmentId();
-            Long organizationId = currentUser.getOrganizationId();
-            
-            int unreadCount = notificationService.countUnreadNotificationsForUser(
-                userId, role, departmentId, organizationId);
+            int unreadCount = notificationService.countAllUnreadNotifications();
             
             Map<String, Integer> response = new HashMap<>();
             response.put("unreadCount", unreadCount);
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("message", "Error fetching unread count: " + e.getMessage()));
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error fetching unread count: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
     
@@ -121,31 +107,25 @@ public class NotificationController {
             }
             return ResponseEntity.ok(notification);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("message", "Error marking notification as read: " + e.getMessage()));
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error marking notification as read: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
     
     /**
-     * Mark all notifications as read for the current user
+     * Mark all notifications as read (visible to everyone)
      */
     @PutMapping("/mark-all-as-read")
     public ResponseEntity<?> markAllAsRead() {
         try {
-            User currentUser = getCurrentUserFromToken();
-            if (currentUser == null) {
-                return ResponseEntity.badRequest().body(Map.of("message", "User not authenticated"));
-            }
-            
-            Long userId = currentUser.getId();
-            String role = currentUser.getRole().name();
-            Long departmentId = currentUser.getDepartmentId();
-            Long organizationId = currentUser.getOrganizationId();
-            
-            notificationService.markAllAsRead(userId, role, departmentId, organizationId);
+            notificationService.markAllAsRead();
             
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("message", "Error marking all notifications as read: " + e.getMessage()));
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error marking all notifications as read: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
     
@@ -158,31 +138,84 @@ public class NotificationController {
             notificationService.deleteNotification(id);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("message", "Error deleting notification: " + e.getMessage()));
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error deleting notification: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
     
     /**
-     * Delete all notifications for the current user
+     * Delete all notifications (visible to everyone)
      */
     @DeleteMapping("/all")
     public ResponseEntity<?> deleteAllNotifications() {
         try {
-            User currentUser = getCurrentUserFromToken();
-            if (currentUser == null) {
-                return ResponseEntity.badRequest().body(Map.of("message", "User not authenticated"));
-            }
-            
-            Long userId = currentUser.getId();
-            String role = currentUser.getRole().name();
-            Long departmentId = currentUser.getDepartmentId();
-            Long organizationId = currentUser.getOrganizationId();
-            
-            notificationService.deleteAllNotificationsForUser(userId, role, departmentId, organizationId);
+            notificationService.deleteAllNotifications();
             
             return ResponseEntity.ok().build();
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("message", "Error deleting all notifications: " + e.getMessage()));
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error deleting all notifications: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
+    }
+    
+    /**
+     * Test endpoint to create a notification
+     */
+    @PostMapping("/test")
+    public ResponseEntity<?> createTestNotification(@RequestBody Map<String, String> payload) {
+        try {
+            Notification notification = new Notification();
+            notification.setTitle(payload.getOrDefault("title", "Test Notification"));
+            notification.setMessage(payload.getOrDefault("message", "This is a test notification"));
+            notification.setIsRead(false);
+            
+            // Save the notification using the service
+            Notification saved = notificationService.createGlobalNotification(notification);
+            
+            return ResponseEntity.ok(saved);
+        } catch (Exception e) {
+            e.printStackTrace(); // Print the full stack trace for debugging
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error creating test notification: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
+    }
+    
+    /**
+     * Test endpoint to get all notifications (no authentication required)
+     */
+    @GetMapping("/test/all")
+    public ResponseEntity<?> getAllNotificationsTest() {
+        try {
+            List<Notification> notifications = notificationRepository.findAll();
+            return ResponseEntity.ok(notifications);
+        } catch (Exception e) {
+            e.printStackTrace(); // Print the full stack trace for debugging
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Error fetching notifications: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
+    }
+    
+    /**
+     * Simple health check endpoint
+     */
+    @GetMapping("/test/health")
+    public ResponseEntity<?> healthCheck() {
+        try {
+            // Try to execute a simple query
+            long count = notificationRepository.count();
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "OK");
+            response.put("notificationCount", count);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace(); // Print the full stack trace for debugging
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "Health check failed: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
 }

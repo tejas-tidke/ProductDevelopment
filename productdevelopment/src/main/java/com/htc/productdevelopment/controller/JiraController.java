@@ -14,6 +14,7 @@ import com.htc.productdevelopment.model.ContractProposal;
 import com.htc.productdevelopment.model.JiraProject;
 import com.htc.productdevelopment.config.JiraFieldConfig;
 import com.htc.productdevelopment.model.Proposal;
+import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.repository.ContractAttachmentRepository;
 import com.htc.productdevelopment.repository.ContractDetailsRepository;
 import com.htc.productdevelopment.repository.ContractProposalRepository;
@@ -27,6 +28,8 @@ import com.htc.productdevelopment.service.ProposalService;
 import com.htc.productdevelopment.service.ContractAttachmentService;
 import com.htc.productdevelopment.service.ContractProposalService;
 import com.htc.productdevelopment.service.NotificationService;
+import com.htc.productdevelopment.service.UserService;
+import com.htc.productdevelopment.model.User;
 
 import java.security.Principal;
 
@@ -34,6 +37,11 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.RequestEntity;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import jakarta.servlet.http.HttpServletRequest;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseToken;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
@@ -78,6 +86,7 @@ public class JiraController {
     
     @Autowired
     private final NotificationService notificationService;
+    private final UserService userService;
 
     @Autowired
     private ContractDetailsRepository contractDetailsRepository;
@@ -98,13 +107,51 @@ public class JiraController {
                           ContractDetailsService contractDetailsService,
                           VendorDetailsService vendorDetailsService,
                           ContractProposalService contractProposalService,
-                          JiraFieldConfig jiraFieldConfig, NotificationService notificationService) {
+                          JiraFieldConfig jiraFieldConfig, NotificationService notificationService,
+                          UserService userService) {
         this.jiraService = jiraService;
         this.contractDetailsService = contractDetailsService;
         this.vendorDetailsService = vendorDetailsService;
         this.contractProposalService = contractProposalService;
         this.jiraFieldConfig = jiraFieldConfig;
         this.notificationService = notificationService;
+        this.userService = userService;
+    }
+    
+    private User getCurrentUserFromToken() {
+        try {
+            System.out.println("Getting current user from token");
+            // Get the current HTTP request
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            HttpServletRequest request = attributes.getRequest();
+            
+            // Get the Authorization header
+            String authHeader = request.getHeader("Authorization");
+            System.out.println("Auth header: " + authHeader);
+            
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String idToken = authHeader.substring(7); // Remove "Bearer " prefix
+                System.out.println("ID token extracted");
+                
+                // Verify the Firebase ID token
+                FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(idToken);
+                String uid = decodedToken.getUid();
+                System.out.println("Decoded UID: " + uid);
+                
+                // Look up user in database
+                Optional<User> userOpt = userService.getUserByUid(uid);
+                System.out.println("User found in database: " + userOpt.isPresent());
+                return userOpt.orElse(null);
+            } else {
+                System.out.println("No valid Authorization header found");
+            }
+        } catch (Exception e) {
+            // Log the error but don't throw it
+            System.err.println("Error getting current user from token: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return null;
     }
 
 
@@ -657,30 +704,50 @@ public class JiraController {
             
             // Create notification for status transition
             try {
+                System.out.println("Creating notification for issue transition: " + issueIdOrKey);
                 // Get current user information
                 if (principal != null) {
+                    System.out.println("Principal is present: " + principal.getName());
                     JsonNode currentUser = jiraService.getCurrentUser();
-                    String requesterName = currentUser.has("displayName") ? currentUser.get("displayName").asText() : "Unknown User";
+                    String statusChangerName = currentUser.has("displayName") ? currentUser.get("displayName").asText() : "Unknown User";
+                    System.out.println("Status changer name: " + statusChangerName);
+                    
+                    // Get the current user from the database
+                    User statusChangerUser = getCurrentUserFromToken();
+                    Long statusChangerId = statusChangerUser != null ? statusChangerUser.getId() : null;
+                    System.out.println("Status changer user ID: " + statusChangerId);
+                    if (statusChangerUser != null) {
+                        System.out.println("Status changer user email: " + statusChangerUser.getEmail());
+                    } else {
+                        System.out.println("Status changer user not found in database");
+                    }
                     
                     // Get contract details to get requester info
                     ContractDetails contract = contractDetailsService.findByJiraIssueKey(issueIdOrKey);
                     if (contract != null) {
+                        System.out.println("Contract found for issue: " + issueIdOrKey);
                         Long requesterId = contract.getRequester() != null ? contract.getRequester().getId() : null;
+                        String requesterName = contract.getRequesterName();
                         Long requesterDepartmentId = contract.getRequesterDepartmentId();
                         Long requesterOrganizationId = contract.getRequesterOrganizationId();
                         
+                        System.out.println("Calling createStatusTransitionNotification with requesterId: " + requesterId + ", statusChangerId: " + statusChangerId);
                         notificationService.createStatusTransitionNotification(
                             issueIdOrKey, fromStatus, toStatus, requesterId, requesterName, 
-                            requesterDepartmentId, requesterOrganizationId);
+                            requesterDepartmentId, requesterOrganizationId, statusChangerId, statusChangerName);
                     } else {
+                        System.out.println("No contract found for issue: " + issueIdOrKey);
                         // Create notification with minimal info
                         notificationService.createStatusTransitionNotification(
-                            issueIdOrKey, fromStatus, toStatus, null, requesterName, 
-                            null, null);
+                            issueIdOrKey, fromStatus, toStatus, null, null, 
+                            null, null, statusChangerId, statusChangerName);
                     }
+                } else {
+                    System.out.println("No principal found for request");
                 }
             } catch (Exception notificationEx) {
-                logger.warn("Failed to create notification for status transition: {}", notificationEx.getMessage());
+                System.err.println("Failed to create notification for status transition: " + notificationEx.getMessage());
+                notificationEx.printStackTrace();
             }
 
             // Mirror Jira's 204 No Content for success
@@ -1373,9 +1440,13 @@ public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedReq
             Long requesterDepartmentId = contract.getRequesterDepartmentId();
             Long requesterOrganizationId = contract.getRequesterOrganizationId();
             
+            // Get current user information for status changer
+            Long statusChangerId = null;
+            String statusChangerName = "System";
+            
             notificationService.createStatusTransitionNotification(
                 request.getIssueKey(), currentStatus, "Completed", requesterId, requesterName, 
-                requesterDepartmentId, requesterOrganizationId);
+                requesterDepartmentId, requesterOrganizationId, statusChangerId, statusChangerName);
         } catch (Exception notificationEx) {
             logger.warn("Failed to create notification for status transition: {}", notificationEx.getMessage());
         }

@@ -523,6 +523,7 @@ const RequestSplitView: React.FC = () => {
 
   // Disable status transitions while in Negotiation Stage until a final proposal is submitted,
   // regardless of user role
+  // For other stages, allow transitions for SUPER_ADMIN users
   const isTransitionDisabled =
     isInNegotiationStage && !hasSubmittedFinalQuote;
 
@@ -1151,8 +1152,8 @@ const RequestSplitView: React.FC = () => {
   const getStatusColor = (statusNameOrCategory?: string) => {
     const byStatusName: Record<string, string> = {
       "Request Created": "#6B778C", // neutral gray
-      "Pre-Approval": "#0C66E4", // sky/blue
-      "Request Review": "#0052CC", // Jira blue
+      "Pre Approval": "#0C66E4", // sky/blue
+      "Request Review Stage": "#0052CC", // Jira blue
       "Negotiation Stage": "#6554C0", // purple
       "In Progress": "#4C6FFF", // indigo
       "Post Approval": "#1F845A", // teal/green
@@ -1160,9 +1161,7 @@ const RequestSplitView: React.FC = () => {
       Done: "#22A06B",
       Declined: "#E34935", // red
       "On Hold": "#B06500", // amber
-    };
-
-    const byCategory: Record<string, string> = {
+    };    const byCategory: Record<string, string> = {
       "blue-gray": "#42526E",
       "medium-gray": "#97A0AF",
       yellow: "#FFC400",
@@ -1442,21 +1441,23 @@ const RequestSplitView: React.FC = () => {
         case "Request Created":
           // Only APPROVER and ADMIN can transition (SUPER_ADMIN handled above)
           return role === "APPROVER" || role === "ADMIN";
-          
+                
         case "Pre-Approval":
+        case "Pre Approval":
         case "Pre-approval":
           // Only ADMIN can transition
           return role === "ADMIN";
-          
+                
         case "Request Review Stage":
           // Only ADMIN can transition
           return role === "ADMIN";
-          
+                
         case "Negotiation Stage":
           // Only SUPER_ADMIN can transition (handled above)
           return false;
-          
+                
         case "Post Approval":
+        case "Post-Approval":
           // APPROVER and ADMIN can transition (SUPER_ADMIN handled above)
           return role === "APPROVER" || role === "ADMIN";
           
@@ -1472,6 +1473,7 @@ const RequestSplitView: React.FC = () => {
         transitions.push(...APPROVE_DECLINE("3", "Pre-Approval"));
         break;
       case "Pre-Approval":
+      case "Pre Approval":
       case "Pre-approval":
         transitions.push(...APPROVE_DECLINE("2", "Request Review Stage"));
         break;
@@ -1482,6 +1484,7 @@ const RequestSplitView: React.FC = () => {
         transitions.push(...APPROVE_DECLINE("5", "Post Approval"));
         break;
       case "Post Approval":
+      case "Post-Approval":
         transitions.push(...APPROVE_DECLINE("7", "Completed"));
         break;
       case "Completed":
@@ -2477,7 +2480,7 @@ const RequestSplitView: React.FC = () => {
                           }}
                           title={
                             isTransitionDisabled
-                              ? "Submit a Final Proposal before changing status"
+                              ? "Submit a Final Proposal before changing status in Negotiation Stage"
                               : "Transition issue status"
                           }
                         >
@@ -2511,17 +2514,16 @@ const RequestSplitView: React.FC = () => {
                                       <button
                                         key={transition.id}
                                         onClick={() => {
-                                          // Just display the status name without changing the transition
                                           console.log("Status selected: ", transition.to?.name || transition.name);
                                           setIsTransitionDropdownOpen(false);
-                                          // Don't call handleCustomTransition to prevent actual status change
+                                          // Actually perform the transition
+                                          handleCustomTransition(transition.id);
                                         }}
                                         className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
                                       >
                                         <span className="mr-2"></span>
                                         {transition.to?.name || transition.name}
-                                      </button>
-                                    ))}
+                                      </button>                                    ))}
                                   <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                                   <button
                                     onClick={() => {
@@ -2560,26 +2562,27 @@ const RequestSplitView: React.FC = () => {
 
 
 
-                    {userRole === "SUPER_ADMIN" &&
-                      selectedIssue?.fields?.status?.name ===
-                        "Negotiation Stage" && (
+                    {userRole === "SUPER_ADMIN" && (
                         <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => {
-                              console.log('📤 Upload Quote button clicked, hasSubmittedFinalQuote:', hasSubmittedFinalQuote);
-                              setIsUploadQuoteModalOpen(true);
-                            }}
-                            disabled={hasSubmittedFinalQuote}
-                            className={`inline-flex items-center px-3 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${hasSubmittedFinalQuote ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
-                          >
-                            {(() => {
-                              console.log('📤 Upload Quote button render check, hasSubmittedFinalQuote:', hasSubmittedFinalQuote);
-                              return hasSubmittedFinalQuote ? "Quote Submitted" : "Upload Quote";
-                            })()}
-                          </button>
+                          {/* Show Upload Quote button only in Negotiation Stage */}
+                          {selectedIssue?.fields?.status?.name === "Negotiation Stage" && (
+                            <button
+                              onClick={() => {
+                                console.log('📤 Upload Quote button clicked, hasSubmittedFinalQuote:', hasSubmittedFinalQuote);
+                                setIsUploadQuoteModalOpen(true);
+                              }}
+                              disabled={hasSubmittedFinalQuote}
+                              className={`inline-flex items-center px-3 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${hasSubmittedFinalQuote ? "bg-gray-500 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
+                            >
+                              {(() => {
+                                console.log('📤 Upload Quote button render check, hasSubmittedFinalQuote:', hasSubmittedFinalQuote);
+                                return hasSubmittedFinalQuote ? "Quote Submitted" : "Upload Quote";
+                              })()}
+                            </button>
+                          )}
                           
-                          {/* Show Approve/Decline buttons when final proposal is submitted */}
-                          {hasSubmittedFinalQuote && customTransitions.length > 0 && (
+                          {/* Show Approve/Decline buttons when final proposal is submitted or in other statuses */}
+                          {customTransitions.length > 0 && (
                             <>
                               <button
                                 onClick={() => {
@@ -3422,7 +3425,7 @@ const RequestSplitView: React.FC = () => {
               {currentProposal === "final" && proposals.length > 0 && (
                 <div className="p-4 bg-yellow-100 dark:bg-yellow-700 rounded-md border border-yellow-400">
                   <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-2">
-                    Profit Calculation
+                    Total Optmized Cost Calculation
                   </h4>
                   {(() => {
                     // Find the last submitted non-final proposal based on user's path
@@ -3431,7 +3434,7 @@ const RequestSplitView: React.FC = () => {
                     const sortedProposals = [...proposals]
                       .filter(p => !p.final)
                       .sort((a, b) => a.proposalNumber - b.proposalNumber);
-                    
+
                     // Get the last non-final proposal (user's path)
                     if (sortedProposals.length > 0) {
                       lastNonFinalProposal = sortedProposals[sortedProposals.length - 1];
@@ -3466,7 +3469,7 @@ const RequestSplitView: React.FC = () => {
                           </p>
                         )}
                         <p className="text-lg mt-2 font-bold text-blue-700 dark:text-blue-300">
-                          Profit: ₹ {profit.toLocaleString()}
+                          Total Optimized Cost: ₹ {profit.toLocaleString()}
                         </p>
                       </div>
                     );
@@ -3699,7 +3702,14 @@ const RequestSplitView: React.FC = () => {
                       </button>
                     </div>
                     <div className="mt-2">
-                      <WorkflowDiagram currentStatus={selectedIssue?.fields?.status?.name || ""} />
+                      <WorkflowDiagram 
+                                              currentStatus={selectedIssue?.fields?.status?.name || ""} 
+                                              onTransition={(transitionId) => {
+                                                console.log("Transitioning with ID:", transitionId);
+                                                handleCustomTransition(transitionId);
+                                                setIsWorkflowModalOpen(false);
+                                              }}
+                                            />
                     </div>
                   </div>
                 </div>
@@ -3713,39 +3723,37 @@ const RequestSplitView: React.FC = () => {
 };
 
 // Workflow Diagram Component
-const WorkflowDiagram: React.FC<{ currentStatus: string }> = ({ currentStatus }) => {
+const WorkflowDiagram: React.FC<{ currentStatus: string; onTransition?: (transitionId: string) => void }> = ({ currentStatus, onTransition }) => {
   // Define the workflow statuses in order
   const workflowStatuses = [
     "Request Created",
     "Pre Approval",
-    "Request Review",
+    "Request Review Stage",
     "Negotiation Stage",
     "Post Approval",
     "Completed"
-  ];
-
-  // Define the transitions between statuses
-  const transitions = [
-    { from: "Request Created", to: "Pre Approval" },
-    { from: "Pre Approval", to: "Request Review" },
-    { from: "Request Review", to: "Negotiation Stage" },
-    { from: "Negotiation Stage", to: "Post Approval" },
-    { from: "Post Approval", to: "Completed" }
-  ];
-
+  ];  
+  
+  // Define the transitions between statuses with their transition IDs
+  const transitions: Record<string, { to: string; id: string }> = {
+    "Request Created": { to: "Pre Approval", id: "3" },
+    "Pre Approval": { to: "Request Review Stage", id: "2" },
+    "Request Review Stage": { to: "Negotiation Stage", id: "4" },
+    "Negotiation Stage": { to: "Post Approval", id: "5" },
+    "Post Approval": { to: "Completed", id: "7" }
+  };
+  
   // Function to get the next status
   const getNextStatus = (current: string) => {
-    // Handle variations in status naming
-    let normalizedCurrent = current;
-    if (current === "Request Review Stage") {
-      normalizedCurrent = "Request Review";
-    }
-    
-    const transition = transitions.find(t => t.from === normalizedCurrent);
-    return transition ? transition.to : null;
+    return transitions[current]?.to || null;
   };
-
+  
   const nextStatus = getNextStatus(currentStatus);
+  
+  // Function to get transition ID
+  const getTransitionId = (fromStatus: string) => {
+    return transitions[fromStatus]?.id || null;
+  };
 
   return (
     <div className="overflow-x-auto py-4">
@@ -3755,15 +3763,21 @@ const WorkflowDiagram: React.FC<{ currentStatus: string }> = ({ currentStatus })
             <React.Fragment key={status}>
               <div className={`flex flex-col items-center ${index === workflowStatuses.length - 1 ? '' : 'mr-8'}`}>
                 <div className={`rounded-full w-10 h-10 flex items-center justify-center mb-2 
-                  ${(currentStatus === status || (status === "Request Review" && currentStatus === "Request Review Stage"))
+                  ${(currentStatus === status)
                     ? 'bg-green-600 text-white border-2 border-green-700' 
                     : nextStatus === status
-                      ? 'bg-yellow-500 text-white border-2 border-yellow-600'
-                      : (workflowStatuses.indexOf(status) < workflowStatuses.indexOf("Request Review") && currentStatus === "Request Review Stage")
-                        ? 'bg-green-500 text-white' 
-                        : workflowStatuses.indexOf(currentStatus) > index 
+                      ? 'bg-yellow-500 text-white border-2 border-yellow-600 cursor-pointer hover:bg-yellow-600'
+                      : workflowStatuses.indexOf(currentStatus) > index 
                           ? 'bg-green-500 text-white' 
                           : 'bg-gray-200 text-gray-700'}`}
+                  // Add onClick handler for next status
+                  {...(nextStatus === status && { onClick: () => {
+                    const transitionId = getTransitionId(currentStatus);
+                    if (transitionId) {
+                      // Call the transition function passed from parent
+                      onTransition && onTransition(transitionId);
+                    }
+                  }})}
                 >
                   {workflowStatuses.indexOf(currentStatus) > index ? (
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -3777,12 +3791,20 @@ const WorkflowDiagram: React.FC<{ currentStatus: string }> = ({ currentStatus })
                   ${(currentStatus === status || (status === "Request Review" && currentStatus === "Request Review Stage"))
                     ? 'bg-green-100 text-green-800' 
                     : nextStatus === status
-                      ? 'bg-yellow-100 text-yellow-800'
+                      ? 'bg-yellow-100 text-yellow-800 cursor-pointer hover:bg-yellow-200'
                       : (workflowStatuses.indexOf(status) < workflowStatuses.indexOf("Request Review") && currentStatus === "Request Review Stage")
                         ? 'bg-green-100 text-green-800' 
                         : workflowStatuses.indexOf(currentStatus) > index 
                           ? 'bg-green-100 text-green-800' 
                           : 'bg-gray-100 text-gray-800'}`}
+                  // Add onClick handler for next status label
+                  {...(nextStatus === status && { onClick: () => {
+                    const transitionId = getTransitionId(currentStatus);
+                    if (transitionId) {
+                      // Call the transition function passed from parent
+                      onTransition && onTransition(transitionId);
+                    }
+                  }})}
                 >
                   {status}
                 </div>
@@ -3799,17 +3821,16 @@ const WorkflowDiagram: React.FC<{ currentStatus: string }> = ({ currentStatus })
           ))}
         </div>
         <div className="mt-8 text-sm text-gray-600">
-          <p className="mb-2"><span className="font-medium">Current Status:</span> <span className="text-green-600 font-medium">{currentStatus === "Request Review Stage" ? "Request Review" : currentStatus}</span></p>
+          <p className="mb-2"><span className="font-medium">Current Status:</span> <span className="text-green-600 font-medium">{currentStatus}</span></p>
           <p><span className="font-medium">Next Status:</span> 
             {currentStatus === "Request Created" && "Pre Approval"}
-            {currentStatus === "Pre Approval" && "Request Review"}
-            {(currentStatus === "Request Review" || currentStatus === "Request Review Stage") && "Negotiation Stage"}
+            {currentStatus === "Pre Approval" && "Request Review Stage"}
+            {currentStatus === "Request Review Stage" && "Negotiation Stage"}
             {currentStatus === "Negotiation Stage" && "Post Approval"}
             {currentStatus === "Post Approval" && "Completed"}
             {currentStatus === "Completed" && "None (Workflow Completed)"}
           </p>
-        </div>
-      </div>
+        </div>      </div>
     </div>
   );
 };

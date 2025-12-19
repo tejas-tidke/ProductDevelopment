@@ -11,6 +11,15 @@ import java.util.List;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
     
+    // Find all notifications ordered by creation date
+    List<Notification> findAllByOrderByCreatedAtDesc();
+    
+    // Find unread notifications ordered by creation date
+    List<Notification> findByIsReadFalseOrderByCreatedAtDesc();
+    
+    // Count unread notifications
+    int countByIsReadFalse();
+    
     // Find notifications for a specific user
     List<Notification> findByRecipientUserIdOrderByCreatedAtDesc(Long userId);
     

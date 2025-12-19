@@ -1,10 +1,12 @@
  import React, { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router";
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 // Import useAuth hook to access user details
 import { useAuth } from "../../context/AuthContext";
 import { jiraService } from '../../services/jiraService';
+import { userApi } from '../../services/api';
 
 // Define the vendor profile response interface
 interface VendorProfileResponse {
@@ -302,6 +304,7 @@ if (totalCost === "0") {
 
 const VendorAgreements: React.FC = () => {
   const { userData, userDepartmentId, userOrganizationId } = useAuth(); // Get user details from AuthContext
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AgreementStatus>("All Agreements");
   const [agreements, setAgreements] = useState<AgreementFromContract[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -330,14 +333,18 @@ const VendorAgreements: React.FC = () => {
   // Vendor and product dropdown states
   const [vendors, setVendors] = useState<string[]>([]);
   const [products, setProducts] = useState<{ id: string; productName: string; productType?: 'license' | 'usage' }[]>([]);
+  const [users, setUsers] = useState<{ id: string; name: string; email: string }[]>([]);
   const [loadingVendors, setLoadingVendors] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const vendorDropdownRef = useRef<HTMLDivElement | null>(null);
   const productDropdownRef = useRef<HTMLDivElement | null>(null);
+  const userDropdownRef = useRef<HTMLDivElement | null>(null);
 
-  // Load vendors when the add modal is opened
+  // Load vendors and users when the add modal is opened
   useEffect(() => {
     const loadVendors = async () => {
       if (!showAddModal) return;
@@ -353,7 +360,24 @@ const VendorAgreements: React.FC = () => {
         setLoadingVendors(false);
       }
     };
+    
+    const loadUsers = async () => {
+      if (!showAddModal) return;
+      try {
+        setLoadingUsers(true);
+        console.log('Fetching users from user API');
+        const userList: { id: string; name: string; email: string }[] = await userApi.getAllUsers();
+        console.log('Received users:', userList);
+        if (Array.isArray(userList)) setUsers(userList);
+      } catch (err) {
+        console.error('Error loading users', err);
+      } finally {
+        setLoadingUsers(false);
+      }
+    };
+    
     loadVendors();
+    loadUsers();
   }, [showAddModal]);
 
   // Load products when vendor is selected
@@ -393,6 +417,9 @@ const VendorAgreements: React.FC = () => {
       }
       if (productDropdownRef.current && !productDropdownRef.current.contains(e.target as Node)) {
         setShowProductDropdown(false);
+      }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(e.target as Node)) {
+        setShowUserDropdown(false);
       }
     };
 
@@ -515,8 +542,10 @@ const VendorAgreements: React.FC = () => {
     // Reset dropdown states
     setShowVendorDropdown(false);
     setShowProductDropdown(false);
+    setShowUserDropdown(false);
     setVendors([]);
     setProducts([]);
+    setUsers([]);
   };
 
   const handleAddAgreement = async (e: React.FormEvent) => {
@@ -919,13 +948,17 @@ const VendorAgreements: React.FC = () => {
                   {filteredAgreements.map((agreement) => (
                     <tr
                       key={agreement.id}
-                      className="hover:bg-indigo-50/40 transition-colors"
+                      className="hover:bg-indigo-50/40 transition-colors cursor-pointer"
+                      onClick={() => navigate(`/vendor-management/contract`, { state: { agreement } })}
                     >
                       <td className="px-4 py-2">
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(agreement.id)}
-                          onChange={() => toggleSelectOne(agreement.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleSelectOne(agreement.id);
+                          }}
                         />
                       </td>
                       <td className="px-4 py-2 text-indigo-600 font-medium">
@@ -1195,14 +1228,57 @@ const VendorAgreements: React.FC = () => {
                           >
                             Agreement Owner *
                           </label>
-                          <input
-                            type="text"
-                            id="owner"
-                            value={formOwner}
-                            onChange={(e) => setFormOwner(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                            required
-                          />
+                          <div className="relative" ref={userDropdownRef}>
+                            <input
+                              type="text"
+                              id="owner"
+                              value={formOwner}
+                              onChange={(e) => {
+                                setFormOwner(e.target.value);
+                                setShowUserDropdown(true);
+                              }}
+                              onFocus={() => setShowUserDropdown(true)}
+                              placeholder={loadingUsers ? 'Loading users...' : 'Start typing or click to see all users'}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              autoComplete="off"
+                              required
+                            />
+                            {showUserDropdown && (
+                              <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white text-sm shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                                {(formOwner
+                                  ? users.filter((u) =>
+                                    u.name.toLowerCase().includes(formOwner.toLowerCase()) ||
+                                    u.email.toLowerCase().includes(formOwner.toLowerCase())
+                                  )
+                                  : users
+                                ).map((u) => (
+                                  <button
+                                    type="button"
+                                    key={u.id}
+                                    onClick={() => {
+                                      setFormOwner(u.name);
+                                      setShowUserDropdown(false);
+                                    }}
+                                    className="block w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+                                  >
+                                    <div className="font-medium">{u.name}</div>
+                                    <div className="text-xs text-gray-500">{u.email}</div>
+                                  </button>
+                                ))}
+                                {(formOwner
+                                  ? users.filter((u) =>
+                                    u.name.toLowerCase().includes(formOwner.toLowerCase()) ||
+                                    u.email.toLowerCase().includes(formOwner.toLowerCase())
+                                  )
+                                  : users
+                                ).length === 0 && (
+                                    <div className="px-3 py-2 text-xs text-gray-400">
+                                      No users found
+                                    </div>
+                                  )}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">

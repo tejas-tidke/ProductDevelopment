@@ -20,11 +20,55 @@ public class NotificationService {
     private UserRepository userRepository;
     
     /**
+     * Get all notifications (visible to everyone)
+     */
+    public List<Notification> getAllNotifications() {
+        return notificationRepository.findAllByOrderByCreatedAtDesc();
+    }
+    
+    /**
+     * Get all unread notifications (visible to everyone)
+     */
+    public List<Notification> getAllUnreadNotifications() {
+        return notificationRepository.findByIsReadFalseOrderByCreatedAtDesc();
+    }
+    
+    /**
+     * Count all unread notifications
+     */
+    public int countAllUnreadNotifications() {
+        return notificationRepository.countByIsReadFalse();
+    }
+    
+    /**
+     * Mark all notifications as read
+     */
+    public void markAllAsRead() {
+        List<Notification> unreadNotifications = getAllUnreadNotifications();
+        for (Notification notification : unreadNotifications) {
+            notification.setIsRead(true);
+        }
+        if (!unreadNotifications.isEmpty()) {
+            notificationRepository.saveAll(unreadNotifications);
+        }
+    }
+    
+    /**
+     * Delete all notifications
+     */
+    public void deleteAllNotifications() {
+        notificationRepository.deleteAll();
+    }
+    
+    /**
      * Create a notification for a specific user
      */
     public Notification createNotificationForUser(Notification notification, Long userId) {
         notification.setRecipientUserId(userId);
-        return notificationRepository.save(notification);
+        System.out.println("Creating notification for user ID: " + userId + " with title: " + notification.getTitle());
+        Notification saved = notificationRepository.save(notification);
+        System.out.println("Saved notification with ID: " + saved.getId());
+        return saved;
     }
     
     /**
@@ -64,13 +108,19 @@ public class NotificationService {
     }
     
     /**
-     * Create a status transition notification for relevant users
+     * Create a status transition notification for all users
+     * Sends notifications to both the requester and the user who changed the status
      */
     public void createStatusTransitionNotification(String issueKey, String fromStatus, String toStatus, 
-            Long requesterId, String requesterName, Long requesterDepartmentId, Long requesterOrganizationId) {
+            Long requesterId, String requesterName, Long requesterDepartmentId, Long requesterOrganizationId,
+            Long statusChangerId, String statusChangerName) {
         
-        // Create notification for the requester
-        if (requesterId != null) {
+        System.out.println("Creating status transition notification for issue: " + issueKey + 
+            " from: " + fromStatus + " to: " + toStatus + 
+            " requesterId: " + requesterId + " statusChangerId: " + statusChangerId);
+        
+        // Create notification for the requester (if different from status changer)
+        if (requesterId != null && !requesterId.equals(statusChangerId)) {
             Notification requesterNotification = new Notification();
             requesterNotification.setTitle("Status Updated");
             requesterNotification.setMessage(String.format("Request %s status changed from '%s' to '%s'", 
@@ -78,54 +128,39 @@ public class NotificationService {
             requesterNotification.setIssueKey(issueKey);
             requesterNotification.setFromStatus(fromStatus);
             requesterNotification.setToStatus(toStatus);
-            requesterNotification.setSenderUserId(requesterId);
-            requesterNotification.setSenderName(requesterName);
-            createNotificationForUser(requesterNotification, requesterId);
+            requesterNotification.setSenderUserId(statusChangerId != null ? statusChangerId : requesterId);
+            requesterNotification.setSenderName(statusChangerName != null ? statusChangerName : requesterName);
+            // Create as global notification (visible to everyone)
+            createGlobalNotification(requesterNotification);
         }
         
-        // Create notifications for approvers, admins, and super admins in the same department/organization
-        
-        // Send to approvers in the same department
-        if (requesterDepartmentId != null) {
-            Notification approverNotification = new Notification();
-            approverNotification.setTitle("Status Updated");
-            approverNotification.setMessage(String.format("Request %s status changed from '%s' to '%s' by %s", 
-                issueKey, fromStatus, toStatus, requesterName));
-            approverNotification.setIssueKey(issueKey);
-            approverNotification.setFromStatus(fromStatus);
-            approverNotification.setToStatus(toStatus);
-            approverNotification.setSenderUserId(requesterId);
-            approverNotification.setSenderName(requesterName);
-            approverNotification.setRecipientDepartmentId(requesterDepartmentId);
-            createNotificationForRole(approverNotification, "APPROVER");
+        // Create notification for the user who changed the status (if different from requester)
+        if (statusChangerId != null && !statusChangerId.equals(requesterId)) {
+            Notification statusChangerNotification = new Notification();
+            statusChangerNotification.setTitle("Status Updated");
+            statusChangerNotification.setMessage(String.format("Request %s status changed from '%s' to '%s'", 
+                issueKey, fromStatus, toStatus));
+            statusChangerNotification.setIssueKey(issueKey);
+            statusChangerNotification.setFromStatus(fromStatus);
+            statusChangerNotification.setToStatus(toStatus);
+            statusChangerNotification.setSenderUserId(statusChangerId);
+            statusChangerNotification.setSenderName(statusChangerName);
+            // Create as global notification (visible to everyone)
+            createGlobalNotification(statusChangerNotification);
         }
         
-        // Send to admins in the same organization
-        if (requesterOrganizationId != null) {
-            Notification adminNotification = new Notification();
-            adminNotification.setTitle("Status Updated");
-            adminNotification.setMessage(String.format("Request %s status changed from '%s' to '%s' by %s", 
-                issueKey, fromStatus, toStatus, requesterName));
-            adminNotification.setIssueKey(issueKey);
-            adminNotification.setFromStatus(fromStatus);
-            adminNotification.setToStatus(toStatus);
-            adminNotification.setSenderUserId(requesterId);
-            adminNotification.setSenderName(requesterName);
-            adminNotification.setRecipientOrganizationId(requesterOrganizationId);
-            createNotificationForRole(adminNotification, "ADMIN");
-        }
-        
-        // Send to super admins (global)
-        Notification superAdminNotification = new Notification();
-        superAdminNotification.setTitle("Status Updated");
-        superAdminNotification.setMessage(String.format("Request %s status changed from '%s' to '%s' by %s", 
+        // Create a general notification for all other users
+        Notification generalNotification = new Notification();
+        generalNotification.setTitle("Status Updated");
+        generalNotification.setMessage(String.format("Request %s status changed from '%s' to '%s' by %s", 
             issueKey, fromStatus, toStatus, requesterName));
-        superAdminNotification.setIssueKey(issueKey);
-        superAdminNotification.setFromStatus(fromStatus);
-        superAdminNotification.setToStatus(toStatus);
-        superAdminNotification.setSenderUserId(requesterId);
-        superAdminNotification.setSenderName(requesterName);
-        createNotificationForRole(superAdminNotification, "SUPER_ADMIN");
+        generalNotification.setIssueKey(issueKey);
+        generalNotification.setFromStatus(fromStatus);
+        generalNotification.setToStatus(toStatus);
+        generalNotification.setSenderUserId(requesterId);
+        generalNotification.setSenderName(requesterName);
+        // Create as global notification (visible to everyone)
+        createGlobalNotification(generalNotification);
     }
     
     /**

@@ -1,6 +1,7 @@
 // src/services/jiraService.ts
 // Service for handling Jira API calls
 import { auth } from "../firebase";
+import { apiCall } from "./api";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 export const jiraTransitionMap: Record<string, string> = {
@@ -532,7 +533,7 @@ transitionIssue: async (issueIdOrKey: string, transitionKey: string) => {
 
 // Transition using raw ID (used in your UI)
 transitionIssueCustom: async (issueKey: string, transitionId: string) => {
-  return jiraApiCall(`/api/jira/issues/${issueKey}/transitions`, {
+  return apiCall(`/api/jira/issues/${issueKey}/transitions`, {
     method: "POST",
     body: JSON.stringify({
       transition: { id: transitionId },

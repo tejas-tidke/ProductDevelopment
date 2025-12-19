@@ -433,10 +433,7 @@ export default function App() {
                     Right now we provide a safe fallback using "as any". Replace this with
                     actual data (from route params or location.state) when you wire it up.
                   */}
-                  <VendorAgreementDetails
-                    agreement={{} as any}
-                    onBack={() => window.history.back()}
-                  />
+                  <VendorAgreementDetails />
                 </ProtectedPermissionRoute>
               } 
             />

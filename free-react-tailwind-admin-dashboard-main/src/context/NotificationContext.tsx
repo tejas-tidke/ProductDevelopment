@@ -35,11 +35,14 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   // Fetch notifications from backend
   const fetchNotifications = async () => {
     try {
+      console.log("Fetching notifications from backend...");
       const fetchedNotifications = await notificationApi.getNotifications();
+      console.log("Received notifications:", fetchedNotifications);
       setNotifications(fetchedNotifications);
       
       // Update unread count
       const unread = fetchedNotifications.filter(n => !n.isRead).length;
+      console.log("Unread count:", unread);
       setUnreadCount(unread);
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
@@ -49,7 +52,9 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   // Fetch unread count from backend
   const fetchUnreadCount = async () => {
     try {
+      console.log("Fetching unread count from backend...");
       const response = await notificationApi.getUnreadCount();
+      console.log("Received unread count response:", response);
       setUnreadCount(response.unreadCount || 0);
     } catch (error) {
       console.error("Failed to fetch unread count:", error);
@@ -64,6 +69,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   // Mark a notification as read
   const markAsRead = async (id: number) => { // Changed from string to number
     try {
+      console.log("Marking notification as read:", id);
       await notificationApi.markAsRead(id);
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
@@ -77,6 +83,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   // Mark all notifications as read
   const markAllAsRead = async () => {
     try {
+      console.log("Marking all notifications as read");
       await notificationApi.markAllAsRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
@@ -88,6 +95,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   // Clear all notifications
   const clearAll = async () => {
     try {
+      console.log("Clearing all notifications");
       // For now, we'll just clear the local state
       // In a real implementation, you might want to delete all notifications from backend
       setNotifications([]);

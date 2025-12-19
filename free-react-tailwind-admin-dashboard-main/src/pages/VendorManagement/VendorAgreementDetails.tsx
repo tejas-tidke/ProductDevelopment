@@ -1,4 +1,5 @@
 import React from "react";
+import { useLocation, useNavigate } from "react-router";
 import type { AgreementFromContract as Agreement } from "./VendorAgreements";
 
 // Helper function to format dates in dd-mm-yyyy format
@@ -14,14 +15,43 @@ const formatDate = (value: string): string => {
 };
 
 type VendorAgreementDetailsProps = {
-  agreement: Agreement;
-  onBack: () => void;
+  agreement?: Agreement;
+  onBack?: () => void;
 };
 
 const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
-  agreement,
-  onBack,
+  agreement: propAgreement,
+  onBack: propOnBack,
 }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Get agreement data from location state or props
+  const agreement = location.state?.agreement || propAgreement;
+  
+  // Use prop onBack or default to navigate(-1)
+  const handleBack = propOnBack || (() => navigate(-1));
+  
+  // If no agreement data, show error
+  if (!agreement) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="text-indigo-600 hover:underline"
+          >
+            ← Back to Agreements
+          </button>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="text-red-800">No agreement data found. Please select an agreement from the list.</div>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="space-y-6">
       {/* Top breadcrumb + back */}
@@ -29,7 +59,7 @@ const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <button
             type="button"
-            onClick={onBack}
+            onClick={handleBack}
             className="text-indigo-600 hover:underline"
           >
             ← Agreements
@@ -46,7 +76,7 @@ const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
             {agreement.vendor}
           </h1>
           <p className="text-sm text-gray-500">
-            Product: {agreement.productName || agreement.category || "Software"}
+            Product: {agreement.productName || "N/A"}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -130,7 +160,7 @@ const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
                     End Date
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
-                    Jul 29, 2026
+                    {formatDate(agreement.endDate)}
                   </td>
                 </tr>
 
@@ -139,7 +169,7 @@ const VendorAgreementDetails: React.FC<VendorAgreementDetailsProps> = ({
                     Agreement Term
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
-                    12 months
+                    {agreement.contractDuration || "N/A"}
                   </td>
                 </tr>
 
