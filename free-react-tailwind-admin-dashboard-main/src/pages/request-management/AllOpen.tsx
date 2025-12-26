@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate, useLocation, Link } from "react-router";
+import { useNavigate, Link } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import { Permission } from "../../config/permissions";
 import { DndProvider } from "react-dnd";
@@ -9,7 +9,6 @@ import PageMeta from "../../components/common/PageMeta";
 import { jiraService } from "../../services/jiraService";
 import EditIssueModal from "../../components/modals/EditIssueModal";
 import { Table, TableHeader, TableBody, TableRow, TableCell } from "../../components/ui/table";
-import SuccessToast2 from "../../components/ui/toast/SuccessToast2";
 
 interface Project {
   id: string;
@@ -101,35 +100,15 @@ const AllOpen: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
 
-  // Get location state for toast messages
-  const location = useLocation();
-  
-  // State for toast notification
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastType, setToastType] = useState<ToastType>('success');
-  
-  // Handle toast message from navigation state
-  useEffect(() => {
-    const { toastMessage: navToastMessage, toastType: navToastType } = location.state || {};
-    if (navToastMessage) {
-      // Clear the state to avoid showing the toast on page refresh
-      window.history.replaceState({}, document.title);
-      
-      // Set toast data
-      setToastMessage(navToastMessage);
-      setToastType((navToastType as ToastType) || 'success');
-      setShowToast(true);
-      
-      // Auto-hide toast after 3 seconds
-      const timer = setTimeout(() => {
-        setShowToast(false);
-      }, 3000);
-      
-      // Clean up timer
-      return () => clearTimeout(timer);
-    }
-  }, [location.state]);
+  // Toast system
+  const [toasts, setToasts] = useState<{ id: string; message: string; type?: ToastType }[]>([]);
+  const showToast = (message: string, type: ToastType = "info", ttl = 2500) => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+    setToasts(t => [...t, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(t => t.filter(x => x.id !== id));
+    }, ttl);
+  };
 
   // Confirm dialog state (non-blocking)
   const [confirmState, setConfirmState] = useState<{
@@ -262,7 +241,7 @@ const AllOpen: React.FC = () => {
         // issues
         try {
           console.log("Calling getAllIssues with:", { userRole, userOrganizationId, userDepartmentId });
-          const resp = await jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId);
+          const resp = await jiraService.getAllIssues(userRole, userOrganizationId, userDepartmentId, page, pageSize);
           console.log("Received response from getAllIssues:", resp);
           
           const payload = Array.isArray(resp)
@@ -276,7 +255,7 @@ const AllOpen: React.FC = () => {
           setTotal(payload.total || allIssues.length);
 
           // derive statuses & assignees
-          const uniqueStatuses = Array.from(new Set(allIssues.map(i => i.fields?.status?.name).filter(Boolean))).map(s => ({ id: s!, name: s! }));
+          const uniqueStatuses = Array.from(new Set(filtered.map(i => i.fields?.status?.name).filter(Boolean))).map(s => ({ id: s!, name: s! }));
           
           // Add "Pre Approval" status if not already present and sort
           const allStatuses = uniqueStatuses.some(s => s.name === "Pre Approval") 
@@ -384,23 +363,9 @@ const AllOpen: React.FC = () => {
             const allIssues: Issue[] = Array.isArray(resp) ? resp : (resp && Array.isArray(resp.issues) ? resp.issues : []);
             const filtered = allIssues.filter(i => i.fields?.project?.name === "Request Management");
             setIssues(filtered);
-            setToastMessage('Request Deleted');
-            setToastType('success');
-            setShowToast(true);
-            
-            // Auto-hide toast after 3 seconds
-            setTimeout(() => {
-              setShowToast(false);
-            }, 3000);
+            showToast('Request Deleted', 'success');
           } catch (err) {
-            setToastMessage('Delete failed');
-            setToastType('error');
-            setShowToast(true);
-            
-            // Auto-hide toast after 3 seconds
-            setTimeout(() => {
-              setShowToast(false);
-            }, 3000);
+            showToast('Delete failed', 'error');
             console.error(err);
           } finally {
             setOpen(false);
@@ -687,7 +652,7 @@ const AllOpen: React.FC = () => {
           <div className="mt-3 text-sm text-gray-500">Showing {filteredIssues.length} of {issues.length} requests</div>
 
           {/* Modals */}
-          {selectedIssue && <EditIssueModal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setSelectedIssue(null); }} onSubmit={async (key, data) => { await jiraService.updateIssue(key, data); /* Refresh simplified */ }} issue ={selectedIssue as any} />}
+          {selectedIssue && <EditIssueModal isOpen={isEditModalOpen} onClose={() => { setIsEditModalOpen(false); setSelectedIssue(null); }} onSubmit={async (key, data) => { await jiraService.updateIssue(key, data); /* Refresh simplified */ }} issue ={selectedIssue} />}
 
         </div>
 
@@ -725,14 +690,22 @@ const AllOpen: React.FC = () => {
           </div>
         )}
       </div>
-      {/* Show toast if needed */}
-      {showToast && (
-        <SuccessToast2 
-          message={toastMessage} 
-          type={toastType}
-          onClose={() => setShowToast(false)} 
-        />
-      )}
+      {/* Toast container - moved lower so it doesn't overlap header icons */}
+      <div className="fixed right-5 z-[9999] flex flex-col gap-2 top-16 lg:top-20">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            role="status"
+            aria-live="polite"
+            className={`px-4 py-2 rounded shadow-md max-w-xs border pointer-events-auto ${
+              t.type === 'success' ? 'bg-green-600 text-white' :
+              t.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-800 text-white'
+            }`}
+          >
+            {t.message}
+          </div>
+        ))}
+      </div>
     </>
   );
 };
