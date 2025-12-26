@@ -17,109 +17,97 @@ export default function CompleteInvitation() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Extract email from URL query parameters (no more token)
-  const queryParams = new URLSearchParams(location.search);
-  let email = queryParams.get("email") || "";
-  
-  // If email is not in URL params, try to get it from localStorage
-  if (!email) {
-    email = window.localStorage.getItem('emailForSignIn') || "";
-  }
-  
-  // Debug logging
-  console.log('Initial email from URL params:', queryParams.get("email"));
-  console.log('Initial email from localStorage:', window.localStorage.getItem('emailForSignIn'));
-  console.log('Final email value:', email);
-  
   // State for email
-  const [emailState, setEmailState] = useState(email);
+  const [emailState, setEmailState] = useState<string>("");
   
-  // Check if this is an email link sign-in
+
+  
+  // Verify the invitation when component mounts
   useEffect(() => {
-    console.log('Checking if this is an email link sign-in...');
-    console.log('Current URL:', window.location.href);
-    
-    // Confirm the link is a sign-in with email link
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      console.log('This is an email link sign-in');
-      
-      // Get email from localStorage if available
-      let emailFromStorage = window.localStorage.getItem('emailForSignIn');
-      console.log('Email from localStorage:', emailFromStorage);
-      
-      if (!emailFromStorage) {
-        // User opened the link on a different device
-        // Set error message and stop processing
-        setMessage({
-          type: "error", 
-          text: "Email verification failed. Please open the invitation link on the same device where you received the email, or request a new invitation."
-        });
-        setVerificationLoading(false);
-        return;
-      }
-      
-      if (emailFromStorage) {
-        console.log('Verifying invitation for email:', emailFromStorage);
+    const verifyInvitation = async () => {
+      // Check if this is an email link sign-in
+      if (isSignInWithEmailLink(auth, window.location.href)) {
+        console.log('This is an email link sign-in');
         
-        // First, verify the invitation before showing sign-up options
-        invitationApi.verifyInvitationByEmail(emailFromStorage)
-          .then((response) => {
-            if (response.valid) {
-              // Invitation is valid, store email in state but don't sign in yet
-              // The user will choose how to sign up (Google, Microsoft, or custom)
-              console.log('Invitation verified successfully');
-              // Update the email state
-              setEmailState(emailFromStorage);
-              // Clear email from storage
-              window.localStorage.removeItem('emailForSignIn');
-            } else {
-              // Invitation is not valid
-              setMessage({
-                type: "error", 
-                text: "Invalid invitation. Please request a new invitation."
-              });
-            }
-          })
-          .catch((error) => {
-            console.error("Error verifying invitation:", error);
-            setMessage({
-              type: "error", 
-              text: "Failed to verify invitation. Please request a new invitation."
-            });
+        // Get email from localStorage if available
+        let emailFromStorage = window.localStorage.getItem('emailForSignIn');
+        console.log('Email from localStorage:', emailFromStorage);
+        
+        if (!emailFromStorage) {
+          // User opened the link on a different device
+          setMessage({
+            type: "error", 
+            text: "Email verification failed. Please open the invitation link on the same device where you received the email, or request a new invitation."
           });
-      }
-    } else {
-      console.log('This is not an email link sign-in');
-      // If it's not an email link sign-in but we have an email from URL params, verify the invitation
-      if (email) {
-        console.log('Verifying invitation for email from URL params:', email);
+          setVerificationLoading(false);
+          return;
+        }
         
         // Verify the invitation
-        invitationApi.verifyInvitationByEmail(email)
-          .then((response) => {
+        try {
+          const response = await invitationApi.verifyInvitationByEmail(emailFromStorage);
+          
+          if (response.valid) {
+            // Invitation is valid
+            console.log('Invitation verified successfully');
+            setEmailState(emailFromStorage);
+            // Clear email from storage
+            window.localStorage.removeItem('emailForSignIn');
+            setInvitationData({
+              email: response.email,
+              role: response.role,
+              departmentId: response.departmentId,
+              organizationId: response.organizationId
+            });
+          } else {
+            setMessage({type: "error", text: response.error || "Invalid invitation."});
+          }
+        } catch (error) {
+          console.error("Error verifying invitation:", error);
+          setMessage({type: "error", text: "Failed to verify invitation: " + (error as Error).message});
+        }
+      } else {
+        // Extract email from URL query parameters
+        const queryParams = new URLSearchParams(location.search);
+        let email = queryParams.get("email") || "";
+        
+        console.log('Email from URL params:', email);
+        
+        if (email) {
+          // Verify the invitation
+          try {
+            const response = await invitationApi.verifyInvitationByEmail(email);
+            
             if (response.valid) {
               // Invitation is valid
               console.log('Invitation verified successfully');
-              // Update the email state
               setEmailState(email);
-            } else {
-              // Invitation is not valid
-              setMessage({
-                type: "error", 
-                text: "Invalid invitation. Please request a new invitation."
+              setInvitationData({
+                email: response.email,
+                role: response.role,
+                departmentId: response.departmentId,
+                organizationId: response.organizationId
               });
+            } else {
+              setMessage({type: "error", text: response.error || "Invalid invitation."});
             }
-          })
-          .catch((error) => {
+          } catch (error) {
             console.error("Error verifying invitation:", error);
-            setMessage({
-              type: "error", 
-              text: "Failed to verify invitation. Please request a new invitation."
-            });
+            setMessage({type: "error", text: "Failed to verify invitation: " + (error as Error).message});
+          }
+        } else {
+          // No email in URL params
+          setMessage({
+            type: "error", 
+            text: "Invalid invitation. Email is required. Please ensure you're opening this link on the same device where you received the invitation email."
           });
+        }
       }
-    }
-  }, []);
+      setVerificationLoading(false);
+    };
+    
+    verifyInvitation();
+  }, [location.search]);
   
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: string, text: string} | null>(null);

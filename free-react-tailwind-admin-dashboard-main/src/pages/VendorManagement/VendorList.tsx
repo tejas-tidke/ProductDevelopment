@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import PageMeta from "../../components/common/PageMeta";
 import { jiraService, ProductItem } from "../../services/jiraService";
-import { Modal } from "../../components/ui/modal/index.tsx";
+import { Modal } from "../../components/ui/modal/index.ts";
 import VendorListModal from "./VendorListModal";
+import { Table, TableHeader, TableBody, TableRow, TableCell } from "../../components/ui/table";
+import SuccessToast2 from "../../components/ui/toast/SuccessToast2";
 
 interface Column {
   key: string;
@@ -23,6 +25,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 type VendorType = "All Vendors" | "Software" | "Hardware" | "Services" | "Cloud";
 
 const VendorList: React.FC = () => {
+  const navigate = useNavigate();
   const { userOrganizationName, userDepartmentName, userData } = useAuth(); // Add userData to get user info
   // --- UI / filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -76,6 +79,11 @@ const VendorList: React.FC = () => {
 
   const [addSuccess, setAddSuccess] = useState(false);
   const [lastAddedProduct, setLastAddedProduct] = useState<ProductItem | null>(null);
+  
+  // State for toast notification
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
   // Function to handle vendor name input with autocomplete
   const handleVendorNameChange = (value: string) => {
@@ -270,21 +278,15 @@ const VendorList: React.FC = () => {
         }]);
       }
 
-      // 🔹 Save info for success message
-      setLastAddedProduct({
-        ...created,
-        vendorId: `V-${created.id}`,
-        vendorName: created.nameOfVendor,
-        owner: userOrganizationName || "John Doe",
-        department: userDepartmentName || "IT Department",
-        activeAgreementSpend: `$${totalSpend.toLocaleString()}`
-      });
-      setAddSuccess(true);
-
       closeAddVendorModal();
+      
+      // Navigate with success state
+      navigate('/vendor-management/vendors', { state: { toastMessage: `Vendor ${vendorName.trim()} added successfully!`, toastType: 'success' } });
     } catch (err: any) {
       console.error("Failed to create vendor", err);
-      alert(err.message || "Something went wrong");
+      
+      // Navigate with error state
+      navigate('/vendor-management/vendors', { state: { toastMessage: 'Failed to create vendor. Please try again.', toastType: 'error' } });
     }
   };
 
@@ -301,6 +303,31 @@ const VendorList: React.FC = () => {
 
     fetchVendorNames();
   }, []);
+
+  // Get location state for toast messages
+  const location = useLocation();
+  
+  // Handle toast message from navigation state
+  useEffect(() => {
+    const { toastMessage, toastType } = location.state || {};
+    if (toastMessage) {
+      // Clear the state to avoid showing the toast on page refresh
+      window.history.replaceState({}, document.title);
+      
+      // Set toast data
+      setToastMessage(toastMessage);
+      setToastType((toastType as 'success' | 'error') || 'success');
+      setShowToast(true);
+      
+      // Auto-hide toast after 3 seconds
+      const timer = setTimeout(() => {
+        setShowToast(false);
+      }, 3000);
+      
+      // Clean up timer
+      return () => clearTimeout(timer);
+    }
+  }, [location.state]);
 
   // Function to get cached data or fetch new data
   const getCachedOrFetch = async (key: string, fetchFn: () => Promise<any>) => {
@@ -509,7 +536,7 @@ const VendorList: React.FC = () => {
     sortConfig: { key: string; direction: "asc" | "desc" } | null;
     onMove: (dragIndex: number, hoverIndex: number) => void;
   }> = ({ column, index, onSort, sortConfig, onMove }) => {
-    const ref = React.useRef<HTMLTableHeaderCellElement>(null);
+    const ref = React.useRef<HTMLTableCellElement>(null);
     const [{ isDragging }, drag] = useDrag({
       type: "tableColumn",
       item: { index, column },
@@ -747,54 +774,16 @@ const VendorList: React.FC = () => {
   return (
     <>
       <PageMeta title="Vendor List" description="List of all vendor products" />
+      {/* Show toast if needed */}
+      {showToast && (
+        <SuccessToast2 
+          message={toastMessage} 
+          type={toastType}
+          onClose={() => setShowToast(false)} 
+        />
+      )}
       <div className="p-6">
         <div className="bg-white rounded shadow-sm p-6">
-          {/* Success Messages */}
-          {deleteSuccess && lastDeletedProduct && (
-            <div className="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded">
-              <div className="flex items-center justify-between">
-                <span>
-                  <span className="font-medium">
-                    {lastDeletedProduct.productName || "Product"}
-                  </span>{" "}
-                  from{" "}
-                  <span className="font-medium">
-                    {lastDeletedProduct.nameOfVendor || "Vendor"}
-                  </span> has been deleted successfully.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setDeleteSuccess(false)}
-                  className="text-green-900 hover:text-green-700 font-medium"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          )}
-
-          {addSuccess && lastAddedProduct && (
-            <div className="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded">
-              <div className="flex items-center justify-between">
-                <span>
-                  <span className="font-medium">
-                    {lastAddedProduct.productName || "Product"}
-                  </span>{" "}
-                  added to{" "}
-                  <span className="font-medium">
-                    {lastAddedProduct.nameOfVendor || "Vendor"}
-                  </span> successfully.
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setAddSuccess(false)}
-                  className="text-green-900 hover:text-green-700 font-medium"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Header with Add Vendor Button */}
           <div className="flex items-center justify-between mb-6">
@@ -915,9 +904,9 @@ const VendorList: React.FC = () => {
           <DndProvider backend={HTML5Backend}>
             <div className="border border-gray-200 rounded-lg bg-white shadow-sm" style={{ height: '65vh' }}>
               <div className="overflow-y-auto" style={{ height: '100%' }}>
-                <table className="min-w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0 z-10 shadow">
-                    <tr className="border-b border-gray-200">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
                       {visibleColumns.map((col, idx) => (
                         <DraggableHeader
                           key={col.key}
@@ -930,37 +919,39 @@ const VendorList: React.FC = () => {
                           onMove={handleColumnMove}
                         />
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {filteredProducts.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={visibleColumns.length}
+                      <TableRow>
+                        <TableCell
+                          isHeader={false}
                           className="px-6 py-8 text-center text-gray-500"
+                          colSpan={visibleColumns.length}
                         >
                           No vendors found for this view.
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )}
 
                     {filteredProducts.map((product, idx) => (
-                      <tr
+                      <TableRow
                         key={product.id || idx}
                         className="hover:bg-indigo-50/40 transition-colors"
                       >
                         {visibleColumns.map((col) => (
-                          <td
+                          <TableCell
                             key={`${product.id || idx}-${col.key}`}
                             className="px-4 py-3 align-top text-gray-900 text-center"
+                            isHeader={false}
                           >
                             {getCellValue(product, col.key, idx)}
-                          </td>
+                          </TableCell>
                         ))}
-                      </tr>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </div>
           </DndProvider>

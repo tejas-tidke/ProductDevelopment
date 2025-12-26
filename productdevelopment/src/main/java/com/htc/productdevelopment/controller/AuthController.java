@@ -454,10 +454,27 @@ public class AuthController {
                 logger.info("User auto-sync completed successfully for UID: {}", uid);
                 return ResponseEntity.ok(responseData);
             } else {
-                logger.warn("User with UID {} not found in database", uid);
-                Map<String, String> errorResponse = new HashMap<>();
-                errorResponse.put("error", "User not found in database");
-                return ResponseEntity.badRequest().body(errorResponse);
+                // If user doesn't exist in database, create them with default role
+                logger.info("User with UID {} not found in database, creating new user with default role", uid);
+                try {
+                    // Get Firebase user details
+                    com.google.firebase.auth.UserRecord firebaseUser = com.google.firebase.auth.FirebaseAuth.getInstance().getUser(uid);
+                    
+                    // Create user in database with default role
+                    User newUser = userService.createUser(uid, firebaseUser.getEmail(), firebaseUser.getDisplayName());
+                    
+                    Map<String, Object> responseData = new HashMap<>();
+                    responseData.put("message", "User created and synced successfully");
+                    responseData.put("user", newUser);
+                    
+                    logger.info("User created and synced successfully for UID: {}", uid);
+                    return ResponseEntity.ok(responseData);
+                } catch (Exception createException) {
+                    logger.error("Error creating user with UID: {}", uid, createException);
+                    Map<String, String> errorResponse = new HashMap<>();
+                    errorResponse.put("error", "Failed to create user: " + createException.getMessage());
+                    return ResponseEntity.badRequest().body(errorResponse);
+                }
             }
         } catch (Exception e) {
             logger.error("Error auto-syncing user with UID: {}", uid, e);

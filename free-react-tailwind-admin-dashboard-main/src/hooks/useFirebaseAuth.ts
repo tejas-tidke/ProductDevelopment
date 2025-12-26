@@ -18,19 +18,24 @@ export const useFirebaseAuth = () => {
       // Log the error for debugging
       console.error("Sign in error:", err);
       
-      let errorMessage = "Failed to sign in";
+      let errorMessage = "Failed to sign in. Please try again.";
       if (err instanceof Error) {
         // Firebase error codes
         if (err.message.includes("invalid-credential")) {
-          errorMessage = "Invalid email or password";
+          errorMessage = "Invalid email or password. Please check your credentials and try again.";
         } else if (err.message.includes("user-disabled")) {
-          errorMessage = "This account has been disabled";
+          errorMessage = "This account has been disabled. Please contact an administrator.";
         } else if (err.message.includes("user-not-found")) {
-          errorMessage = "No account found with this email";
+          errorMessage = "No account found with this email. Please check your email or sign up.";
         } else if (err.message.includes("wrong-password")) {
-          errorMessage = "Incorrect password";
+          errorMessage = "Incorrect password. Please try again.";
+        } else if (err.message.includes("too-many-requests")) {
+          errorMessage = "Too many failed attempts. Please try again later.";
+        } else if (err.message.includes("network-request-failed")) {
+          errorMessage = "Network error. Please check your internet connection and try again.";
         } else {
-          errorMessage = err.message;
+          // Generic error message for unknown errors
+          errorMessage = "Unable to sign in. Please check your credentials and try again.";
         }
       }
       

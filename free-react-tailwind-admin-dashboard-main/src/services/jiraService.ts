@@ -2,7 +2,10 @@
 // Service for handling Jira API calls
 import { auth } from "../firebase";
 import { apiCall } from "./api";
+import { cacheManager } from "./CacheManager";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+
+const JIRA_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache duration
 
 export const jiraTransitionMap: Record<string, string> = {
   // Approve Transitions
@@ -20,8 +23,14 @@ export const jiraTransitionMap: Record<string, string> = {
   "decline-post-approval": "6",
 };
 
-// Generic API call function for Jira endpoints
-async function jiraApiCall(endpoint: string, options: RequestInit = {}) {
+// Generic API call function for Jira endpoints with caching and request deduplication
+async function jiraApiCall(endpoint: string, options: RequestInit = {}, useCache = false) {
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  // Use cache manager if caching is enabled
+  if (useCache) {
+    return cacheManager.fetchWithCache(url, options, JIRA_CACHE_DURATION);
+  }
 
   const isFormData = options.body instanceof FormData;
 
@@ -35,13 +44,19 @@ async function jiraApiCall(endpoint: string, options: RequestInit = {}) {
     headers["Content-Type"] = "application/json";
   }
 
+  // Add timeout to prevent hanging requests
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(url, {
       method: options.method || "GET",
       body: options.body,
       headers,
-      signal: AbortSignal.timeout(30000),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       // Try to parse error response
@@ -68,6 +83,8 @@ async function jiraApiCall(endpoint: string, options: RequestInit = {}) {
 
     return response.json().catch(() => response.text());
   } catch (error: any) {
+    clearTimeout(timeoutId);
+    
     // Handle network errors specifically
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       throw new Error(`Failed to connect to Jira API: ${error.message}`);
@@ -426,10 +443,10 @@ export const jiraService = {
 
 
   // Get recent projects
-  getRecentProjects: () => jiraApiCall("/api/jira/projects/recent"),
+  getRecentProjects: () => jiraApiCall("/api/jira/projects/recent", {}, true), // Enable caching
   
   // Get all projects
-  getAllProjects: () => jiraApiCall("/api/jira/projects"),
+  getAllProjects: () => jiraApiCall("/api/jira/projects", {}, true), // Enable caching
   
   // Create a new project
   createProject: (projectData: ProjectData) => jiraApiCall("/api/jira/projects", {
@@ -483,7 +500,7 @@ export const jiraService = {
   getRecentIssues: () => jiraApiCall("/api/jira/issues/recent"),
   
   // Get all fields from Jira
-  getFields: () => jiraApiCall("/api/jira/fields"),
+  getFields: () => jiraApiCall("/api/jira/fields", {}, true), // Enable caching
   
   // Get comments for a specific issue
   getIssueComments: (issueIdOrKey: string) => jiraApiCall(`/api/jira/issues/${issueIdOrKey}/comments`),
@@ -575,7 +592,7 @@ transitionIssueCustom: async (issueKey: string, transitionId: string) => {
 
   // Get all issue types from Jira
   getIssueTypes: (): Promise<JiraIssueType[]> =>
-    jiraApiCall("/api/jira/issuetypes"),
+    jiraApiCall("/api/jira/issuetypes", {}, true), // Enable caching
 
   getCreateMeta: async (projectKey?: string) => {
     try {

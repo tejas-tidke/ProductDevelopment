@@ -1,6 +1,7 @@
 // src/components/VendorFormModal.tsx
 import React, { useEffect, useState } from "react";
 import { Vendor } from "../VendorVariable/vendor";
+import { PrimaryButton, SecondaryButton } from "../../../components/ui/button";
 import "../vendors.css";
 
 
@@ -313,18 +314,17 @@ const VendorFormModal: React.FC<VendorFormModalProps> = ({
           </div>
 
           <div className="modal-footer">
-            <button type="submit" className="btn btn-primary">
+            <PrimaryButton type="submit">
               <i className="fa fa-check mr-1" />
               Save
-            </button>
-            <button
+            </PrimaryButton>
+            <SecondaryButton
               type="button"
-              className="btn btn-default ml-2"
               onClick={onClose}
             >
               <i className="fa fa-times mr-1" />
               Cancel
-            </button>
+            </SecondaryButton>
           </div>
         </form>
       </div>

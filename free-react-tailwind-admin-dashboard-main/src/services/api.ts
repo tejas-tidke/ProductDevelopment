@@ -1,8 +1,22 @@
 // services/api.ts
 import { auth } from "../firebase";
 
+// Cache for storing API responses
+const apiCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache duration
+
 // Generic API call function with automatic Authorization header
-export async function apiCall(endpoint: string, options: RequestInit = {}) {
+export async function apiCall(endpoint: string, options: RequestInit = {}, useCache = false) {
+  // Check cache first if enabled
+  const cacheKey = `${endpoint}-${JSON.stringify(options)}`;
+  if (useCache) {
+    const cached = apiCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      console.log(`Returning cached response for ${endpoint}`);
+      return cached.data;
+    }
+  }
+
   // Get the current user's ID token
   const user = auth.currentUser;
   let idToken = null;
@@ -28,41 +42,84 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
   Object.assign(headers, options.headers || {});
 
   // Prepare the full URL
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8080";
-  const url = `${apiUrl}${endpoint}`;
-
-  // Make the request
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
-
-  // Handle non-OK responses
-  if (!response.ok) {
-    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+  // Dynamically determine API URL based on current host
+  let apiUrl = import.meta.env.VITE_API_URL;
+  
+  if (!apiUrl) {
+    // If no VITE_API_URL is set, determine based on current host
+    const currentHost = window.location.hostname;
+    const currentPort = window.location.port;
     
-    try {
-      // Try to parse the error response as JSON
-      const errorText = await response.text();
-      const errorData = JSON.parse(errorText);
-      if (errorData.error) {
-        errorMessage = errorData.error;
-      }
-    } catch (parseError) {
-      // If parsing fails, use the status text
-      console.warn("Failed to parse error response:", parseError);
+    if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+      // Local development
+      apiUrl = 'http://localhost:8080';
+    } else if (currentHost === '192.168.1.115') {
+      // Network access
+      apiUrl = 'http://192.168.1.115:8080';
+    } else {
+      // Default to localhost for any other host
+      apiUrl = 'http://localhost:8080';
     }
-    
-    throw new Error(errorMessage);
   }
   
-  // Check if response is JSON
-  const contentType = response.headers.get("content-type");
-  if (contentType && contentType.includes("application/json")) {
-    return response.json();
-  } else {
-    // Return text for non-JSON responses
-    return response.text();
+  const url = `${apiUrl}${endpoint}`;
+  // Add timeout to prevent hanging requests
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+  
+  try {
+    // Make the request with timeout
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    // Handle non-OK responses
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      
+      try {
+        // Try to parse the error response as JSON
+        const errorText = await response.text();
+        const errorData = JSON.parse(errorText);
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch (parseError) {
+        // If parsing fails, use the status text
+        console.warn("Failed to parse error response:", parseError);
+      }
+      
+      throw new Error(errorMessage);
+    }
+    
+    // Check if response is JSON
+    const contentType = response.headers.get("content-type");
+    let data;
+    if (contentType && contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      // Return text for non-JSON responses
+      data = await response.text();
+    }
+
+    // Cache the response if enabled
+    if (useCache) {
+      apiCache.set(cacheKey, { data, timestamp: Date.now() });
+    }
+
+    return data;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    
+    if (error.name === 'AbortError') {
+      throw new Error('Request timed out');
+    }
+    
+    throw error;
   }
 }
 
@@ -223,10 +280,10 @@ export const invitationApi = {
 // Notification API functions
 export const notificationApi = {
   // Get all notifications for the current user
-  getNotifications: () => apiCall("/api/notifications"),
+  getNotifications: () => apiCall("/api/notifications", {}, true), // Enable caching
   
   // Get unread notifications count for the current user
-  getUnreadCount: () => apiCall("/api/notifications/unread-count"),
+  getUnreadCount: () => apiCall("/api/notifications/unread-count", {}, true), // Enable caching
   
   // Mark a notification as read
   markAsRead: (id: number) => apiCall(`/api/notifications/${id}/mark-as-read`, {
@@ -240,6 +297,11 @@ export const notificationApi = {
   
   // Delete a notification
   deleteNotification: (id: number) => apiCall(`/api/notifications/${id}`, {
+    method: "DELETE"
+  }),
+
+  // Delete all notifications
+  clearAll: () => apiCall("/api/notifications/all", {
     method: "DELETE"
   })
 };

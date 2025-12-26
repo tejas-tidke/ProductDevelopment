@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router";
+import { lazy, Suspense } from "react";
 import SignIn from "./pages/AuthPages/SignIn";
 import SignUp from "./pages/AuthPages/SignUp";
 import NotFound from "./pages/OtherPage/NotFound";
@@ -8,8 +9,6 @@ import Alerts from "./pages/UiElements/Alerts";
 import Badges from "./pages/UiElements/Badges";
 import Avatars from "./pages/UiElements/Avatars";
 import Buttons from "./pages/UiElements/Buttons";
-import LineChart from "./pages/Charts/LineChart";
-import BarChart from "./pages/Charts/BarChart";
 import Calendar from "./pages/Calendar";
 import BasicTables from "./pages/Tables/BasicTables";
 import FormElements from "./pages/Forms/FormElements";
@@ -50,6 +49,10 @@ import { Permission } from "./config/permissions";
 import Organizations from "./pages/Organizations";
 // import AttachmentTestPage from "./pages/AttachmentTestPage";
 // import SimpleAttachmentTest from "./pages/SimpleAttachmentTest";
+
+// Lazy load chart components
+const LineChart = lazy(() => import("./pages/Charts/LineChart"));
+const BarChart = lazy(() => import("./pages/Charts/BarChart"));
 
 export default function App() {
   return (
@@ -165,7 +168,9 @@ export default function App() {
               path="/line-chart" 
               element={
                 <ProtectedRoute>
-                  <LineChart />
+                  <Suspense fallback={<div>Loading...</div>}>
+                    <LineChart />
+                  </Suspense>
                 </ProtectedRoute>
               } 
             />
@@ -173,7 +178,9 @@ export default function App() {
               path="/bar-chart" 
               element={
                 <ProtectedRoute>
-                  <BarChart />
+                  <Suspense fallback={<div>Loading...</div>}>
+                    <BarChart />
+                  </Suspense>
                 </ProtectedRoute>
               } 
             />

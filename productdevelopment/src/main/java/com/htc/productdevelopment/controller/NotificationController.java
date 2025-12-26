@@ -15,7 +15,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.ServletException;
-import java.security.Principal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,9 +65,19 @@ public class NotificationController {
     @GetMapping
     public ResponseEntity<?> getNotifications() {
         try {
-            List<Notification> notifications = notificationService.getAllNotifications();
-            
-            return ResponseEntity.ok(notifications);
+            User currentUser = getCurrentUserFromToken();
+            if (currentUser != null) {
+                List<Notification> notifications = notificationService.getNotificationsForUser(
+                    currentUser.getId(),
+                    currentUser.getRole() != null ? currentUser.getRole().name() : null,
+                    currentUser.getDepartmentId(),
+                    currentUser.getOrganizationId()
+                );
+                return ResponseEntity.ok(notifications);
+            } else {
+                List<Notification> notifications = notificationService.getAllNotifications();
+                return ResponseEntity.ok(notifications);
+            }
         } catch (Exception e) {
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("message", "Error fetching notifications: " + e.getMessage());
@@ -82,8 +91,19 @@ public class NotificationController {
     @GetMapping("/unread-count")
     public ResponseEntity<?> getUnreadNotificationsCount() {
         try {
-            int unreadCount = notificationService.countAllUnreadNotifications();
-            
+            User currentUser = getCurrentUserFromToken();
+            int unreadCount;
+            if (currentUser != null) {
+                unreadCount = notificationService.countUnreadNotificationsForUser(
+                    currentUser.getId(),
+                    currentUser.getRole() != null ? currentUser.getRole().name() : null,
+                    currentUser.getDepartmentId(),
+                    currentUser.getOrganizationId()
+                );
+            } else {
+                unreadCount = notificationService.countAllUnreadNotifications();
+            }
+
             Map<String, Integer> response = new HashMap<>();
             response.put("unreadCount", unreadCount);
             
@@ -119,8 +139,17 @@ public class NotificationController {
     @PutMapping("/mark-all-as-read")
     public ResponseEntity<?> markAllAsRead() {
         try {
-            notificationService.markAllAsRead();
-            
+            User currentUser = getCurrentUserFromToken();
+            if (currentUser != null) {
+                notificationService.markAllAsRead(
+                    currentUser.getId(),
+                    currentUser.getRole() != null ? currentUser.getRole().name() : null,
+                    currentUser.getDepartmentId(),
+                    currentUser.getOrganizationId()
+                );
+            } else {
+                notificationService.markAllAsRead();
+            }
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             Map<String, String> errorResponse = new HashMap<>();

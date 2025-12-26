@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
   CalenderIcon,
@@ -14,8 +14,8 @@ import {
   FileIcon
 } from "../icons";
 import { useSidebar } from "../context/SidebarContext";
-import { JIRA_CONFIG, getJiraAuthHeaders, getJiraRequestUrl } from "../config/jiraConfig";
 import { useAuth } from "../context/AuthContext";
+import { jiraService } from "../services/jiraService";
 
 import SettingsDropdown from "../components/header/ui/SettingsDropdown";
 import UserDropdown from "../components/header/ui/UserDropdown";
@@ -45,7 +45,7 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAdmin, isSuperAdmin } = useAuth(); // Add this line to get user role information
+  const { isAdmin, isSuperAdmin, loading: authLoading } = useAuth(); // Add this line to get user role information
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: "main" | "others";
@@ -73,49 +73,21 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
 
 
 
-  // Fetch projects from backend
-  const fetchJiraProjects = async () => {
+  // Fetch projects from backend with caching
+  const fetchJiraProjects = useCallback(async () => {
+    // Skip fetching if already loaded
+    if (recentProjects.length > 0 || isLoading) {
+      return;
+    }
+    
     console.log('Starting to fetch Jira projects from backend...');
     
     setIsLoading(true);
     setError(null);
     
     try {
-      const apiUrl = getJiraRequestUrl(JIRA_CONFIG.apiEndpoints.recentProjects);
-      console.log('Making request to:', apiUrl);
-      
-      const headers = getJiraAuthHeaders();
-      
-      const response = await fetch(apiUrl, {
-        headers: headers as HeadersInit,
-        mode: 'cors',
-        credentials: 'omit'
-      });
-
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Backend API error:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText,
-          url: apiUrl
-        });
-        
-        let errorMessage = `Backend API error (${response.status}): ${response.statusText}`;
-        if (response.status === 401) {
-          errorMessage = 'Authentication failed.';
-        } else if (response.status === 403) {
-          errorMessage = 'Access forbidden.';
-        } else if (response.status === 404) {
-          errorMessage = 'API endpoint not found.';
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
+      // Use jiraService with caching instead of direct fetch
+      const data = await jiraService.getRecentProjects();
       console.log('Backend API response:', data);
       
       // Define interface for the project data from backend
@@ -142,9 +114,6 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
       
       // Set recent projects
       setRecentProjects(jiraProjects);
-      // if (jiraProjects.length > 0) {
-      //   setSelectedProject(jiraProjects[0].path);
-      // }
     } catch (error) {
       console.error("Failed to fetch Jira projects:", error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch projects';
@@ -153,11 +122,14 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [recentProjects.length, isLoading]);
 
   useEffect(() => {
-    fetchJiraProjects();
-  }, []);
+    // Only fetch projects if auth is loaded and user is admin/superadmin
+    if (!authLoading && (isAdmin || isSuperAdmin)) {
+      fetchJiraProjects();
+    }
+  }, [authLoading, isAdmin, isSuperAdmin, fetchJiraProjects]);
 
   const isActive = useCallback(
     (path: string) => location.pathname === path,
@@ -298,19 +270,26 @@ const [isInteractingWithDropdown, setIsInteractingWithDropdown] = useState(false
 
 const isPrivileged = isAdmin || isSuperAdmin;
 
-// Filter nav items based on user role
-const filteredNavItems = navItems.filter(item => {
-  // Hide Dashboard for non-privileged users
-  if (item.name === "Dashboard" && !isPrivileged) return false;
+// Memoize filtered nav items based on user role to prevent re-rendering
+const filteredNavItems = useMemo(() => {
+  // Show loading state while auth is still loading
+  if (authLoading) {
+    return [];
+  }
   
-  // Hide Procurement Request for non-admin/superadmin users
-  if (item.name === "Procurement Request" && !(isSuperAdmin || isAdmin)) return false;
-  
-  // Hide Vendor Management for non-admin/superadmin users
-  if (item.name === "Vendor Management" && !(isSuperAdmin || isAdmin)) return false;
-  
-  return true;
-});
+  return navItems.filter(item => {
+    // Hide Dashboard for non-privileged users
+    if (item.name === "Dashboard" && !isPrivileged) return false;
+    
+    // Hide Procurement Request for non-admin/superadmin users
+    if (item.name === "Procurement Request" && !(isSuperAdmin || isAdmin)) return false;
+    
+    // Hide Vendor Management for non-admin/superadmin users
+    if (item.name === "Vendor Management" && !(isSuperAdmin || isAdmin)) return false;
+    
+    return true;
+  });
+}, [navItems, isAdmin, isSuperAdmin, isPrivileged, authLoading]);
 
 const othersItems: NavItem[] = [
   {

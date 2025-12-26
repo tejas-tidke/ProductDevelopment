@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNotifications } from "../../../context/NotificationContext";
 import { AppNotification } from "../../../context/NotificationContext";
+import { IconDropdownButton } from "../../../components/ui";
 
 const NotificationDropdown: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -51,20 +52,15 @@ const NotificationDropdown: React.FC = () => {
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Bell button */}
-      <button
+      <IconDropdownButton
         onClick={toggleDropdown}
-        className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm border border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700"
+        ariaLabel="Notifications"
+        badgeCount={unreadCount}
+        hasBadge={unreadCount > 0}
       >
-        {/* unread badge */}
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
-            {unreadCount}
-          </span>
-        )}
-
         {/* 🔔 icon */}
         <span className="text-lg leading-none">🔔</span>
-      </button>
+      </IconDropdownButton>
 
       {/* Dropdown */}
       {isOpen && (

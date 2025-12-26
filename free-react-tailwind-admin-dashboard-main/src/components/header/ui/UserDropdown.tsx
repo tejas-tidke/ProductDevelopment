@@ -5,6 +5,7 @@ import { useNavigate } from "react-router";
 import { useSignOut } from "../../../hooks/useSignOut";
 import { useAuth } from "../../../context/AuthContext";
 import { userService } from "../../../services/userService";
+import { IconDropdownButton } from "../../ui";
 
 interface UserDropdownProps {
   isOpen: boolean;
@@ -68,16 +69,15 @@ export default function UserDropdown({ isOpen, onToggle }: UserDropdownProps) {
 
   return (
     <div className="relative">
-      <button
-        ref={btnRef}
+      <IconDropdownButton
         onClick={onToggle}
-        className="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full dropdown-toggle hover:text-gray-700 h-11 w-11 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-        aria-label="Profile"
+        ariaLabel="Profile"
+        ref={btnRef as React.Ref<HTMLButtonElement>}
       >
         <span className="overflow-hidden rounded-full h-9 w-9">
           <img src={userAvatar} alt="User" className="w-full h-full object-cover" />
         </span>
-      </button>
+      </IconDropdownButton>
 
       <Dropdown
         isOpen={isOpen}

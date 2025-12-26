@@ -131,6 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsSuperAdmin(false);
             setIsApprover(false);
             setIsRequester(true);
+            
+            // Still set loading to false even if there's an error
+            console.log('AuthContext: Setting loading to false after error');
           } finally {
             // Only set loading to false after everything is done
             console.log('AuthContext: Setting loading to false');

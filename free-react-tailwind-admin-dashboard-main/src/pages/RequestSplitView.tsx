@@ -9,6 +9,8 @@ import { useNotifications } from "../context/NotificationContext";
 import { useAuth } from "../context/AuthContext";
 import { commentService } from "../services/commentService";
 import AttachmentPreview from "../components/AttachmentPreview";
+import { API_ENDPOINTS, getApiUrl } from "../config/apiConfig";
+import SuccessToast2 from "../components/ui/toast/SuccessToast2";
 
 // Define minimal ADF interfaces (enough for description rendering)
 interface AdfNode {
@@ -353,8 +355,7 @@ const RequestSplitView: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { addNotification } = useNotifications();
-
+  const notificationContext = useNotifications();
   // dropdowns
   const [assignees, setAssignees] = useState<{ id: string; name: string }[]>(
     []
@@ -416,6 +417,13 @@ const RequestSplitView: React.FC = () => {
   // Store the total optimized cost fetched from backend
   const [totalProfit, setTotalProfit] = useState<number | null>(null);
   const [unitCost, setUnitCost] = useState("");
+  
+  // State for toast notification
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  
+
   const [editableLicenseCount, setEditableLicenseCount] = useState(
     getFieldValue(["customfield_10293", "customfield_10294"]) || "0"
   );
@@ -521,11 +529,9 @@ const RequestSplitView: React.FC = () => {
     setEditableLicenseCount("0");
   }, [currentProposal]);
 
-  // Disable status transitions while in Negotiation Stage until a final proposal is submitted,
-  // regardless of user role
-  // For other stages, allow transitions for SUPER_ADMIN users
-  const isTransitionDisabled =
-    isInNegotiationStage && !hasSubmittedFinalQuote;
+  // We don't disable the status dropdown anymore, but let the transition logic handle
+  // what options are shown based on the negotiation stage and final proposal status
+  const isTransitionDisabled = false;
 
   const formatAsYMD = (val: string) => {
     if (!val) return "";
@@ -660,7 +666,7 @@ const RequestSplitView: React.FC = () => {
             fileName: attachment.fileName || attachment.filename,
             // Use Jira's content URL for fileUrl to enable direct preview
             fileUrl: attachment.content || attachment.fileUrl || 
-                     (attachment.id ? `http://localhost:8080/api/jira/attachment/content/${attachment.id}` : ""),
+                     (attachment.id ? `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/attachment/content/${attachment.id}` : ""),
             fileSize: attachment.fileSize || attachment.size,
             uploadedBy: attachment.uploadedBy || "Unknown",
             stage: attachment.stage || "Unknown",
@@ -705,7 +711,7 @@ const RequestSplitView: React.FC = () => {
   const handlePreviewProposal = async (proposalId: number) => {
     try {
       const res = await fetch(
-        `http://localhost:8080/api/jira/proposals/${proposalId}`
+        `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/proposals/${proposalId}`
       );
 
       if (!res.ok) throw new Error("Failed to load proposal");
@@ -723,7 +729,7 @@ const RequestSplitView: React.FC = () => {
     try {
       setIsLoadingProposals(true);
       const res = await fetch(
-        `http://localhost:8080/api/jira/proposals/issue/${issueKey}`
+        `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/proposals/issue/${issueKey}`
       );
 
       if (!res.ok) {
@@ -1222,8 +1228,14 @@ const RequestSplitView: React.FC = () => {
       try {
         setIsAddingComment(true);
 
+        // Check if user data is available
         if (!userData) {
           throw new Error("User not authenticated");
+        }
+
+        // Ensure user object exists
+        if (!userData.user) {
+          throw new Error("User data is incomplete");
         }
 
         const response = await commentService.addComment({
@@ -1237,7 +1249,7 @@ const RequestSplitView: React.FC = () => {
         let avatarUrl = "https://via.placeholder.com/48";
         if (response.userAvatar) {
           avatarUrl = response.userAvatar;
-        } else if (userData && userData.user && userData.user.avatar) {
+        } else if (userData.user.avatar) {
           avatarUrl = userData.user.avatar;
         }
 
@@ -1277,15 +1289,20 @@ const RequestSplitView: React.FC = () => {
       }
     }
   };
-
   const handleAddReply = async (parentId: string) => {
     if (!replyText.trim() || !selectedIssue) return;
 
     try {
       setIsAddingComment(true);
 
+      // Check if user data is available
       if (!userData) {
         throw new Error("User not authenticated");
+      }
+
+      // Ensure user object exists
+      if (!userData.user) {
+        throw new Error("User data is incomplete");
       }
 
       const response = await commentService.addComment({
@@ -1300,7 +1317,7 @@ const RequestSplitView: React.FC = () => {
       let avatarUrl = "https://via.placeholder.com/48";
       if (response.userAvatar) {
         avatarUrl = response.userAvatar;
-      } else if (userData && userData.user && userData.user.avatar) {
+      } else if (userData.user.avatar) {
         avatarUrl = userData.user.avatar;
       }
 
@@ -1341,9 +1358,7 @@ const RequestSplitView: React.FC = () => {
     } finally {
       setIsAddingComment(false);
     }
-  };
-
-  const handleEditIssue = () => {
+  };  const handleEditIssue = () => {
     if (selectedIssue && canEditIssue()) {
       setIsEditModalOpen(true);
     }
@@ -1453,8 +1468,8 @@ const RequestSplitView: React.FC = () => {
           return role === "ADMIN";
                 
         case "Negotiation Stage":
-          // Only SUPER_ADMIN can transition (handled above)
-          return false;
+          // SUPER_ADMIN can transition, but others cannot (handled above)
+          return role === "SUPER_ADMIN";
                 
         case "Post Approval":
         case "Post-Approval":
@@ -1481,7 +1496,10 @@ const RequestSplitView: React.FC = () => {
         transitions.push(...APPROVE_DECLINE("4", "Negotiation Stage"));
         break;
       case "Negotiation Stage":
-        transitions.push(...APPROVE_DECLINE("5", "Post Approval"));
+        // Only show approve/decline transitions if a final proposal has been submitted
+        if (hasSubmittedFinalQuote) {
+          transitions.push(...APPROVE_DECLINE("5", "Post Approval"));
+        }
         break;
       case "Post Approval":
       case "Post-Approval":
@@ -1648,7 +1666,7 @@ const RequestSplitView: React.FC = () => {
       const isFinal = currentProposal === "final";
 
       const proposalRes = await fetch(
-        "http://localhost:8080/api/jira/contracts/add-proposal",
+        getApiUrl(API_ENDPOINTS.JIRA.CONTRACTS.ADD_PROPOSAL),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1662,9 +1680,7 @@ const RequestSplitView: React.FC = () => {
             proposalType: mapProposalType[currentProposal],
           }),
         }
-      );
-
-      if (!proposalRes.ok) {
+      );      if (!proposalRes.ok) {
         throw new Error("Failed to save proposal");
       }
 
@@ -1693,9 +1709,9 @@ const RequestSplitView: React.FC = () => {
 
       await Promise.all(
         uploadedAttachments.map((att) =>
-          fetch("http://localhost:8080/api/jira/contracts/save-attachment", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/save-attachment`,
+            {
+            method: "POST",            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               issueKey,
               fileName: att.filename,
@@ -1836,14 +1852,13 @@ const RequestSplitView: React.FC = () => {
       // Trigger final submission process
       console.log('📡 Sending final-submit request for issue:', issueKey);
       const response = await fetch(
-        `http://localhost:8080/api/jira/contracts/final-submit/${issueKey}`,
+        `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/final-submit/${issueKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
         }
       );
-      console.log('📡 Final-submit response status:', response.status);
-
+            console.log('📡 Final-submit response status:', response.status);
       if (!response.ok) {
         throw new Error("Failed to finalize submission");
       }
@@ -1862,7 +1877,7 @@ const RequestSplitView: React.FC = () => {
       try {
         console.log('📡 Fetching profit data for issue:', issueKey);
         const profitResponse = await fetch(
-          `http://localhost:8080/api/jira/contracts/profit/${issueKey}`
+          `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/profit/${issueKey}`
         );
         console.log('📡 Profit data response status:', profitResponse.status);
         if (profitResponse.ok) {
@@ -1949,7 +1964,7 @@ const RequestSplitView: React.FC = () => {
       // If we can't get it from the custom field, try fetching from backend
       console.log('📡 Making backend call to fetch profit data for:', selectedIssue.key);
       const profitResponse = await fetch(
-        `http://localhost:8080/api/jira/contracts/profit/${selectedIssue.key}`
+        `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/profit/${selectedIssue.key}`
       );
       console.log('📡 Backend response status:', profitResponse.status);
       
@@ -1994,9 +2009,8 @@ const RequestSplitView: React.FC = () => {
         const totalOptimizedCost = totalProfit !== null ? totalProfit : null;
         
         await fetch(
-          "http://localhost:8080/api/jira/contracts/mark-completed",
-          {
-            method: "POST",
+          `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/mark-completed`,
+          {            method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               issueKey: issueKey,
@@ -2026,9 +2040,28 @@ const RequestSplitView: React.FC = () => {
           }
         );
       }
+      
+      // Show success toast
+      setToastMessage(`Issue status updated successfully to ${newStatus || 'unknown status'}!`);
+      setToastType('success');
+      setShowToast(true);
+      
+      // Auto-hide toast after 3 seconds
+      setTimeout(() => {
+        setShowToast(false);
+      }, 3000);
     } catch (err) {
       console.error("Transition error:", err);
-      alert("Failed to update issue status.");
+      
+      // Show error toast
+      setToastMessage('Failed to update issue status. Please try again.');
+      setToastType('error');
+      setShowToast(true);
+      
+      // Auto-hide toast after 3 seconds
+      setTimeout(() => {
+        setShowToast(false);
+      }, 3000);
     }
   };
 
@@ -2163,6 +2196,14 @@ const RequestSplitView: React.FC = () => {
         }
         description="View all Requests"
       />
+      {/* Show toast if needed */}
+      {showToast && (
+        <SuccessToast2 
+          message={toastMessage} 
+          type={toastType}
+          onClose={() => setShowToast(false)} 
+        />
+      )}
       <div className="flex flex-col h-screen overflow-hidden">
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
@@ -2424,7 +2465,6 @@ const RequestSplitView: React.FC = () => {
                     <button
                       onClick={() => {
                         setActiveTab("comments");
-                        setIsAddingComment(true);
                         setTimeout(() => {
                           const commentsSection =
                             document.getElementById("activity-section");
@@ -2433,6 +2473,13 @@ const RequestSplitView: React.FC = () => {
                               behavior: "smooth",
                               block: "start",
                             });
+                          // Focus on the comment textarea after scrolling
+                          setTimeout(() => {
+                            const textarea = document.querySelector("#activity-section textarea");
+                            if (textarea instanceof HTMLTextAreaElement) {
+                              textarea.focus();
+                            }
+                          }, 300);
                         }, 100);
                       }}
                       className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600"
@@ -2452,7 +2499,6 @@ const RequestSplitView: React.FC = () => {
                       </svg>
                       Comment
                     </button>
-
                     {/* Transition Dropdown with Approve/Decline Buttons */}
                     <div className="flex items-center gap-2">
                       <div className="relative inline-block text-left">
@@ -2581,9 +2627,8 @@ const RequestSplitView: React.FC = () => {
                             </button>
                           )}
                           
-                          {/* Show Approve/Decline buttons when final proposal is submitted or in other statuses */}
-                          {customTransitions.length > 0 && (
-                            <>
+                          {/* Show Approve/Decline buttons when transitions are available */}
+                          {customTransitions.length > 0 && (                            <>
                               <button
                                 onClick={() => {
                                   const approveTransition = customTransitions.find(t => t.name === "Approve");

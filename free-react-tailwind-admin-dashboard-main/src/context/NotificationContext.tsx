@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { notificationApi } from "../services/api";
+import { stompWebSocketService } from "../services/stompWebSocketService";
 
 export interface AppNotification {
   id: number; // Changed from string to number to match backend
@@ -35,14 +36,15 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   // Fetch notifications from backend
   const fetchNotifications = async () => {
     try {
-      console.log("Fetching notifications from backend...");
+      console.log("%cNOTIFICATION_LOG: Fetching notifications from backend...", "color: #6600cc; font-weight: bold; background: #f8f0ff; padding: 4px; border-radius: 3px;");
       const fetchedNotifications = await notificationApi.getNotifications();
-      console.log("Received notifications:", fetchedNotifications);
+      console.log("%cNOTIFICATION_LOG: Received notifications:", "color: #6600cc; font-weight: bold; background: #f8f0ff; padding: 4px; border-radius: 3px;", fetchedNotifications);
+      console.log("%cNOTIFICATION_LOG: Total notifications received:", "color: #6600cc; font-weight: bold;", fetchedNotifications.length);
       setNotifications(fetchedNotifications);
       
       // Update unread count
-      const unread = fetchedNotifications.filter(n => !n.isRead).length;
-      console.log("Unread count:", unread);
+      const unread = fetchedNotifications.filter((n: AppNotification) => !n.isRead).length;
+      console.log("%cNOTIFICATION_LOG: Unread count:", "color: #6600cc; font-weight: bold;", unread);
       setUnreadCount(unread);
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
@@ -63,7 +65,9 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
 
   // Refresh notifications and unread count
   const refreshNotifications = async () => {
+    console.log('%cNOTIFICATION_LOG: Refreshing notifications and unread count', 'color: #0066cc; font-weight: bold; background: #f0f8ff; padding: 4px; border-radius: 3px;');
     await Promise.all([fetchNotifications(), fetchUnreadCount()]);
+    console.log('%cNOTIFICATION_LOG: Notifications refreshed successfully', 'color: #0066cc; font-weight: bold; background: #f0f8ff; padding: 4px; border-radius: 3px;');
   };
 
   // Mark a notification as read
@@ -96,8 +100,7 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
   const clearAll = async () => {
     try {
       console.log("Clearing all notifications");
-      // For now, we'll just clear the local state
-      // In a real implementation, you might want to delete all notifications from backend
+      await notificationApi.clearAll();
       setNotifications([]);
       setUnreadCount(0);
     } catch (error) {
@@ -105,14 +108,45 @@ export const NotificationProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Fetch notifications on component mount
+  // Fetch notifications on component mount and connect to WebSocket
   useEffect(() => {
     refreshNotifications();
     
-    // Set up polling to refresh notifications every 30 seconds
-    const interval = setInterval(refreshNotifications, 30000);
+    // Connect to WebSocket for real-time notifications
+    stompWebSocketService.connect(
+      (notification: AppNotification) => {
+        // Add the new notification to the list
+        setNotifications(prev => [notification, ...prev]);
+        
+        // Update unread count
+        setUnreadCount(prev => prev + 1);
+        
+        // Log notification in browser console with prominent styling
+        console.log('%cNOTIFICATION_LOG: New notification added to context', 'color: #009900; font-weight: bold; background: #f0fff0; padding: 4px; border-radius: 3px;');
+        console.log('%cNOTIFICATION_LOG: Title:', 'color: #009900; font-weight: bold;', notification.title);
+        console.log('%cNOTIFICATION_LOG: Message:', 'color: #009900; font-weight: bold;', notification.message);
+        console.log('%cNOTIFICATION_LOG: Issue Key:', 'color: #009900; font-weight: bold;', notification.issueKey);
+        console.log('%cNOTIFICATION_LOG: From Status:', 'color: #009900; font-weight: bold;', notification.fromStatus);
+        console.log('%cNOTIFICATION_LOG: To Status:', 'color: #009900; font-weight: bold;', notification.toStatus);
+        console.log('%cNOTIFICATION_LOG: Full Notification:', 'color: #009900; font-weight: bold;', notification);
+      },
+      (count: number) => {
+        // Update unread count from WebSocket
+        setUnreadCount(count);
+        
+        // Log unread count update
+        console.log('%cNOTIFICATION_LOG: Unread count updated', 'color: #ff6600; font-weight: bold; background: #fff8f0; padding: 4px; border-radius: 3px;');
+        console.log('%cNOTIFICATION_LOG: New unread count:', 'color: #ff6600; font-weight: bold;', count);
+      }
+    );
     
-    return () => clearInterval(interval);
+    // Set up polling to refresh notifications every 2 minutes (reduced from 30 seconds)
+    const interval = setInterval(refreshNotifications, 120000);
+    
+    return () => {
+      clearInterval(interval);
+      stompWebSocketService.disconnect();
+    };
   }, []);
 
   return (

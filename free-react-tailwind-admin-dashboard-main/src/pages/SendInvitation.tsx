@@ -8,6 +8,7 @@ import { usePermissions } from "../hooks/usePermissions";
 import { useAuth } from "../context/AuthContext";
 import { sendSignInLinkToEmail, ActionCodeSettings, isSignInWithEmailLink } from "firebase/auth";
 import { auth } from "../firebase";
+import ToastWithProgressBar from "../components/ui/toast/ToastWithProgressBar";
 
 // Define Department type
 interface Department {
@@ -37,6 +38,9 @@ export default function SendInvitation() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{type: string, text: string} | null>(null);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
   const [emailValidation, setEmailValidation] = useState<{isValid: boolean, message: string, checking: boolean} | null>(null); // Add email validation state
   
   // Create stable versions of the permission checks
@@ -255,7 +259,11 @@ export default function SendInvitation() {
       
       // Email is already stored in localStorage in the .then() block above
       
-      setMessage({ type: "success", text: "Invitation sent successfully! The user will receive an email notification with instructions to complete their registration. Note: The Firebase account will be created when the user clicks the link and completes registration." });
+      // Show success toast
+      setToastMessage("Invitation sent successfully! The user will receive an email notification with instructions to complete their registration.");
+      setToastType('success');
+      setShowToast(true);
+      
       // Reset form (but keep department selection for Admin users)
       setFormData(prev => ({
         ...prev,
@@ -269,25 +277,30 @@ export default function SendInvitation() {
       setEmailValidation(null);
     } catch (error) {
       console.error("Error sending invitation:", error);
-      // Check if it's a Firebase error
+      // Show error toast
       const firebaseError = error as { code?: string; message?: string };
+      let errorMessage = "Failed to send invitation";
       if (firebaseError.code) {
         switch (firebaseError.code) {
           case 'auth/invalid-email':
-            setMessage({type: "error", text: "Invalid email address. Please check the email and try again."});
+            errorMessage = "Invalid email address. Please check the email and try again.";
             break;
           case 'auth/unauthorized-continue-uri':
-            setMessage({type: "error", text: "Unauthorized domain. Please contact administrator to authorize this domain in Firebase Console."});
+            errorMessage = "Unauthorized domain. Please contact administrator to authorize this domain in Firebase Console.";
             break;
           case 'auth/invalid-action-code':
-            setMessage({type: "error", text: "Invalid action code. Please try again."});
+            errorMessage = "Invalid action code. Please try again.";
             break;
           default:
-            setMessage({type: "error", text: "Failed to send invitation: " + (firebaseError.message || "Unknown Firebase error")});
+            errorMessage = firebaseError.message || "Unknown Firebase error";
         }
       } else {
-        setMessage({type: "error", text: "Failed to send invitation: " + (error as Error).message});
+        errorMessage = (error as Error).message;
       }
+      
+      setToastMessage(errorMessage);
+      setToastType('error');
+      setShowToast(true);
     } finally {
       setLoading(false);
     }
@@ -324,14 +337,12 @@ export default function SendInvitation() {
             </p>
           </div>
           
-          {message && (
-            <div className={`mb-6 rounded-lg px-4 py-3 text-center ${
-              message.type === "success" 
-                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" 
-                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
-            }`}>
-              {message.text}
-            </div>
+          {showToast && (
+            <ToastWithProgressBar 
+              message={toastMessage} 
+              type={toastType}
+              onClose={() => setShowToast(false)} 
+            />
           )}
           
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -455,9 +466,19 @@ export default function SendInvitation() {
               <button
                 type="submit"
                 disabled={loading || (emailValidation ? emailValidation.checking : false)}
-                className="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800"
+                className="w-full rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800 inline-flex items-center justify-center"
               >
-                {loading ? "Sending Invitation..." : "Send Invitation"}
+                {loading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Sending...
+                  </>
+                ) : (
+                  "Send Invitation"
+                )}
               </button>
             </div>
           </form>

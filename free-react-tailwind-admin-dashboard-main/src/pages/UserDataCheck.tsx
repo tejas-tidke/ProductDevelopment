@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import Button from "../components/ui/button/Button";
+import { PrimaryButton, SecondaryButton } from "../components/ui/button";
 import { userService } from "../services/userService";
 
 // Define type for user data
@@ -163,15 +163,15 @@ export default function UserDataCheck() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Button onClick={fetchUserDataFromBackend} disabled={loading}>
+        <PrimaryButton onClick={fetchUserDataFromBackend} disabled={loading}>
           {loading ? "Checking..." : "Refresh Data"}
-        </Button>
-        <Button onClick={syncUserToBackend} disabled={loading}>
+        </PrimaryButton>
+        <PrimaryButton onClick={syncUserToBackend} disabled={loading}>
           {loading ? "Syncing..." : "Sync Current User"}
-        </Button>
-        <Button onClick={syncAllUsersToBackend} disabled={loading} variant="outline">
+        </PrimaryButton>
+        <SecondaryButton onClick={syncAllUsersToBackend} disabled={loading}>
           {loading ? "Syncing All..." : "Sync All Users"}
-        </Button>
+        </SecondaryButton>
       </div>
 
       <div className="mt-8 p-4 bg-blue-50 rounded-lg dark:bg-blue-900/20">

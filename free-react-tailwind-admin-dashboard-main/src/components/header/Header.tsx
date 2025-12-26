@@ -7,7 +7,7 @@ import { useSidebar } from "../../context/SidebarContext";
 import { ToggleSidebarButton } from "../header/ui/ToggleSidebarButton";
 import { MobileMenuButton } from "../header/ui/MobileMenuButton";
 import { SearchBar } from "../header/ui/SearchBar";
-import { CreateRequestButton } from "../header/ui/CreateRequestButton";
+import PrimaryButton from "../ui/button/PrimaryButton";
 import { HeaderActions } from "../header/ui/HeaderActions";
 
 const Header: React.FC = () => {
@@ -54,13 +54,16 @@ const Header: React.FC = () => {
 
           <div className="hidden lg:flex items-center gap-2">
             <SearchBar inputRef={inputRef as React.RefObject<HTMLInputElement>} />
-            <CreateRequestButton 
+            <PrimaryButton 
               onClick={() => { 
                 setInitialContractType(undefined); 
                 setInitialExistingContractId(undefined); 
                 setIsCreateModalOpen(true); 
-              }} 
-            />
+              }}
+              className="h-11 py-2 px-4 bg-indigo-600 hover:bg-indigo-700"
+            >
+              Create Request
+            </PrimaryButton>
           </div>
         </div>
         <div

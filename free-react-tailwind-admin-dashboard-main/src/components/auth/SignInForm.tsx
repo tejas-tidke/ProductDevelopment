@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
-import { EyeCloseIcon, EyeIcon } from "../../icons";
-import Label from "../form/Label";
+import { useNavigate } from "react-router";
+import { EyeCloseIcon, EyeIcon } from "../../icons";import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Checkbox from "../form/input/Checkbox";
-import Button from "../ui/button/Button";
+import { PrimaryButton } from "../ui/button";
 import { useFirebaseAuth } from "../../hooks/useFirebaseAuth";
 import { signInWithPopup, GoogleAuthProvider, OAuthProvider } from "firebase/auth";
 import { auth } from "../../firebase";
@@ -15,13 +14,60 @@ export default function SignInForm() {
   const [isChecked, setIsChecked] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
   const { signIn, loading, error } = useFirebaseAuth();
   const { loading: authLoading, refreshUserData } = useAuth(); // Get loading state and refresh function from AuthContext
   const navigate = useNavigate();
 
+  // Validate email format
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { user, error: signInError } = await signIn(email, password);
+    
+    // Reset validation errors
+    setValidationError(null);
+    
+    // Trim inputs
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    
+    // Validation checks
+    if (!trimmedEmail) {
+      setValidationError("Email is required");
+      return;
+    }
+    
+    if (email !== trimmedEmail) {
+      setValidationError("Email contains leading or trailing spaces");
+      return;
+    }
+    
+    if (!isValidEmail(trimmedEmail)) {
+      setValidationError("Please enter a valid email address");
+      return;
+    }
+    
+    if (!trimmedPassword) {
+      setValidationError("Password is required");
+      return;
+    }
+    
+    if (password !== trimmedPassword) {
+      setValidationError("Password contains leading or trailing spaces");
+      return;
+    }
+    
+    if (trimmedPassword.length < 6) {
+      setValidationError("Password must be at least 6 characters long");
+      return;
+    }
+    
+    // Proceed with sign in
+    const { user, error: signInError } = await signIn(trimmedEmail, trimmedPassword);
     if (signInError) {
       // Error is handled by the hook, no additional action needed
     }
@@ -180,7 +226,11 @@ export default function SignInForm() {
                   <Input 
                     placeholder="useremail@gmail.com" 
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      // Clear validation error when user types
+                      if (validationError) setValidationError(null);
+                    }}
                   />
                 </div>
                 <div>
@@ -192,7 +242,11 @@ export default function SignInForm() {
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        // Clear validation error when user types
+                        if (validationError) setValidationError(null);
+                      }}
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
@@ -206,9 +260,10 @@ export default function SignInForm() {
                     </span>
                   </div>
                 </div>
-                {error && (
-                  <div className="text-sm text-error-500">
-                    {error}
+                {(validationError || error) && (
+                  <div className="p-3 text-sm text-error-500 bg-error-50 dark:bg-error-900/20 rounded-lg border border-error-200 dark:border-error-800">
+                    <div className="font-medium">Sign in failed</div>
+                    <div>{validationError || error}</div>
                   </div>
                 )}
                 <div className="flex items-center justify-between">
@@ -226,13 +281,14 @@ export default function SignInForm() {
                   </Link> */}
                 </div>
                 <div>
-                  <Button 
-                    className="w-full" 
+                  <PrimaryButton 
+                    className="w-full bg-indigo-600 hover:bg-indigo-700" 
                     size="sm" 
                     disabled={loading}
+                    type="submit"
                   >
                     {loading ? "Signing in..." : "Sign in"}
-                  </Button>
+                  </PrimaryButton>
                 </div>
               </div>
             </form>

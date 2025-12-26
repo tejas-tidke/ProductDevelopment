@@ -6,8 +6,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
-
 import com.htc.productdevelopment.model.ContractAttachment;
 import com.htc.productdevelopment.model.ContractDetails;
 import com.htc.productdevelopment.model.ContractProposal;
@@ -29,30 +29,20 @@ import com.htc.productdevelopment.service.ContractAttachmentService;
 import com.htc.productdevelopment.service.ContractProposalService;
 import com.htc.productdevelopment.service.NotificationService;
 import com.htc.productdevelopment.service.UserService;
-import com.htc.productdevelopment.model.User;
-
 import java.security.Principal;
 
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.RequestEntity;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseToken;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.http.HttpMethod;
 
 
 
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -60,7 +50,6 @@ import org.springframework.http.HttpStatus;
 
 import java.time.LocalDate;
 
-import org.springframework.http.HttpEntity;  // ✔ CORRECT
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -702,52 +691,66 @@ public class JiraController {
             // Get new issue status after transition
             String toStatus = jiraService.getIssueStatus(issueIdOrKey);
             
-            // Create notification for status transition
-            try {
-                System.out.println("Creating notification for issue transition: " + issueIdOrKey);
-                // Get current user information
-                if (principal != null) {
-                    System.out.println("Principal is present: " + principal.getName());
-                    JsonNode currentUser = jiraService.getCurrentUser();
-                    String statusChangerName = currentUser.has("displayName") ? currentUser.get("displayName").asText() : "Unknown User";
-                    System.out.println("Status changer name: " + statusChangerName);
-                    
-                    // Get the current user from the database
-                    User statusChangerUser = getCurrentUserFromToken();
-                    Long statusChangerId = statusChangerUser != null ? statusChangerUser.getId() : null;
-                    System.out.println("Status changer user ID: " + statusChangerId);
-                    if (statusChangerUser != null) {
-                        System.out.println("Status changer user email: " + statusChangerUser.getEmail());
-                    } else {
-                        System.out.println("Status changer user not found in database");
+            // Only create notification if there's an actual status change
+            if (!fromStatus.equalsIgnoreCase(toStatus)) {
+                try {
+                    System.out.println("Creating notification for issue transition: " + issueIdOrKey);
+
+                    // Gather status changer information (best-effort)
+                    String statusChangerName = null;
+                    Long statusChangerId = null;
+
+                    try {
+                        JsonNode currentUser = jiraService.getCurrentUser();
+                        statusChangerName = currentUser.has("displayName") ? currentUser.get("displayName").asText() : "Unknown User";
+                        System.out.println("Status changer name: " + statusChangerName);
+                    } catch (Exception userLookupEx) {
+                        logger.warn("Could not resolve status changer display name: {}", userLookupEx.getMessage());
                     }
-                    
-                    // Get contract details to get requester info
-                    ContractDetails contract = contractDetailsService.findByJiraIssueKey(issueIdOrKey);
-                    if (contract != null) {
-                        System.out.println("Contract found for issue: " + issueIdOrKey);
-                        Long requesterId = contract.getRequester() != null ? contract.getRequester().getId() : null;
-                        String requesterName = contract.getRequesterName();
-                        Long requesterDepartmentId = contract.getRequesterDepartmentId();
-                        Long requesterOrganizationId = contract.getRequesterOrganizationId();
-                        
-                        System.out.println("Calling createStatusTransitionNotification with requesterId: " + requesterId + ", statusChangerId: " + statusChangerId);
-                        notificationService.createStatusTransitionNotification(
-                            issueIdOrKey, fromStatus, toStatus, requesterId, requesterName, 
-                            requesterDepartmentId, requesterOrganizationId, statusChangerId, statusChangerName);
-                    } else {
-                        System.out.println("No contract found for issue: " + issueIdOrKey);
-                        // Create notification with minimal info
-                        notificationService.createStatusTransitionNotification(
-                            issueIdOrKey, fromStatus, toStatus, null, null, 
-                            null, null, statusChangerId, statusChangerName);
+
+                    try {
+                        User statusChangerUser = getCurrentUserFromToken();
+                        if (statusChangerUser != null) {
+                            statusChangerId = statusChangerUser.getId();
+                            System.out.println("Status changer user ID: " + statusChangerId);
+                        } else {
+                            System.out.println("Status changer user not found in database");
+                        }
+                    } catch (Exception tokenEx) {
+                        logger.warn("Could not resolve status changer from token: {}", tokenEx.getMessage());
                     }
-                } else {
-                    System.out.println("No principal found for request");
+
+                    // Get contract details to populate requester metadata (if available)
+                    Long requesterId = null;
+                    String requesterName = null;
+                    Long requesterDepartmentId = null;
+                    Long requesterOrganizationId = null;
+
+                    try {
+                        ContractDetails contract = contractDetailsService.findByJiraIssueKey(issueIdOrKey);
+                        if (contract != null) {
+                            System.out.println("Contract found for issue: " + issueIdOrKey);
+                            requesterId = contract.getRequester() != null ? contract.getRequester().getId() : null;
+                            requesterName = contract.getRequesterName();
+                            requesterDepartmentId = contract.getRequesterDepartmentId();
+                            requesterOrganizationId = contract.getRequesterOrganizationId();
+                        } else {
+                            System.out.println("No contract found for issue: " + issueIdOrKey);
+                        }
+                    } catch (Exception contractEx) {
+                        logger.warn("Could not fetch contract/requester details for issue {}: {}", issueIdOrKey, contractEx.getMessage());
+                    }
+
+                    System.out.println("Calling createStatusTransitionNotification with requesterId: " + requesterId + ", statusChangerId: " + statusChangerId);
+                    notificationService.createStatusTransitionNotification(
+                        issueIdOrKey, fromStatus, toStatus, requesterId, requesterName,
+                        requesterDepartmentId, requesterOrganizationId, statusChangerId, statusChangerName);
+                } catch (Exception notificationEx) {
+                    System.err.println("Failed to create notification for status transition: " + notificationEx.getMessage());
+                    notificationEx.printStackTrace();
                 }
-            } catch (Exception notificationEx) {
-                System.err.println("Failed to create notification for status transition: " + notificationEx.getMessage());
-                notificationEx.printStackTrace();
+            } else {
+                logger.info("No status change detected for issue {}: {} -> {}, skipping notification", issueIdOrKey, fromStatus, toStatus);
             }
 
             // Mirror Jira's 204 No Content for success
@@ -811,6 +814,26 @@ public class JiraController {
             logger.info("Received request to create new Jira issue with Jira API structure");
             JsonNode createdIssue = jiraService.createIssueJira(issueData);
             logger.info("Issue created successfully with Jira API structure");
+
+            try {
+                // Notify creator/approvers/admins within same org/department
+                User creator = getCurrentUserFromToken();
+                String issueKey = createdIssue != null && createdIssue.has("key") ? createdIssue.get("key").asText() : null;
+                if (issueKey != null && creator != null) {
+                    Long deptId = creator.getDepartmentId();
+                    Long orgId = creator.getOrganizationId();
+                    notificationService.createRequestCreatedNotification(
+                        issueKey,
+                        creator.getId(),
+                        deptId,
+                        orgId,
+                        creator.getName()
+                    );
+                }
+            } catch (Exception notifyEx) {
+                logger.warn("Failed to create notification for new request: {}", notifyEx.getMessage());
+            }
+
             return ResponseEntity.ok(createdIssue);
         } catch (Exception e) {
             logger.error("Error creating Jira issue with Jira API structure", e);
@@ -825,7 +848,7 @@ public class JiraController {
      * @return The created comment
      */
     @PostMapping("/issues/{issueIdOrKey}/comments")
-    public ResponseEntity<?> addCommentToIssue(@PathVariable String issueIdOrKey, @RequestBody Map<String, Object> commentData) {
+    public ResponseEntity<?> addCommentToIssue(@PathVariable String issueIdOrKey, @RequestBody Map<String, Object> commentData, Principal principal) {
         try {
             logger.info("Received request to add comment to Jira issue: {} with data: {}", issueIdOrKey, commentData);
             
@@ -836,6 +859,33 @@ public class JiraController {
             
             JsonNode response = jiraService.addComment(issueIdOrKey, commentBody);
             logger.info("Comment added successfully to issue: {}", issueIdOrKey);
+            
+            // Create notification for the comment
+            try {
+                // Get current user information
+                String commenterName = "Unknown User";
+                Long commenterId = null;
+                
+                if (principal != null) {
+                    User currentUser = getCurrentUserFromToken();
+                    if (currentUser != null) {
+                        commenterName = currentUser.getName();
+                        commenterId = currentUser.getId();
+                    }
+                }
+                
+                // Send notification to all users
+                notificationService.sendNotificationToAll(
+                    "New Comment Added",
+                    String.format("%s added a comment to request %s", commenterName, issueIdOrKey),
+                    issueIdOrKey,
+                    commenterName,
+                    commenterId
+                );
+            } catch (Exception notificationEx) {
+                logger.warn("Failed to create notification for comment: {}", notificationEx.getMessage());
+            }
+            
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Error adding comment to issue: {}", issueIdOrKey, e);
@@ -1385,6 +1435,9 @@ public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedReq
             if (!success) {
                 return ResponseEntity.badRequest().body("Transition failed");
             }
+            
+            // Get the new status after transition
+            currentStatus = jiraService.getIssueStatus(request.getIssueKey());
         }
 
         // ⭐ 3. SAVE CONTRACT DATA
@@ -1426,30 +1479,6 @@ public ResponseEntity<?> markContractCompleted(@RequestBody ContractCompletedReq
 
         ContractDetails saved = contractDetailsService.saveCompletedContract(contract);
         logger.info("Completed contract saved with ID: {}", saved.getId());
-        
-        // Create notification for status transition
-        try {
-            // Get current user information
-            String requesterName = request.getRequesterName();
-            if (principal != null) {
-                JsonNode currentUser = jiraService.getCurrentUser();
-                requesterName = currentUser.has("displayName") ? currentUser.get("displayName").asText() : requesterName;
-            }
-            
-            Long requesterId = contract.getRequester() != null ? contract.getRequester().getId() : null;
-            Long requesterDepartmentId = contract.getRequesterDepartmentId();
-            Long requesterOrganizationId = contract.getRequesterOrganizationId();
-            
-            // Get current user information for status changer
-            Long statusChangerId = null;
-            String statusChangerName = "System";
-            
-            notificationService.createStatusTransitionNotification(
-                request.getIssueKey(), currentStatus, "Completed", requesterId, requesterName, 
-                requesterDepartmentId, requesterOrganizationId, statusChangerId, statusChangerName);
-        } catch (Exception notificationEx) {
-            logger.warn("Failed to create notification for status transition: {}", notificationEx.getMessage());
-        }
 
         return ResponseEntity.ok(Map.of("message", "Contract saved successfully!"));
 

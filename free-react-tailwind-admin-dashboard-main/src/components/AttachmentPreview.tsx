@@ -10,9 +10,8 @@ interface AttachmentPreviewProps {
 const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({ file, fileUrl: propFileUrl, onClose, hasLocalCopy }) => {
   const [fileUrl, setFileUrl] = useState<string | null>(propFileUrl || null);
   const [fileType, setFileType] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
+  // const [loading, setLoading] = useState<boolean>(true);
+  // const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     // If we have a fileUrl prop, use it directly
     if (propFileUrl) {

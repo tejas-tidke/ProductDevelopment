@@ -3,6 +3,8 @@ import React from "react";
 import { useVendors } from "../VendorHook/useVendors";
 import { Vendor } from "../VendorVariable/vendor";
 import VendorFormModal from "./VendorFormModal";
+import { PrimaryButton, SecondaryButton } from "../../../components/ui/button";
+import { Table, TableHeader, TableBody, TableRow, TableCell } from "../../../components/ui/table";
 import "../vendors.css";
 
 
@@ -44,10 +46,10 @@ const VendorsPage: React.FC = () => {
         </h3>
         <div className="card-tools">
           <div className="btn-group">
-            <button className="btn btn-primary" onClick={openNewVendor}>
+            <PrimaryButton onClick={openNewVendor}>
               <i className="fa fa-plus mr-1" />
               New Vendor
-            </button>
+            </PrimaryButton>
           </div>
         </div>
       </div>
@@ -66,23 +68,23 @@ const VendorsPage: React.FC = () => {
                 onChange={(e) => setSearch(e.target.value)}
               />
               <div className="input-group-append">
-                <button className="btn btn-dark" type="button">
+                <SecondaryButton type="button" className="flex items-center">
                   <i className="fa fa-search" />
-                </button>
+                </SecondaryButton>
               </div>
             </div>
           </div>
 
           <div className="col-md-8">
             <div className="btn-group float-right">
-              <button
+              <SecondaryButton
                 type="button"
-                className={`btn btn-${archivedFilter ? "primary" : "default"}`}
                 onClick={toggleArchivedFilter}
+                className="flex items-center gap-2"
               >
                 <i className="fa fa-archive mr-1" />
                 Archived
-              </button>
+              </SecondaryButton>
             </div>
           </div>
         </div>
@@ -91,10 +93,10 @@ const VendorsPage: React.FC = () => {
 
         {/* Table */}
         <div className="table-responsive-sm">
-          <table className="table table-striped table-borderless table-hover">
-            <thead className="text-dark text-nowrap">
-              <tr>
-                <td className="pr-0">
+          <Table className="table table-striped table-borderless table-hover">
+            <TableHeader>
+              <TableRow>
+                <TableCell isHeader={true} className="pr-0">
                   <div className="form-check">
                     <input
                       className="form-check-input"
@@ -106,8 +108,8 @@ const VendorsPage: React.FC = () => {
                       }
                     />
                   </div>
-                </td>
-                <th>
+                </TableCell>
+                <TableCell isHeader={true}>
                   <button
                     type="button"
                     className="btn btn-link p-0 text-secondary"
@@ -118,8 +120,8 @@ const VendorsPage: React.FC = () => {
                       <span className="sort-icon">{orderIcon}</span>
                     )}
                   </button>
-                </th>
-                <th>
+                </TableCell>
+                <TableCell isHeader={true}>
                   <button
                     type="button"
                     className="btn btn-link p-0 text-secondary"
@@ -130,8 +132,8 @@ const VendorsPage: React.FC = () => {
                       <span className="sort-icon">{orderIcon}</span>
                     )}
                   </button>
-                </th>
-                <th>
+                </TableCell>
+                <TableCell isHeader={true}>
                   <button
                     type="button"
                     className="btn btn-link p-0 text-secondary"
@@ -142,8 +144,8 @@ const VendorsPage: React.FC = () => {
                       <span className="sort-icon">{orderIcon}</span>
                     )}
                   </button>
-                </th>
-                <th>
+                </TableCell>
+                <TableCell isHeader={true}>
                   <button
                     type="button"
                     className="btn btn-link p-0 text-secondary"
@@ -154,17 +156,17 @@ const VendorsPage: React.FC = () => {
                       <span className="sort-icon">{orderIcon}</span>
                     )}
                   </button>
-                </th>
-                <th className="text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableCell>
+                <TableCell isHeader={true} className="text-center">Action</TableCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {vendors.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="text-center text-muted">
+                <TableRow>
+                  <TableCell isHeader={false} className="text-center text-muted" colSpan={6}>
                     No vendors found.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
 
               {vendors.map((vendor) => {
@@ -195,8 +197,8 @@ const VendorsPage: React.FC = () => {
                 );
 
                 return (
-                  <tr key={vendor.vendor_id}>
-                    <td className="pr-0">
+                  <TableRow key={vendor.vendor_id}>
+                    <TableCell isHeader={false} className="pr-0">
                       <div className="form-check">
                         <input
                           className="form-check-input"
@@ -207,8 +209,8 @@ const VendorsPage: React.FC = () => {
                           }
                         />
                       </div>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell isHeader={false}>
                       <button
                         type="button"
                         className="btn btn-link text-dark p-0 text-left w-100"
@@ -222,9 +224,9 @@ const VendorsPage: React.FC = () => {
                           </div>
                         </div>
                       </button>
-                    </td>
-                    <td>{description}</td>
-                    <td>
+                    </TableCell>
+                    <TableCell isHeader={false}>{description}</TableCell>
+                    <TableCell isHeader={false}>
                       {contact !== "-" && (
                         <>
                           <i className="fa fa-user text-secondary mr-2" />
@@ -232,9 +234,9 @@ const VendorsPage: React.FC = () => {
                         </>
                       )}
                       {contact === "-" && "-"}
-                    </td>
-                    <td>{website}</td>
-                    <td>
+                    </TableCell>
+                    <TableCell isHeader={false}>{website}</TableCell>
+                    <TableCell isHeader={false}>
                       <div className="dropdown dropleft text-center vendor-actions">
                         <button
                           className="btn btn-secondary btn-sm dropdown-toggle-icon"
@@ -261,12 +263,12 @@ const VendorsPage: React.FC = () => {
                           </button>
                         </div>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
 

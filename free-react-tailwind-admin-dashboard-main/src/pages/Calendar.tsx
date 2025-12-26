@@ -4,7 +4,7 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import { EventInput, DateSelectArg, EventClickArg, EventContentArg } from "@fullcalendar/core";
-import { Modal } from "../components/ui/modal/index.tsx";
+import { Modal } from "../components/ui/modal/index.ts";
 import { useModal } from "../hooks/useModal";
 import PageMeta from "../components/common/PageMeta";
 

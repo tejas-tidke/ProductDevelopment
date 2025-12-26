@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import PrimaryButton from "../../../components/ui/button/PrimaryButton";
+import { Table, TableHeader, TableBody, TableRow, TableCell } from "../../../components/ui/table";
 
 /** Backend DTO */
 type ContractDetails = {
@@ -114,7 +116,7 @@ const extractIssueKeyFromContract = (c: ContractDetails): string | null => {
 /* Fetch final proposal for a given issueKey and return numeric totalCost or null */
 const fetchFinalProposalTotal = async (issueKey: string): Promise<number | null> => {
   try {
-    const resp = await fetch(`http://localhost:8080/api/jira/proposals/issue/${encodeURIComponent(issueKey)}`);
+    const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/proposals/issue/${encodeURIComponent(issueKey)}`);
     if (!resp.ok) {
       // no proposals or endpoint unavailable
       return null;
@@ -178,7 +180,7 @@ const Renewal_vendor: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        const resp = await fetch("http://localhost:8080/api/jira/contracts/completed");
+        const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/completed`);
         if (!resp.ok) {
           const txt = await resp.text().catch(() => "");
           throw new Error(`Failed to fetch: ${resp.status} ${resp.statusText} ${txt}`);
@@ -250,7 +252,7 @@ const Renewal_vendor: React.FC = () => {
 
     const checkIssueStatus = async (issueKey: string): Promise<string | null> => {
       try {
-        const resp = await fetch(`http://localhost:8080/api/jira/issues/${encodeURIComponent(issueKey)}`);
+        const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/issues/${encodeURIComponent(issueKey)}`);
         if (!resp.ok) {
           console.warn("checkIssueStatus non-ok", resp.status);
           return null;
@@ -271,7 +273,7 @@ const Renewal_vendor: React.FC = () => {
 
     const fetchContractForIssue = async (issueKey: string): Promise<ContractDetails[] | null> => {
       try {
-        const resp = await fetch(`http://localhost:8080/api/jira/contracts/byIssueKey/${encodeURIComponent(issueKey)}`);
+        const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/byIssueKey/${encodeURIComponent(issueKey)}`);
         if (!resp.ok) {
           console.warn("fetchContractForIssue non-ok", resp.status);
           return null;
@@ -345,7 +347,7 @@ const Renewal_vendor: React.FC = () => {
             } else {
               // fallback refresh
               try {
-                const resp = await fetch("http://localhost:8080/api/jira/contracts/completed");
+                const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/completed`);
                 if (resp.ok) {
                   const data = await resp.json();
                   const mappedAll = Array.isArray(data) ? data.map(mapContractToRenewalItem) : [];
@@ -411,7 +413,7 @@ const Renewal_vendor: React.FC = () => {
       // Refresh list (and re-enrich)
       (async () => {
         try {
-          const resp = await fetch("http://localhost:8080/api/jira/contracts/completed");
+          const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/completed`);
           if (resp.ok) {
             const data: ContractDetails[] = await resp.json();
             const mappedAll = Array.isArray(data) ? data.map(mapContractToRenewalItem) : [];
@@ -548,7 +550,7 @@ const Renewal_vendor: React.FC = () => {
             </div>
 
             <div className="flex items-center space-x-3">
-              <button
+              <PrimaryButton
                 onClick={() => {
                   if (selectedContractId) {
                     const contract = rows.find(r => r.id === selectedContractId);
@@ -564,13 +566,10 @@ const Renewal_vendor: React.FC = () => {
                   }
                 }}
                 disabled={!selectedContractId}
-                className={`inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium ${{
-                  true: 'bg-indigo-600 text-white hover:bg-indigo-700',
-                  false: 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                }[!!selectedContractId]}`}
+                className={`inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium ${!selectedContractId ? 'opacity-50 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
               >
                 Renewal
-              </button>
+              </PrimaryButton>
 
               <div className="relative">
                 <button
@@ -638,49 +637,49 @@ const Renewal_vendor: React.FC = () => {
         {/* TABLE */}
         <div className="border border-gray-200 rounded-lg bg-white shadow-sm" style={{ height: '65vh' }}>
           <div className="overflow-y-auto" style={{ height: '100%' }}>
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 sticky top-0 z-10 shadow">
-                <tr className="border-b border-gray-200">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Select</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Renewal ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Product(s)</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Renewal Deadline</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Days Until Renewal</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Owner</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Value (USD)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableCell isHeader={true} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Select</TableCell>
+                  <TableCell isHeader={true} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Renewal ID</TableCell>
+                  <TableCell isHeader={true} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor Name</TableCell>
+                  <TableCell isHeader={true} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Product(s)</TableCell>
+                  <TableCell isHeader={true} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Renewal Deadline</TableCell>
+                  <TableCell isHeader={true} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Days Until Renewal</TableCell>
+                  <TableCell isHeader={true} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</TableCell>
+                  <TableCell isHeader={true} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Owner</TableCell>
+                  <TableCell isHeader={true} className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Value (USD)</TableCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {loading && (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-8 text-center text-sm text-gray-500">
+                  <TableRow>
+                    <TableCell isHeader={false} className="px-6 py-8 text-center text-sm text-gray-500" colSpan={9}>
                       Loading...
                       {error && <div className="text-red-600 mt-2">{error}</div>}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
 
                 {!loading && error && (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-8 text-center text-sm text-red-600">
+                  <TableRow>
+                    <TableCell isHeader={false} className="px-6 py-8 text-center text-sm text-red-600" colSpan={9}>
                       {error}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
 
                 {!loading && !error && filteredRenewals.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-8 text-center text-sm text-gray-500">
+                  <TableRow>
+                    <TableCell isHeader={false} className="px-6 py-8 text-center text-sm text-gray-500" colSpan={9}>
                       No renewals found
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
 
                 {!loading && !error && filteredRenewals.map((r) => (
-                  <tr key={r.id} className="hover:bg-indigo-50/40 transition-colors">
-                    <td className="px-4 py-3 text-sm">
+                  <TableRow key={r.id} className="hover:bg-indigo-50/40 transition-colors">
+                    <TableCell isHeader={false} className="px-4 py-3 text-sm">
                       <input
                         type="radio"
                         name="selectedContract"
@@ -688,21 +687,21 @@ const Renewal_vendor: React.FC = () => {
                         onChange={() => setSelectedContractId(r.id)}
                         className="h-4 w-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
                       />
-                    </td>
-                    <td className="px-4 py-3 text-sm text-indigo-600 font-medium">{r.id}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 hover:underline cursor-pointer">{r.vendorName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{r.product}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{r.renewalDeadline}</td>
-                    <td className={`px-4 py-3 text-sm ${r.daysUntilRenewal !== null && r.daysUntilRenewal <= 30 ? "text-red-600 font-semibold" : "text-gray-900"}`}>
+                    </TableCell>
+                    <TableCell isHeader={false} className="px-4 py-3 text-sm text-indigo-600 font-medium">{r.id}</TableCell>
+                    <TableCell isHeader={false} className="px-4 py-3 text-sm text-gray-900 hover:underline cursor-pointer">{r.vendorName}</TableCell>
+                    <TableCell isHeader={false} className="px-4 py-3 text-sm text-gray-900">{r.product}</TableCell>
+                    <TableCell isHeader={false} className="px-4 py-3 text-sm text-gray-900">{r.renewalDeadline}</TableCell>
+                    <TableCell isHeader={false} className={`px-4 py-3 text-sm ${r.daysUntilRenewal !== null && r.daysUntilRenewal <= 30 ? "text-red-600 font-semibold" : "text-gray-900"}`}>
                       {r.daysUntilRenewal !== null ? r.daysUntilRenewal : "N/A"}
-                    </td>
-                    <td className="px-4 py-3 text-sm">{renderStageBadge(r.renewalStage)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900">{r.owner}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 font-semibold text-right">{r.totalValue}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell isHeader={false} className="px-4 py-3 text-sm">{renderStageBadge(r.renewalStage)}</TableCell>
+                    <TableCell isHeader={false} className="px-4 py-3 text-sm text-gray-900">{r.owner}</TableCell>
+                    <TableCell isHeader={false} className="px-4 py-3 text-sm text-gray-900 font-semibold text-right">{r.totalValue}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           <div className="px-6 py-3 text-xs text-gray-500">

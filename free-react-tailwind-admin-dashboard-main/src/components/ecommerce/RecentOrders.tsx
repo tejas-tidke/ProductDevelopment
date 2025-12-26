@@ -41,7 +41,7 @@ export default function RecentOrders() {
     const fetchRenewals = async () => {
       try {
         setLoading(true);
-        const response = await fetch("http://localhost:8080/api/jira/contracts/completed");
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/completed`);
         const data = await response.json();
         
         // Transform data to match RenewalItem interface

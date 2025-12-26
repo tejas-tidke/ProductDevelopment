@@ -1,12 +1,16 @@
  import React, { useMemo, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 // Import useAuth hook to access user details
 import { useAuth } from "../../context/AuthContext";
 import { jiraService } from '../../services/jiraService';
 import { userApi } from '../../services/api';
+import { PrimaryButton, SecondaryButton } from "../../components/ui/button";
+import { Table, TableHeader, TableBody, TableRow, TableCell } from "../../components/ui/table";
+import { PortalModal } from "../../components/ui/modal";
+import SuccessToast2 from "../../components/ui/toast/SuccessToast2";
 
 // Define the vendor profile response interface
 interface VendorProfileResponse {
@@ -329,6 +333,12 @@ const VendorAgreements: React.FC = () => {
   const [formContractDuration, setFormContractDuration] = useState("1"); // Default to 1 month
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+    
+  // State for toast notification
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
 
   // Vendor and product dropdown states
   const [vendors, setVendors] = useState<string[]>([]);
@@ -433,7 +443,7 @@ const VendorAgreements: React.FC = () => {
       try {
         setLoading(true);
         console.log("Fetching contract details from backend...");
-        const response = await fetch("http://localhost:8080/api/jira/contracts/completed");
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/completed`);
         console.log("Response status:", response.status);
         console.log("Response headers:", response.headers);
         
@@ -464,6 +474,38 @@ const VendorAgreements: React.FC = () => {
     };
 
     fetchContractDetails();
+  }, []);
+  
+  // Get location state for toast messages
+  const location = useLocation();
+  
+  // Handle toast message from navigation state
+  useEffect(() => {
+    const { toastMessage, toastType } = location.state || {};
+    if (toastMessage) {
+      // Clear the state to avoid showing the toast on page refresh
+      window.history.replaceState({}, document.title);
+      
+      // Set toast data
+      setToastMessage(toastMessage);
+      setToastType((toastType as 'success' | 'error') || 'success');
+      setShowToast(true);
+      
+      // Auto-hide toast after 3 seconds
+      const timer = setTimeout(() => {
+        setShowToast(false);
+      }, 3000);
+      
+      // Clean up timer
+      return () => clearTimeout(timer);
+    }
+  }, [location.state]);
+  
+  // Clear navigation state on component mount to prevent showing old toasts
+  useEffect(() => {
+    if (location.state && Object.keys(location.state).length > 0) {
+      window.history.replaceState({}, document.title);
+    }
   }, []);
 
   const filteredAgreements = useMemo(() => {
@@ -559,6 +601,7 @@ const VendorAgreements: React.FC = () => {
     return;
   }
 
+  setIsSubmitting(true);
   try {
     
     // Determine the appropriate status based on exact requirements:
@@ -626,7 +669,7 @@ const VendorAgreements: React.FC = () => {
     console.log("Sending contract data:", contractData);
 
     // Send to backend
-    const response = await fetch("http://localhost:8080/api/jira/contracts/manual", {
+    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/manual`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -639,7 +682,7 @@ const VendorAgreements: React.FC = () => {
     }
 
     const updatedResponse = await fetch(
-      "http://localhost:8080/api/jira/contracts/completed"
+      `${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/api/jira/contracts/completed`
     );
     const contracts: ContractDetails[] = await updatedResponse.json();
 
@@ -649,17 +692,37 @@ const VendorAgreements: React.FC = () => {
       )
     );
 
-    // Show success message
-    setSuccessMessage(`Agreement for ${formVendor} created successfully!`);
-    setTimeout(() => setSuccessMessage(""), 5000); // Hide after 5 seconds
-
     // reset form and dropdown states
     resetForm();
     setShowAddModal(false);
+    
+    // reset form and dropdown states
+    resetForm();
+    setShowAddModal(false);
+    
+    // Show success toast in place
+    setToastMessage(`Agreement for ${formVendor} created successfully!`);
+    setToastType('success');
+    setShowToast(true);
+    
+    // Auto-hide toast after 3 seconds
+    setTimeout(() => {
+      setShowToast(false);
+    }, 3000);
   } catch (error) {
     console.error("Error creating agreement:", error);
-    setErrorMessage("Failed to create agreement. Please try again.");
-    setTimeout(() => setErrorMessage(""), 5000); // Hide after 5 seconds
+    
+    // Show error toast in place
+    setToastMessage('Failed to create agreement. Please try again.');
+    setToastType('error');
+    setShowToast(true);
+    
+    // Auto-hide toast after 3 seconds
+    setTimeout(() => {
+      setShowToast(false);
+    }, 3000);
+  } finally {
+    setIsSubmitting(false);
   }
 };
 
@@ -728,6 +791,14 @@ const VendorAgreements: React.FC = () => {
 
   return (
     <div className="p-6">
+      {/* Show toast if needed */}
+      {showToast && (
+        <SuccessToast2 
+          message={toastMessage} 
+          type={toastType}
+          onClose={() => setShowToast(false)} 
+        />
+      )}
       {/* Remove the conditional rendering for the detail page since we're removing the modal */}
       <>          {/* Header */}
           <div className="flex items-center justify-between mb-6">
@@ -735,12 +806,12 @@ const VendorAgreements: React.FC = () => {
               <h1 className="text-2xl font-semibold text-gray-900">
                 Agreements
               </h1>
-              <button
+              <PrimaryButton
                 onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center px-3 py-1.5 text-sm font-semibold text-white rounded-md bg-indigo-600 hover:bg-indigo-700 shadow-sm"
+                className="inline-flex items-center px-4 py-2 text-sm font-medium border border-transparent rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 + Add Agreement
-              </button>
+              </PrimaryButton>
             </div>
 
             <div className="flex items-center gap-3" />
@@ -782,7 +853,7 @@ const VendorAgreements: React.FC = () => {
               </div>
 
               <div className="relative">
-                <button
+                <SecondaryButton
                   onClick={() => setShowFilters((v) => !v)}
                   className={`inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md bg-white hover:bg-gray-50 border-gray-300 ${
                     filterMinCost || filterMaxCost
@@ -799,7 +870,7 @@ const VendorAgreements: React.FC = () => {
                       </span>
                     </>
                   )}
-                </button>
+                </SecondaryButton>
 
                 {/* Simple filters panel */}
                 {showFilters && (
@@ -809,12 +880,12 @@ const VendorAgreements: React.FC = () => {
                         Filters
                       </h3>
                       <div className="flex gap-2 ml-4">
-                        <button
+                        <SecondaryButton
                           onClick={resetFilters}
                           className="text-xs text-indigo-600 hover:text-indigo-800"
                         >
                           Reset
-                        </button>
+                        </SecondaryButton>
                         <button
                           onClick={() => setShowFilters(false)}
                           className="text-xs text-gray-500 hover:text-gray-700"
@@ -875,12 +946,12 @@ const VendorAgreements: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
+              <SecondaryButton
                 onClick={handleExportCsv}
                 className="inline-flex items-center px-3 py-2 text-sm font-medium border rounded-md bg-white hover:bg-gray-50 border-gray-300"
               >
                 Export CSV
-              </button>
+              </SecondaryButton>
             </div>
           </div>
 
@@ -902,10 +973,10 @@ const VendorAgreements: React.FC = () => {
    <div className="border border-gray-200 rounded-lg bg-white shadow-sm" style={{ height: '65vh' }}>
 
             <div className="overflow-y-auto" style={{ height: '100%' }}>
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 sticky top-0 z-10 shadow">
-                  <tr className="border-b border-gray-200">
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 w-10">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableCell isHeader={true} className="px-4 py-2 text-left text-xs font-semibold text-gray-500 w-10">
                       <input
                         type="checkbox"
                         checked={
@@ -914,44 +985,44 @@ const VendorAgreements: React.FC = () => {
                         }
                         onChange={toggleSelectAll}
                       />
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
+                    </TableCell>
+                    <TableCell isHeader={true} className="px-4 py-2 text-left text-xs font-semibold ">
                       Agreement ID
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
+                    </TableCell>
+                    <TableCell isHeader={true} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
                       Vendor
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
+                    </TableCell>
+                    <TableCell isHeader={true} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
                       Agreement Owner
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
+                    </TableCell>
+                    <TableCell isHeader={true} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
                       Agreement Type
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
+                    </TableCell>
+                    <TableCell isHeader={true} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
                       Agreement Category
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
+                    </TableCell>
+                    <TableCell isHeader={true} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
                       Start Date
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
+                    </TableCell>
+                    <TableCell isHeader={true} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
                       End Date
-                    </th>
-                    <th className="px-4 py-2 text-right text-xs font-semibold text-gray-500">
+                    </TableCell>
+                    <TableCell isHeader={true} className="px-4 py-2 text-right text-xs font-semibold text-gray-500">
                       Total Cost (USD)
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
+                    </TableCell>
+                    <TableCell isHeader={true} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
                       Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
+                    </TableCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredAgreements.map((agreement) => (
-                    <tr
+                    <TableRow
                       key={agreement.id}
                       className="hover:bg-indigo-50/40 transition-colors cursor-pointer"
                       onClick={() => navigate(`/vendor-management/contract`, { state: { agreement } })}
                     >
-                      <td className="px-4 py-2">
+                      <TableCell isHeader={false} className="px-4 py-2">
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(agreement.id)}
@@ -960,32 +1031,32 @@ const VendorAgreements: React.FC = () => {
                             toggleSelectOne(agreement.id);
                           }}
                         />
-                      </td>
-                      <td className="px-4 py-2 text-indigo-600 font-medium">
+                      </TableCell>
+                      <TableCell isHeader={false} className="px-4 py-2 text-indigo-600 font-medium">
                         {agreement.id}
-                      </td>
-                      <td className="px-4 py-2 text-gray-900">
+                      </TableCell>
+                      <TableCell isHeader={false} className="px-4 py-2 text-gray-900">
                         {agreement.vendor}
-                      </td>
-                      <td className="px-4 py-2 text-gray-900">
+                      </TableCell>
+                      <TableCell isHeader={false} className="px-4 py-2 text-gray-900">
                         {agreement.owner}
-                      </td>
-                      <td className="px-4 py-2 text-gray-900">
+                      </TableCell>
+                      <TableCell isHeader={false} className="px-4 py-2 text-gray-900">
                         {agreement.type}
-                      </td>
-                      <td className="px-4 py-2 text-gray-900">
+                      </TableCell>
+                      <TableCell isHeader={false} className="px-4 py-2 text-gray-900">
                         {agreement.category}
-                      </td>
-                      <td className="px-4 py-2 text-gray-900">
+                      </TableCell>
+                      <TableCell isHeader={false} className="px-4 py-2 text-gray-900">
                         {formatDateHelper(agreement.startDate)}
-                      </td>
-                      <td className="px-4 py-2 text-gray-900">
+                      </TableCell>
+                      <TableCell isHeader={false} className="px-4 py-2 text-gray-900">
                         {formatDateHelper(agreement.endDate)}
-                      </td>
-                      <td className="px-4 py-2 text-right text-gray-900 tabular-nums">
+                      </TableCell>
+                      <TableCell isHeader={false} className="px-4 py-2 text-right text-gray-900 tabular-nums">
                         {agreement.totalCost}
-                      </td>
-                      <td className="px-4 py-2">
+                      </TableCell>
+                      <TableCell isHeader={false} className="px-4 py-2">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full border ${getStatusBadgeClasses(
                             agreement.status
@@ -993,90 +1064,38 @@ const VendorAgreements: React.FC = () => {
                         >
                           {agreement.status}
                         </span>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
 
                   {filteredAgreements.length === 0 && !loading && (
-                    <tr>
-                      <td
-                        colSpan={10}
+                    <TableRow>
+                      <TableCell
+                        isHeader={false}
                         className="px-4 py-6 text-center text-gray-500"
+                        colSpan={10}
                       >
                         No agreements found for this view.
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </div>
 
           {/* Add Agreement Modal (skeleton, keep your existing form inside) */}
-          {showAddModal &&
-            createPortal(
-              <div className="fixed inset-0 z-[9999] overflow-y-auto">
-                {/* Frosted / blurred backdrop */}
-                <div
-                  className="fixed inset-0"
-                  onClick={() => setShowAddModal(false)}
-                  style={{
-                    background:
-                      "linear-gradient(180deg, rgba(232,236,243,0.55), rgba(220,224,233,0.55))",
-                    backdropFilter: "blur(30px) saturate(110%)",
-                    WebkitBackdropFilter: "blur(30px) saturate(110%)",
-                  }}
-                />
-
-                <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                  <span
-                    className="hidden sm:inline-block sm:align-middle sm:h-screen"
-                    aria-hidden
-                  >
-                    {"\u200B"}
-                  </span>
-
-                  <div
-                    className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-xl sm:w-full dark:bg-gray-800 z-[10000] relative"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="add-agreement-title"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {/* Add Agreement Form */}
-                    <div className="px-6 py-6 sm:px-8 sm:py-8">
-                      <div className="flex items-center justify-between mb-6">
-                        <h3
-                          id="add-agreement-title"
-                          className="text-lg font-semibold text-gray-900"
-                        >
-                          Add New Agreement
-                        </h3>
-                        <button
-                          type="button"
-                          className="text-gray-400 hover:text-gray-500"
-                          onClick={() => {
-                            resetForm();
-                            setShowAddModal(false);
-                          }}
-                        >
-                          <span className="sr-only">Close</span>
-                          <svg
-                            className="h-6 w-6"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth="1.5"
-                            stroke="currentColor"
-                            aria-hidden="true"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
-                      </div>
+          <PortalModal
+            isOpen={showAddModal}
+            onClose={() => {
+              resetForm();
+              setShowAddModal(false);
+            }}
+            title="Add New Agreement"
+            size="2xl"
+          >
+            {/* Add Agreement Form */}
+            <div className="px-6 py-6 sm:px-8 sm:py-8">
                       {successMessage && (
                         <div className="mb-4 p-3 bg-green-50 text-green-800 rounded-md border border-green-200">
                           <div className="flex items-center">
@@ -1394,27 +1413,32 @@ const VendorAgreements: React.FC = () => {
                         </div>
 
                         <div className="flex justify-end gap-3 pt-4">
-                          <button
+                          <SecondaryButton
                             type="button"
                             onClick={() => setShowAddModal(false)}
-                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                           >
                             Cancel
-                          </button>
-                          <button
+                          </SecondaryButton>
+                          <PrimaryButton
                             type="submit"
-                            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            disabled={isSubmitting}
                           >
-                            Add Agreement
-                          </button>
+                            {isSubmitting ? (
+                              <>
+                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Adding...
+                              </>
+                            ) : (
+                              "Add Agreement"
+                            )}
+                          </PrimaryButton>
                         </div>
                       </form>
                     </div>
-                  </div>
-                </div>
-              </div>,
-              document.body
-            )}
+                  </PortalModal>
         </>
     </div>  );
 };

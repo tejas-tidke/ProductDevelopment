@@ -1,11 +1,11 @@
 package com.htc.productdevelopment.service;
 
 import com.htc.productdevelopment.model.Notification;
-import com.htc.productdevelopment.model.User;
 import com.htc.productdevelopment.repository.NotificationRepository;
-import com.htc.productdevelopment.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
@@ -13,11 +13,13 @@ import java.util.Optional;
 @Service
 public class NotificationService {
     
+    private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
+    
     @Autowired
     private NotificationRepository notificationRepository;
     
     @Autowired
-    private UserRepository userRepository;
+    private WebSocketNotificationService webSocketNotificationService;
     
     /**
      * Get all notifications (visible to everyone)
@@ -51,6 +53,10 @@ public class NotificationService {
         if (!unreadNotifications.isEmpty()) {
             notificationRepository.saveAll(unreadNotifications);
         }
+        
+        // Broadcast the updated unread count
+        int unreadCount = countAllUnreadNotifications();
+        webSocketNotificationService.sendUnreadCountUpdate(unreadCount);
     }
     
     /**
@@ -68,6 +74,14 @@ public class NotificationService {
         System.out.println("Creating notification for user ID: " + userId + " with title: " + notification.getTitle());
         Notification saved = notificationRepository.save(notification);
         System.out.println("Saved notification with ID: " + saved.getId());
+        
+        // Broadcast the notification via WebSocket to the specific user
+        webSocketNotificationService.sendNotificationToUser(userId, saved);
+        
+        // Also broadcast the updated unread count to the specific user
+        int unreadCount = notificationRepository.countByRecipientUserIdAndIsReadFalse(userId);
+        webSocketNotificationService.sendUnreadCountUpdateToUser(userId, unreadCount);
+        
         return saved;
     }
     
@@ -76,7 +90,16 @@ public class NotificationService {
      */
     public Notification createNotificationForRole(Notification notification, String role) {
         notification.setRecipientRole(role);
-        return notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+        
+        // Broadcast the notification via WebSocket
+        webSocketNotificationService.sendNotificationToAll(saved);
+        
+        // Also broadcast the updated unread count
+        int unreadCount = countAllUnreadNotifications();
+        webSocketNotificationService.sendUnreadCountUpdate(unreadCount);
+        
+        return saved;
     }
     
     /**
@@ -84,7 +107,16 @@ public class NotificationService {
      */
     public Notification createNotificationForDepartment(Notification notification, Long departmentId) {
         notification.setRecipientDepartmentId(departmentId);
-        return notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+        
+        // Broadcast the notification via WebSocket
+        webSocketNotificationService.sendNotificationToAll(saved);
+        
+        // Also broadcast the updated unread count
+        int unreadCount = countAllUnreadNotifications();
+        webSocketNotificationService.sendUnreadCountUpdate(unreadCount);
+        
+        return saved;
     }
     
     /**
@@ -92,7 +124,16 @@ public class NotificationService {
      */
     public Notification createNotificationForOrganization(Notification notification, Long organizationId) {
         notification.setRecipientOrganizationId(organizationId);
-        return notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+        
+        // Broadcast the notification via WebSocket
+        webSocketNotificationService.sendNotificationToAll(saved);
+        
+        // Also broadcast the updated unread count
+        int unreadCount = countAllUnreadNotifications();
+        webSocketNotificationService.sendUnreadCountUpdate(unreadCount);
+        
+        return saved;
     }
     
     /**
@@ -104,12 +145,41 @@ public class NotificationService {
         notification.setRecipientRole(null);
         notification.setRecipientDepartmentId(null);
         notification.setRecipientOrganizationId(null);
-        return notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+        
+        // Broadcast the notification via WebSocket
+        webSocketNotificationService.sendNotificationToAll(saved);
+        
+        // Also broadcast the updated unread count
+        int unreadCount = countAllUnreadNotifications();
+        webSocketNotificationService.sendUnreadCountUpdate(unreadCount);
+        
+        return saved;
+    }
+    
+    /**
+     * Send a notification to all users
+     * @param title The notification title
+     * @param message The notification message
+     * @param issueKey The associated issue key (optional)
+     * @param senderName The name of the sender (optional)
+     * @param senderUserId The ID of the sender (optional)
+     */
+    public void sendNotificationToAll(String title, String message, String issueKey, String senderName, Long senderUserId) {
+        Notification notification = new Notification();
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setIssueKey(issueKey);
+        notification.setSenderName(senderName);
+        notification.setSenderUserId(senderUserId);
+        
+        // Create as global notification (visible to everyone)
+        createGlobalNotification(notification);
     }
     
     /**
      * Create a status transition notification for all users
-     * Sends notifications to both the requester and the user who changed the status
+     * Sends notifications showing only the issue key and status transition
      */
     public void createStatusTransitionNotification(String issueKey, String fromStatus, String toStatus, 
             Long requesterId, String requesterName, Long requesterDepartmentId, Long requesterOrganizationId,
@@ -118,49 +188,95 @@ public class NotificationService {
         System.out.println("Creating status transition notification for issue: " + issueKey + 
             " from: " + fromStatus + " to: " + toStatus + 
             " requesterId: " + requesterId + " statusChangerId: " + statusChangerId);
+        logger.info("NOTIFICATION_LOG: Creating status transition notification - Issue: {}, From: {}, To: {}, RequesterId: {}, StatusChangerId: {}", 
+            issueKey, fromStatus, toStatus, requesterId, statusChangerId);
         
-        // Create notification for the requester (if different from status changer)
-        if (requesterId != null && !requesterId.equals(statusChangerId)) {
-            Notification requesterNotification = new Notification();
-            requesterNotification.setTitle("Status Updated");
-            requesterNotification.setMessage(String.format("Request %s status changed from '%s' to '%s'", 
-                issueKey, fromStatus, toStatus));
-            requesterNotification.setIssueKey(issueKey);
-            requesterNotification.setFromStatus(fromStatus);
-            requesterNotification.setToStatus(toStatus);
-            requesterNotification.setSenderUserId(statusChangerId != null ? statusChangerId : requesterId);
-            requesterNotification.setSenderName(statusChangerName != null ? statusChangerName : requesterName);
-            // Create as global notification (visible to everyone)
-            createGlobalNotification(requesterNotification);
+        String message = String.format("Request %s status changed from '%s' to '%s'", issueKey, fromStatus, toStatus);
+        boolean hasTargeting = requesterDepartmentId != null || requesterOrganizationId != null;
+        boolean hasRequester = requesterId != null;
+
+        // Targeted notifications: requester (if known)
+        if (hasRequester) {
+            createTargetedNotification("Status Updated", issueKey,
+                message, fromStatus, toStatus,
+                requesterId, requesterDepartmentId, requesterOrganizationId,
+                null,  // role not needed for direct recipient
+                statusChangerId, statusChangerName);
         }
-        
-        // Create notification for the user who changed the status (if different from requester)
-        if (statusChangerId != null && !statusChangerId.equals(requesterId)) {
-            Notification statusChangerNotification = new Notification();
-            statusChangerNotification.setTitle("Status Updated");
-            statusChangerNotification.setMessage(String.format("Request %s status changed from '%s' to '%s'", 
-                issueKey, fromStatus, toStatus));
-            statusChangerNotification.setIssueKey(issueKey);
-            statusChangerNotification.setFromStatus(fromStatus);
-            statusChangerNotification.setToStatus(toStatus);
-            statusChangerNotification.setSenderUserId(statusChangerId);
-            statusChangerNotification.setSenderName(statusChangerName);
-            // Create as global notification (visible to everyone)
-            createGlobalNotification(statusChangerNotification);
+
+        if (hasTargeting) {
+            // Approvers
+            createTargetedNotification("Status Updated", issueKey,
+                message, fromStatus, toStatus,
+                null, requesterDepartmentId, requesterOrganizationId,
+                "APPROVER",
+                statusChangerId, statusChangerName);
+            // Admins
+            createTargetedNotification("Status Updated", issueKey,
+                message, fromStatus, toStatus,
+                null, requesterDepartmentId, requesterOrganizationId,
+                "ADMIN",
+                statusChangerId, statusChangerName);
+        } else if (!hasRequester) {
+            // Fallback to global only if we have no specific targeting and no requester user to notify
+            sendNotificationToAll(
+                "Status Updated",
+                message,
+                issueKey,
+                statusChangerName,
+                statusChangerId
+            );
         }
-        
-        // Create a general notification for all other users
-        Notification generalNotification = new Notification();
-        generalNotification.setTitle("Status Updated");
-        generalNotification.setMessage(String.format("Request %s status changed from '%s' to '%s' by %s", 
-            issueKey, fromStatus, toStatus, requesterName));
-        generalNotification.setIssueKey(issueKey);
-        generalNotification.setFromStatus(fromStatus);
-        generalNotification.setToStatus(toStatus);
-        generalNotification.setSenderUserId(requesterId);
-        generalNotification.setSenderName(requesterName);
-        // Create as global notification (visible to everyone)
-        createGlobalNotification(generalNotification);
+        logger.info("NOTIFICATION_LOG: Notification saved for issue {} transition from '{}' to '{}'", issueKey, fromStatus, toStatus);
+    }
+
+    /**
+     * Create notifications when a request is created
+     */
+    public void createRequestCreatedNotification(String issueKey, Long creatorId, Long departmentId, Long organizationId, String creatorName) {
+        String message = String.format("Request %s has been created", issueKey);
+        boolean hasTargeting = departmentId != null || organizationId != null;
+        boolean hasCreator = creatorId != null;
+
+        // Notify creator (if known)
+        if (hasCreator) {
+            createTargetedNotification("Request Created", issueKey, message, null, null,
+                creatorId, departmentId, organizationId, null, creatorId, creatorName);
+        }
+
+        if (hasTargeting) {
+            // Notify approvers in same org/department
+            createTargetedNotification("Request Created", issueKey, message, null, null,
+                null, departmentId, organizationId, "APPROVER", creatorId, creatorName);
+            // Notify admins in same org/department
+            createTargetedNotification("Request Created", issueKey, message, null, null,
+                null, departmentId, organizationId, "ADMIN", creatorId, creatorName);
+        } else if (!hasCreator) {
+            // Fallback global only if no creator info to target
+            sendNotificationToAll("Request Created", message, issueKey, creatorName, creatorId);
+        }
+    }
+
+    /**
+     * Persist a targeted notification without broadcasting globally.
+     */
+    private void createTargetedNotification(String title, String issueKey, String message, String fromStatus, String toStatus,
+                                            Long recipientUserId, Long recipientDepartmentId, Long recipientOrganizationId,
+                                            String recipientRole, Long senderUserId, String senderName) {
+        Notification notification = new Notification();
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setIssueKey(issueKey);
+        notification.setFromStatus(fromStatus);
+        notification.setToStatus(toStatus);
+        notification.setSenderUserId(senderUserId);
+        notification.setSenderName(senderName);
+        notification.setRecipientUserId(recipientUserId);
+        notification.setRecipientDepartmentId(recipientDepartmentId);
+        notification.setRecipientOrganizationId(recipientOrganizationId);
+        notification.setRecipientRole(recipientRole);
+
+        notificationRepository.save(notification);
     }
     
     /**
@@ -192,7 +308,13 @@ public class NotificationService {
         if (notificationOpt.isPresent()) {
             Notification notification = notificationOpt.get();
             notification.setIsRead(true);
-            return notificationRepository.save(notification);
+            Notification saved = notificationRepository.save(notification);
+            
+            // Broadcast the updated unread count
+            int unreadCount = countAllUnreadNotifications();
+            webSocketNotificationService.sendUnreadCountUpdate(unreadCount);
+            
+            return saved;
         }
         return null;
     }

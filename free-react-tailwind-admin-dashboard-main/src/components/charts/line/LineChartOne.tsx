@@ -1,7 +1,16 @@
-import Chart from "react-apexcharts";
+import { useState, useEffect } from "react";
 import { ApexOptions } from "apexcharts";
 
 export default function LineChartOne() {
+  const [Chart, setChart] = useState<any>(null);
+
+  useEffect(() => {
+    // Dynamically import react-apexcharts only when component mounts
+    import("react-apexcharts").then((module) => {
+      setChart(() => module.default);
+    });
+  }, []);
+
   const options: ApexOptions = {
     legend: {
       show: false, // Hide legend
@@ -110,6 +119,12 @@ export default function LineChartOne() {
       data: [40, 30, 50, 40, 55, 40, 70, 100, 110, 120, 150, 140],
     },
   ];
+
+  // Show loading state while chart is being imported
+  if (!Chart) {
+    return <div className="h-[310px] flex items-center justify-center">Loading chart...</div>;
+  }
+
   return (
     <div className="max-w-full overflow-x-auto custom-scrollbar">
       <div id="chartEight" className="min-w-[1000px]">

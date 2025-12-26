@@ -1,7 +1,16 @@
-import Chart from "react-apexcharts";
+import { useState, useEffect } from "react";
 import { ApexOptions } from "apexcharts";
 
 export default function BarChartOne() {
+  const [Chart, setChart] = useState<any>(null);
+
+  useEffect(() => {
+    // Dynamically import react-apexcharts only when component mounts
+    import("react-apexcharts").then((module) => {
+      setChart(() => module.default);
+    });
+  }, []);
+
   const options: ApexOptions = {
     colors: ["#465fff"],
     chart: {
@@ -87,6 +96,12 @@ export default function BarChartOne() {
       data: [168, 385, 201, 298, 187, 195, 291, 110, 215, 390, 280, 112],
     },
   ];
+
+  // Show loading state while chart is being imported
+  if (!Chart) {
+    return <div className="h-[180px] flex items-center justify-center">Loading chart...</div>;
+  }
+
   return (
     <div className="max-w-full overflow-x-auto custom-scrollbar">
       <div id="chartOne" className="min-w-[1000px]">

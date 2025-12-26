@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Modal } from "../../components/ui/modal";
+import { StandardModal } from "../../components/ui/modal";
 import { jiraService, ProductItem } from "../../services/jiraService";
 
 interface ProposalData {
@@ -279,21 +279,21 @@ const VendorListModal: React.FC<VendorListModalProps> = ({ vendorName, isOpen, o
 
   if (loading) {
     return (
-      <Modal isOpen={isOpen} onClose={onClose} className="max-w-6xl w-full p-6">
+      <StandardModal isOpen={isOpen} onClose={onClose} className="max-w-6xl w-full p-6">
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
         </div>
-      </Modal>
+      </StandardModal>
     );
   }
 
   if (error) {
     return (
-      <Modal isOpen={isOpen} onClose={onClose} className="max-w-6xl w-full p-6">
+      <StandardModal isOpen={isOpen} onClose={onClose} className="max-w-6xl w-full p-6">
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           Error: {error}
         </div>
-      </Modal>
+      </StandardModal>
     );
   }
 
@@ -302,7 +302,7 @@ const VendorListModal: React.FC<VendorListModalProps> = ({ vendorName, isOpen, o
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} className="max-w-6xl w-full p-6">
+    <StandardModal isOpen={isOpen} onClose={onClose} className="max-w-6xl w-full p-6">
       <div className="flex flex-col h-[80vh]">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -437,7 +437,7 @@ const VendorListModal: React.FC<VendorListModalProps> = ({ vendorName, isOpen, o
           </div>
         </div>
       </div>
-    </Modal>
+    </StandardModal>
   );
 };
 
