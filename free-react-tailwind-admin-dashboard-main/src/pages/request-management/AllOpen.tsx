@@ -255,7 +255,7 @@ const AllOpen: React.FC = () => {
           setTotal(payload.total || allIssues.length);
 
           // derive statuses & assignees
-          const uniqueStatuses = Array.from(new Set(filtered.map(i => i.fields?.status?.name).filter(Boolean))).map(s => ({ id: s!, name: s! }));
+          const uniqueStatuses = Array.from(new Set(allIssues.map(i => i.fields?.status?.name).filter(Boolean))).map(s => ({ id: s!, name: s! }));
           
           // Add "Pre Approval" status if not already present and sort
           const allStatuses = uniqueStatuses.some(s => s.name === "Pre Approval") 
