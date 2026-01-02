@@ -5,7 +5,7 @@ export default function WelcomeBanner() {
   const { currentUser } = useAuth();
   
   return (
-    <div className="rounded-2xl border border-gray-200 bg-indigo-100 p-5 dark:border-gray-800 dark:bg-white/[0.03] lg:p-6">
+    <div className="rounded-2xl border border-white/40 dark:border-white/10 bg-white/70 dark:bg-white/[0.05] backdrop-blur-md shadow-md p-5 lg:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90 sm:text-2xl">

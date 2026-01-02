@@ -483,7 +483,18 @@ const othersItems: NavItem[] = [
 
   return (
     <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 left-0 bg-indigo-200 dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 ${
+      className={`fixed mt-16 lg:mt-0 top-0 left-0 z-50 h-screen
+flex flex-col
+bg-gradient-to-b
+from-[#d6d6f2]
+via-[#bfe3ea]
+to-[#8fd3cf]
+text-gray-700
+border-r border-white/30
+backdrop-blur-md
+shadow-lg
+transition-all duration-300 ease-in-out
+ ${
         isExpanded || isMobileOpen
           ? "w-[290px]"
           : isHovered

@@ -539,6 +539,22 @@ const Renewal_vendor: React.FC = () => {
     return <span className={`${base} border-green-200 bg-green-50 text-green-600`}>Active</span>;
   };
 
+  const triggerRenewal = (contract: RenewalItem) => {
+  if (!contract) return;
+
+  const contractId =
+    contract.originalContract.id ||
+    contract.originalContract.existingContractId ||
+    contract.id.replace("C-", "");
+
+  window.dispatchEvent(
+    new CustomEvent("openCreateModal", {
+      detail: { existingContractId: contractId },
+    })
+  );
+};
+
+
   return (
     <div className="p-6">
       <div className="bg-white rounded-lg shadow-sm border border-gray-100">
@@ -550,26 +566,22 @@ const Renewal_vendor: React.FC = () => {
             </div>
 
             <div className="flex items-center space-x-3">
-              <PrimaryButton
-                onClick={() => {
-                  if (selectedContractId) {
-                    const contract = rows.find(r => r.id === selectedContractId);
-                    if (contract) {
-                      // Dispatch event to open CreateIssueModal with existing contract
-                      const contractId = contract.originalContract.id || 
-                                        contract.originalContract.existingContractId || 
-                                        contract.id.replace('C-', '');
-                      window.dispatchEvent(new CustomEvent('openCreateModal', { 
-                        detail: { existingContractId: contractId } 
-                      }));
-                    }
-                  }
-                }}
-                disabled={!selectedContractId}
-                className={`inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium ${!selectedContractId ? 'opacity-50 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-              >
-                Renewal
-              </PrimaryButton>
+            <PrimaryButton
+  onClick={() => {
+    const contract = rows.find(r => r.id === selectedContractId);
+    if (contract) {
+      triggerRenewal(contract);
+    }
+  }}
+  disabled={!selectedContractId}
+  className={`inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium ${
+    !selectedContractId
+      ? "opacity-50 cursor-not-allowed"
+      : "bg-indigo-600 hover:bg-indigo-700"
+  }`}
+>
+  Renewal
+</PrimaryButton>
 
               <div className="relative">
                 <button
@@ -649,6 +661,8 @@ const Renewal_vendor: React.FC = () => {
                   <TableCell isHeader={true} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</TableCell>
                   <TableCell isHeader={true} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Owner</TableCell>
                   <TableCell isHeader={true} className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Value (USD)</TableCell>
+                  <TableCell isHeader={true}className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide"> Renewal</TableCell>
+
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -698,6 +712,17 @@ const Renewal_vendor: React.FC = () => {
                     <TableCell isHeader={false} className="px-4 py-3 text-sm">{renderStageBadge(r.renewalStage)}</TableCell>
                     <TableCell isHeader={false} className="px-4 py-3 text-sm text-gray-900">{r.owner}</TableCell>
                     <TableCell isHeader={false} className="px-4 py-3 text-sm text-gray-900 font-semibold text-right">{r.totalValue}</TableCell>
+                    <TableCell isHeader={false} className="px-4 py-3 text-sm text-center">
+  {selectedContractId === r.id && (
+    <PrimaryButton
+      onClick={() => triggerRenewal(r)}
+      className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 text-xs"
+    >
+      Renewal
+    </PrimaryButton>
+  )}
+</TableCell>
+
                   </TableRow>
                 ))}
               </TableBody>

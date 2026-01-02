@@ -32,7 +32,18 @@ const Header: React.FC = () => {
   const { inputRef } = useSearchHandler();
 
   return (
-    <header className="sticky top-0 flex w-full bg-indigo-200 border-gray-200 z-50 dark:border-gray-800 dark:bg-gray-900 lg:border-b">
+    <header className="sticky top-0 z-50 w-full flex
+bg-gradient-to-r
+from-[#d6d6f2]
+via-[#bfe3ea]
+to-[#8fd3cf]
+dark:from-[#0f172a]
+dark:via-[#0b3a3f]
+dark:to-[#064e3b]
+border-b border-white/30 dark:border-white/10
+backdrop-blur-md
+shadow-sm
+">
       <div className="flex flex-col items-center justify-between grow lg:flex-row lg:px-6">
         <div className="flex items-center justify-between w-full gap-2 px-3 py-3 border-b border-gray-200 dark:border-gray-800 sm:gap-4 lg:justify-normal lg:border-b-0 lg:px-0 lg:py-4">
           <ToggleSidebarButton isMobileOpen={isMobileOpen} isExpanded={isExpanded} onClick={handleToggle} />
